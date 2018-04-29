@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <iostream> //DEBUG
 
 #include "ApparentHorizons/Strahlkorper.hpp"
 #include "ApparentHorizons/StrahlkorperDataBox.hpp"  // IWYU pragma: keep
@@ -389,8 +390,21 @@ void test_spin_function(const Solution& solution,
     }
   }
 
+  auto alt2_tangents = tangents;
+  for (size_t i=0; i < 3; ++i) {
+    alt2_tangents.get(i,1) *= get(sin_theta);
+  }
+
+  //DEBUG: print out the different tangents
+  for(size_t i=0; i<2; ++i) {
+    for(size_t j=0; j<3; ++j) {
+      std::cout << "(j,i)=(" << j << "," << i <<")\n"
+                << alt2_tangents.get(j,i) - alt_tangents.get(j,i);
+    }
+  }
+
   const auto& spin_function = StrahlkorperGr::spin_function(
-      sin_theta, tangents, ylm, unit_normal_vector, area_element,
+      sin_theta, alt_tangents, ylm, unit_normal_vector, area_element,
       extrinsic_curvature);
 
   auto integrand = spin_function;
@@ -511,7 +525,9 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.SpinFunction",
       mass * (1.0 + sqrt(1.0 - square(magnitude(spin))));
   // See Geoffrey's overleaf note for the integral,
   // which I evaluate numerically in Mathematica.
-  const double expected_spin_function_sq_integral = 0.012510962794139486;
+  // Geoffrey is discussing with Rob why the factor of 4.0,
+  // but since this factor appears in SpEC as well, it's OK
+  const double expected_spin_function_sq_integral = 4.0*0.012510962794139486;
 
   const auto horizon_radius = TestHelpers::Kerr::horizon_radius(
       Strahlkorper<Frame::Inertial>(l_max, l_max, 2.0, center)
