@@ -186,13 +186,14 @@ Scalar<DataVector> area_element(
 
 template <typename Frame>
 Scalar<DataVector> spin_function(
+    const Scalar<DataVector>& sin_theta,
     const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame> tangents,
     const YlmSpherepack ylm,
     const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept {
-  auto sin_theta = make_with_value<Scalar<DataVector>>(area_element, 0.0);
-  get(sin_theta) = sin(ylm.theta_phi_points()[0]);
+  // auto sin_theta = make_with_value<Scalar<DataVector>>(area_element, 0.0);
+  // get(sin_theta) = sin(ylm.theta_phi_points()[0]);
 
   auto extrinsic_curvature_theta_normal_sintheta =
       make_with_value<Scalar<DataVector>>(area_element, 0.0);
@@ -270,6 +271,7 @@ template Scalar<DataVector> StrahlkorperGr::area_element<Frame::Inertial>(
     const tnsr::i<DataVector, 3, Frame::Inertial>& r_hat) noexcept;
 
 template Scalar<DataVector> StrahlkorperGr::spin_function<Frame::Inertial>(
+    const Scalar<DataVector>& sin_theta,
     const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame::Inertial>
         tangents,
     const YlmSpherepack ylm,

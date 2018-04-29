@@ -189,6 +189,7 @@ Scalar<DataVector> area_element(
  */
 template <typename Frame>
 Scalar<DataVector> spin_function(
+    const Scalar<DataVector>& sin_theta,
     const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame> tangents,
     const YlmSpherepack ylm,
     const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,

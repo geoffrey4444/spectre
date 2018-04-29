@@ -311,8 +311,6 @@ void test_spin_function(const Solution& solution,
       one_over_one_form_magnitude);
   const auto unit_normal_vector =
       raise_or_lower_index(unit_normal_one_form, inverse_spatial_metric);
-  const auto& tangents =
-      db::get<StrahlkorperTags::Tangents<Frame::Inertial>>(box);
 
   const auto& r_hat = db::get<StrahlkorperTags::Rhat<Frame::Inertial>>(box);
   const auto& radius = db::get<StrahlkorperTags::Radius<Frame::Inertial>>(box);
@@ -336,8 +334,64 @@ void test_spin_function(const Solution& solution,
           vars),
       deriv_spatial_metric);
 
+  // Compute the tangents in two ways
+  // First, the built-in tangents
+  const auto& tangents =
+      db::get<StrahlkorperTags::Tangents<Frame::Inertial>>(box);
+
+  // Second, same as StrahlkorperPhysicalQuantities in SpEC
+  const auto center = strahlkorper.center();
+  auto rel_coords = cart_coords;
+  rel_coords.get(0) -= center[0];
+  rel_coords.get(1) -= center[1];
+  rel_coords.get(2) -= center[2];
+
+  auto r = make_with_value<Scalar<DataVector>>(cart_coords.get(0), 0.0);
+  auto r_cyl = make_with_value<Scalar<DataVector>>(cart_coords.get(0), 0.0);
+  get(r) += sqrt(square(rel_coords.get(0)) + square(rel_coords.get(1)) +
+                 square(rel_coords.get(2)));
+  get(r_cyl) += sqrt(square(rel_coords.get(0)) + square(rel_coords.get(1)));
+  auto alt_sin_theta =
+      make_with_value<Scalar<DataVector>>(cart_coords.get(0), 0.0);
+  get(alt_sin_theta) = get(r_cyl) / get(r);
+  auto sin_theta = make_with_value<Scalar<DataVector>>(cart_coords.get(0), 0.0);
+  get(sin_theta) = sin(ylm.theta_phi_points()[0]);
+
+  auto sphere_basis = make_with_value<tnsr::ij<DataVector, 3, Frame::Inertial>>(
+      cart_coords.get(0), 0.0);
+  sphere_basis.get(0, 0) = rel_coords.get(2) * rel_coords.get(0) / get(r_cyl);
+  sphere_basis.get(1, 0) = rel_coords.get(2) * rel_coords.get(1) / get(r_cyl);
+  sphere_basis.get(2, 0) = -get(r_cyl);
+  sphere_basis.get(0, 1) = -rel_coords.get(1);
+  sphere_basis.get(1, 1) = rel_coords.get(0);
+  sphere_basis.get(2, 1) = 0.;
+  sphere_basis.get(0, 2) = rel_coords.get(0) / get(r);
+  sphere_basis.get(1, 2) = rel_coords.get(1) / get(r);
+  sphere_basis.get(2, 2) = rel_coords.get(2) / get(r);
+
+  auto unit_normal_oneform_sphere_basis =
+      make_with_value<tnsr::i<DataVector, 3, Frame::Inertial>>(cart_coords,
+                                                               0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 3; ++j) {
+      unit_normal_oneform_sphere_basis.get(i) +=
+          sphere_basis.get(j, i) * unit_normal_one_form.get(j);
+    }
+  }
+
+  auto alt_tangents = tangents;
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 2; ++j) {
+      alt_tangents.get(i, j) =
+          sphere_basis.get(i, j) -
+          sphere_basis.get(i, 2) * (unit_normal_oneform_sphere_basis.get(j) /
+                                    unit_normal_oneform_sphere_basis.get(2));
+    }
+  }
+
   const auto& spin_function = StrahlkorperGr::spin_function(
-      tangents, ylm, unit_normal_vector, area_element, extrinsic_curvature);
+      sin_theta, tangents, ylm, unit_normal_vector, area_element,
+      extrinsic_curvature);
 
   auto integrand = spin_function;
   get(integrand) *= get(area_element) * get(spin_function);
