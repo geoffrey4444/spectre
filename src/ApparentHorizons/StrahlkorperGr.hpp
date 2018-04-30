@@ -4,11 +4,11 @@
 #pragma once
 
 #include "ApparentHorizons/StrahlkorperDataBox.hpp"
-#include "ApparentHorizons/YlmSpherepack.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 
 /// \cond
 class DataVector;
+class YlmSpherepack;
 template <typename X, typename Symm, typename IndexList>
 class Tensor;
 /// \endcond
@@ -189,8 +189,8 @@ Scalar<DataVector> area_element(
  */
 template <typename Frame>
 Scalar<DataVector> spin_function(
-    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame> tangents,
-    const YlmSpherepack ylm,
+    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame>& tangents,
+    const YlmSpherepack& ylm,
     const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept;

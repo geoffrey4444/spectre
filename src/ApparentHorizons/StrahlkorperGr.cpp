@@ -3,9 +3,11 @@
 
 #include "ApparentHorizons/StrahlkorperGr.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 
+#include "ApparentHorizons/YlmSpherepack.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
@@ -186,8 +188,8 @@ Scalar<DataVector> area_element(
 
 template <typename Frame>
 Scalar<DataVector> spin_function(
-    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame> tangents,
-    const YlmSpherepack ylm,
+    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame>& tangents,
+    const YlmSpherepack& ylm,
     const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept {
@@ -278,9 +280,9 @@ template Scalar<DataVector> StrahlkorperGr::area_element<Frame::Inertial>(
     const tnsr::i<DataVector, 3, Frame::Inertial>& r_hat) noexcept;
 
 template Scalar<DataVector> StrahlkorperGr::spin_function<Frame::Inertial>(
-    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame::Inertial>
+    const StrahlkorperTags::StrahlkorperTags_detail::Jacobian<Frame::Inertial>&
         tangents,
-    const YlmSpherepack ylm,
+    const YlmSpherepack& ylm,
     const tnsr::I<DataVector, 3, Frame::Inertial>& unit_normal_vector,
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame::Inertial>&

@@ -319,7 +319,7 @@ void test_spin_function(const Solution& solution,
   const auto area_element = StrahlkorperGr::area_element(
       spatial_metric, jacobian, normal_one_form, radius, r_hat);
 
-  const auto ylm = strahlkorper.ylm_spherepack();
+  const auto& ylm = strahlkorper.ylm_spherepack();
 
   const auto& deriv_spatial_metric =
       get<Tags::deriv<gr::Tags::SpatialMetric<3, Frame::Inertial, DataVector>,
@@ -454,9 +454,6 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.SpinFunction",
   const double mass = 4.444;
   const std::array<double, 3> spin{{0.4, 0.33, 0.22}};
   const std::array<double, 3> center{{0.0, 0.0, 0.0}};
-
-  const double kerr_horizon_radius =
-      mass * (1.0 + sqrt(1.0 - square(magnitude(spin))));
 
   const auto horizon_radius = TestHelpers::Kerr::horizon_radius(
       Strahlkorper<Frame::Inertial>(l_max, l_max, 2.0, center)
