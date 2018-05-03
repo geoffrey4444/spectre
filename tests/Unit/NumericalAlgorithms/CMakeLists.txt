@@ -3,6 +3,7 @@
 
 add_subdirectory(DiscontinuousGalerkin)
 add_subdirectory(Interpolation)
+add_subdirectory(Lapack)
 add_subdirectory(LinearOperators)
 add_subdirectory(RootFinding)
 add_subdirectory(Spectral)
