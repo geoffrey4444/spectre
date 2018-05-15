@@ -449,7 +449,6 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.AreaElement",
 SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.SpinFunction",
                   "[ApparentHorizons][Unit]") {
   // Set up Kerr horizon
-  // Check the area of a Kerr horizon
   constexpr int l_max = 24;
   const double mass = 4.444;
   const std::array<double, 3> spin{{0.4, 0.33, 0.22}};
@@ -471,10 +470,12 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.SpinFunction",
       Strahlkorper<Frame::Inertial>(l_max, l_max, 8.888, center), 0.0);
 
   // Check value of SpinFunction^2 integrated over the surface for
-  // Kerr.
-  // See Geoffrey's overleaf note and Mathematica notebook for the
-  // numerical value.
-  const double expected_spin_function_sq_integral = 4.0 * 0.012510962794139486;
+  // Kerr. Derive this by integrating the square of the imaginary
+  // part of Newman-Penrose Psi^2 on the Kerr horizon using the Kinnersley
+  // null tetrad. For example, this integral is set up in the section
+  // ``Spin function for Kerr'' of Geoffrey Lovelace's overleaf note:
+  // https://v2.overleaf.com/read/twdtxchyrtyv
+  const double expected_spin_function_sq_integral = 4.0 * 0.0125109627941394;
 
   test_spin_function(EinsteinSolutions::KerrSchild{mass, spin, center},
                      kerr_horizon, expected_spin_function_sq_integral);

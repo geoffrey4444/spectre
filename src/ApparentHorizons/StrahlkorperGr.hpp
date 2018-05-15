@@ -165,8 +165,14 @@ Scalar<DataVector> area_element(
  * \brief Spin function of a 2D `Strahlkorper`.
  *
  * \details See Eqs. (2) and (10)
- * of https://arxiv.org/abs/1708.07325.
- * Specifically, computes \f$\Omega = \epsilon^{AB}\nabla_A\omega_B\f$,
+ * of https://arxiv.org/abs/1708.07325. This function computes the
+ * ``spin function,'' which is an ingredient for horizon surface integrals that
+ * measure quasilocal spin. This function is proportional to the imaginary part
+ * of the horizon's complex scalar curvature. For Kerr black holes, the spin
+ * function is proportional to the horizon vorticity. It is also useful for
+ * visualizing the direction of a black hole's spin.
+ * Specifically, this function computes
+ * \f$\Omega = \epsilon^{AB}\nabla_A\omega_B\f$,
  * where capital indices index the tangent bundle of the surface and
  * where \f$\omega_\mu=(K_{\rho\nu}-K g_{\rho\nu})h_\mu^\rho s^\nu\f$ is
  * the curl of the angular momentum density of the surface,

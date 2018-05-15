@@ -196,17 +196,17 @@ Scalar<DataVector> spin_function(
   auto sin_theta = make_with_value<Scalar<DataVector>>(area_element, 0.0);
   get(sin_theta) = sin(ylm.theta_phi_points()[0]);
 
-  auto extrinsic_curvature_theta_normal_sintheta =
+  auto extrinsic_curvature_theta_normal_sin_theta =
       make_with_value<Scalar<DataVector>>(area_element, 0.0);
   auto extrinsic_curvature_phi_normal =
       make_with_value<Scalar<DataVector>>(area_element, 0.0);
   for (size_t i = 0; i < 3; ++i) {
     for (size_t j = 0; j < 3; ++j) {
       // Note: I must multiply by sin_theta here because
-      // later on, when I take the phi gradient of this term,
-      // the spherepack gradient divides by sin_theta after
-      // computing the phi derivative.
-      get(extrinsic_curvature_theta_normal_sintheta) +=
+      // I take the phi derivative of this term by using
+      // the spherepack gradient, which includes a
+      // sin_theta in the denominator of the phi derivative.
+      get(extrinsic_curvature_theta_normal_sin_theta) +=
           extrinsic_curvature.get(i, j) * tangents.get(i, 0) *
           unit_normal_vector.get(j) * get(sin_theta);
 
@@ -224,7 +224,7 @@ Scalar<DataVector> spin_function(
   spin_function.get() +=
       ylm.gradient(extrinsic_curvature_phi_normal.get()).get(0);
   spin_function.get() -=
-      ylm.gradient(extrinsic_curvature_theta_normal_sintheta.get()).get(1);
+      ylm.gradient(extrinsic_curvature_theta_normal_sin_theta.get()).get(1);
   spin_function.get() /= sin_theta.get() * area_element.get();
 
   return spin_function;
