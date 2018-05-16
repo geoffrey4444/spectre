@@ -349,6 +349,77 @@ void test_spin_function(const Solution& solution,
   CHECK_ITERABLE_CUSTOM_APPROX(integral, expected, custom_approx);
 }
 
+template <typename Solution, typename Fr>
+void test_spin_components(const Solution& solution,
+                          const Strahlkorper<Fr>& strahlkorper,
+                          const double expected) noexcept {
+  const auto box = db::create<
+      db::AddSimpleTags<StrahlkorperTags::items_tags<Frame::Inertial>>,
+      db::AddComputeTags<
+          StrahlkorperTags::compute_items_tags<Frame::Inertial>>>(strahlkorper);
+
+  const double t = 0.0;
+  const auto& cart_coords =
+      db::get<StrahlkorperTags::CartesianCoords<Frame::Inertial>>(box);
+
+  const auto vars = solution.variables(
+      cart_coords, t, typename Solution::template tags<DataVector>{});
+
+  const auto& spatial_metric =
+      get<gr::Tags::SpatialMetric<3, Frame::Inertial, DataVector>>(vars);
+  const auto inverse_spatial_metric =
+      determinant_and_inverse(spatial_metric).second;
+
+  const auto& normal_one_form =
+      db::get<StrahlkorperTags::NormalOneForm<Frame::Inertial>>(box);
+  const DataVector one_over_one_form_magnitude =
+      1.0 / get(magnitude(
+                db::get<StrahlkorperTags::NormalOneForm<Frame::Inertial>>(box),
+                inverse_spatial_metric));
+  const auto unit_normal_one_form = StrahlkorperGr::unit_normal_one_form(
+      db::get<StrahlkorperTags::NormalOneForm<Frame::Inertial>>(box),
+      one_over_one_form_magnitude);
+  const auto unit_normal_vector =
+      raise_or_lower_index(unit_normal_one_form, inverse_spatial_metric);
+
+  const auto& r_hat = db::get<StrahlkorperTags::Rhat<Frame::Inertial>>(box);
+  const auto& radius = db::get<StrahlkorperTags::Radius<Frame::Inertial>>(box);
+  const auto& jacobian =
+      db::get<StrahlkorperTags::Jacobian<Frame::Inertial>>(box);
+  const auto area_element = StrahlkorperGr::area_element(
+      spatial_metric, jacobian, normal_one_form, radius, r_hat);
+
+  const auto& ylm = strahlkorper.ylm_spherepack();
+
+  const auto& deriv_spatial_metric =
+      get<Tags::deriv<gr::Tags::SpatialMetric<3, Frame::Inertial, DataVector>,
+                      tmpl::size_t<3>, Frame::Inertial>>(vars);
+  const auto& extrinsic_curvature = gr::extrinsic_curvature(
+      get<gr::Tags::Lapse<3, Frame::Inertial, DataVector>>(vars),
+      get<gr::Tags::Shift<3, Frame::Inertial, DataVector>>(vars),
+      get<Tags::deriv<gr::Tags::Shift<3, Frame::Inertial, DataVector>,
+                      tmpl::size_t<3>, Frame::Inertial>>(vars),
+      spatial_metric,
+      get<Tags::dt<gr::Tags::SpatialMetric<3, Frame::Inertial, DataVector>>>(
+          vars),
+      deriv_spatial_metric);
+
+  const auto& tangents =
+      db::get<StrahlkorperTags::Tangents<Frame::Inertial>>(box);
+
+  const auto& spin_function = StrahlkorperGr::spin_function(
+      tangents, ylm, unit_normal_vector, area_element, extrinsic_curvature);
+// get the Kerr-Schild ricci_scalar, rotate it, and test the spin components
+
+//  auto integrand = spin_function;
+//  get(integrand) *= get(area_element) * get(spin_function);
+//
+//  const double integral = ylm.definite_integral(get(integrand).data());
+//
+//  Approx custom_approx = Approx::custom().epsilon(1.e-12).scale(1.0);
+//  CHECK_ITERABLE_CUSTOM_APPROX(integral, expected, custom_approx);
+}
+
 SPECTRE_TEST_CASE("Unit.ApparentHorizons.StrahlkorperGr.Expansion",
                   "[ApparentHorizons][Unit]") {
   const auto sphere =

@@ -201,4 +201,31 @@ Scalar<DataVector> spin_function(
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept;
 
+/*!
+ * \ingroup SurfacesGroup
+ * \brief Spin components of a 2D `Strahlkorper`.
+ *
+ * \details See Eq. (25)
+ * of https://arxiv.org/abs/1708.07325. This function computes the
+ * Cartesian components of the spin of a `Strahlkorper` given the
+ * spin magnitude, the `spin_function` of the `Strahlkorper`,
+ * the `ricci_scalar` of the `Strahlkorper`, and Cartesian coordinates
+ * associated with some frame (such as `Frame::Inertial`). The
+ * spin components are given by the integral
+ * \f$ S^i = \frac{S}{N}\oint \Omega (x^i-x^i_0 dA \f$, where \f$ S \f$
+ * is the magnitude of the spin, \f$ \Omega \f$ is the `spin_function`,
+ * \f$ x^i \f$ are the `cartesian_coordinates` of some frame, and
+ * N is a normalization factor that makes the spin direction a unit vector
+ * in flat space. Here \f$ x^i_0 = \oint (x^i - x^i_{S}) R dA)\f$,
+ * is the center about which the mass dipole moment is zero, where
+ * \f$ x^i_S \f$ is the coordinate center of the Strahlkorper and \f$ R\f$ is
+ * the `ricci_scalar` of the `Strahlkorper`.
+ */
+template <typename Frame>
+std::vector<double, 3> spin_components(
+    const double& spin_magnitude, const Scalar<DataVector>& ricci_scalar,
+    const Scalar<DataVector>& spin_function,
+    const tnsr::i<DataVector, 3, Frame>& cartesian_coordinates,
+    const std::vector<double, 3>& coordinate_center,
+    const Scalar<DataVector>& area_element, const YlmSpherepack& ylm) noexcept;
 }  // namespace StrahlkorperGr

@@ -214,8 +214,8 @@ Scalar<DataVector> spin_function(
       // actually contains \partial_\phi / sin(theta), but I want just
       //\partial_\phi.
       get(extrinsic_curvature_phi_normal) +=
-          extrinsic_curvature.get(i, j) * tangents.get(i, 1) *
-          get(sin_theta) * unit_normal_vector.get(j);
+          extrinsic_curvature.get(i, j) * tangents.get(i, 1) * get(sin_theta) *
+          unit_normal_vector.get(j);
     }
   }
 
@@ -228,6 +228,43 @@ Scalar<DataVector> spin_function(
   spin_function.get() /= sin_theta.get() * area_element.get();
 
   return spin_function;
+}
+
+template <typename Frame>
+std::vector<double, 3> spin_components(
+    const double& spin_magnitude, const Scalar<DataVector>& ricci_scalar,
+    const Scalar<DataVector>& spin_function,
+    const tnsr::i<DataVector, 3, Frame>& cartesian_coordinates,
+    const std::vector<double, 3>& coordinate_center,
+    const Scalar<DataVector>& area_element, const YlmSpherepack& ylm) noexcept {
+  std::vector<double, 3> center = {{0.0, 0.0, 0.0}};
+  std::vector<double, 3> spin_components = {{0.0, 0.0, 0.0}};
+  double spin_unit_vector_normalization_squared = 0.0;
+
+  for (size_t i = 0; i < 3; ++i) {
+    // Compute the center.
+    // This choice of center zeros the mass dipole moment, which
+    // is proportional to the product of the ricci_scalar and the coordinates
+    // integrated over the Strahlkorper.
+    center[i] = ylm.definite_integral(
+                    (get(area_element) * get(ricci_scalar) *
+                     (cartesian_coordinates.get(i) - coordinate_center[i]))
+                        .data()) /
+                (8.0 * M_PI);
+    spin_components[i] = ylm.definite_integral(
+        (get(area_element) * get(spin_function) *
+         (cartesian_coordinates.get(i) - coordinate_center[i] - center[i]))
+            .data());
+    spin_unit_vector_normalization_squared += square(spin_components[i]);
+  }
+
+  // Normalize the spin unit vector so it is a unit vector in flat space
+  // and multiply by the spin magnitude to get the spin components
+  for (size_t i = 0; i < 3; ++i) {
+    spin_components[i] *=
+        spin_magnitude / sqrt(spin_unit_vector_normalization_squared);
+  }
+  return spin_components;
 }
 }  // namespace StrahlkorperGr
 
@@ -287,3 +324,10 @@ template Scalar<DataVector> StrahlkorperGr::spin_function<Frame::Inertial>(
     const Scalar<DataVector>& area_element,
     const tnsr::ii<DataVector, 3, Frame::Inertial>&
         extrinsic_curvature) noexcept;
+
+template std::vector<double, 3> spin_components(
+    const double& spin_magnitude, const Scalar<DataVector>& ricci_scalar,
+    const Scalar<DataVector>& spin_function,
+    const tnsr::i<DataVector, 3, Frame::Inertial>& cartesian_coordinates,
+    const std::vector<double, 3>& coordinate_center,
+    const Scalar<DataVector>& area_element, const YlmSpherepack& ylm) noexcept;
