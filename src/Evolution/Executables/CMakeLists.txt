@@ -3,3 +3,4 @@
 
 add_subdirectory(Burgers)
 add_subdirectory(ScalarWave)
+add_subdirectory(GeneralizedHarmonic)

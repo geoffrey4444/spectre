@@ -1,0 +1,27 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+# Executable: EvolveGeneralizedHarmonicPeriodic
+# Check: execute
+
+AnalyticSolution:
+  Mass: 1.0
+  Spin: [0.0, 0.0, 0.0]
+  Center: [0.0, 0.0, 0.0]
+
+InitialTime: 0.0
+FinalTime: 0.05
+InitialTimeStep: 0.01
+
+DomainCreator:
+  Shell:
+    InnerRadius: 1.8
+    OuterRadius: 10.8
+    InitialRefinement: [4, 4, 4]
+    InitialGridPoints: [5, 5, 5]
+
+TimeStepper:
+  AdamsBashforthN:
+    TargetOrder: 3
+
+NumericalFluxParams:
