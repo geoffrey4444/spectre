@@ -93,7 +93,7 @@ void CylindricalBlastWave::pup(PUP::er& p) noexcept {
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::RestMassDensity<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::RestMassDensity<DataType>> /*meta*/) const
     noexcept {
   return compute_piecewise(x, inner_radius_, outer_radius_, inner_density_,
@@ -103,7 +103,7 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::SpatialVelocity<DataType, 3>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::SpatialVelocity<DataType, 3>> /*meta*/) const
     noexcept {
   return {make_with_value<db::item_type<
@@ -113,20 +113,20 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::SpecificInternalEnergy<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double t,
     tmpl::list<hydro::Tags::SpecificInternalEnergy<DataType>> /*meta*/) const
     noexcept {
   return equation_of_state_.specific_internal_energy_from_density_and_pressure(
-      get<hydro::Tags::RestMassDensity<DataType>>(
-          variables(x, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{})),
+      get<hydro::Tags::RestMassDensity<DataType>>(variables(
+          x, t, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{})),
       get<hydro::Tags::Pressure<DataType>>(
-          variables(x, tmpl::list<hydro::Tags::Pressure<DataType>>{})));
+          variables(x, t, tmpl::list<hydro::Tags::Pressure<DataType>>{})));
 }
 
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::Pressure<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::Pressure<DataType>> /*meta*/) const noexcept {
   return compute_piecewise(x, inner_radius_, outer_radius_, inner_pressure_,
                            outer_pressure_);
@@ -136,7 +136,7 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::MagneticField<DataType, 3>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::MagneticField<DataType, 3>> /*meta*/) const
     noexcept {
   auto magnetic_field =
@@ -151,7 +151,7 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::DivergenceCleaningField<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::DivergenceCleaningField<DataType>> /*meta*/) const
     noexcept {
   return {make_with_value<
@@ -161,7 +161,7 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::LorentzFactor<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double /* t */,
     tmpl::list<hydro::Tags::LorentzFactor<DataType>> /*meta*/) const noexcept {
   return {make_with_value<
       db::item_type<hydro::Tags::LorentzFactor<DataType>>>(x, 1.0)};
@@ -170,14 +170,14 @@ CylindricalBlastWave::variables(
 template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::SpecificEnthalpy<DataType>>
 CylindricalBlastWave::variables(
-    const tnsr::I<DataType, 3, Frame::Inertial>& x,
+    const tnsr::I<DataType, 3, Frame::Inertial>& x, const double t,
     tmpl::list<hydro::Tags::SpecificEnthalpy<DataType>> /*meta*/) const
     noexcept {
   return equation_of_state_.specific_enthalpy_from_density_and_energy(
-      get<hydro::Tags::RestMassDensity<DataType>>(
-          variables(x, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{})),
+      get<hydro::Tags::RestMassDensity<DataType>>(variables(
+          x, t, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{})),
       get<hydro::Tags::SpecificInternalEnergy<DataType>>(variables(
-          x, tmpl::list<hydro::Tags::SpecificInternalEnergy<DataType>>{})));
+          x, t, tmpl::list<hydro::Tags::SpecificInternalEnergy<DataType>>{})));
 }
 
 bool operator==(const CylindricalBlastWave& lhs,
@@ -200,11 +200,12 @@ bool operator!=(const CylindricalBlastWave& lhs,
 #define DTYPE(data) BOOST_PP_TUPLE_ELEM(0, data)
 #define TAG(data) BOOST_PP_TUPLE_ELEM(1, data)
 
-#define INSTANTIATE_SCALARS(_, data)                         \
-  template tuples::TaggedTuple<TAG(data) < DTYPE(data)>>     \
-      CylindricalBlastWave::variables(                       \
-          const tnsr::I<DTYPE(data), 3, Frame::Inertial>& x, \
-          tmpl::list<TAG(data) < DTYPE(data)>> /*meta*/) const noexcept;
+#define INSTANTIATE_SCALARS(_, data)                                           \
+  template tuples::TaggedTuple<TAG(data) < DTYPE(data)>>                       \
+      CylindricalBlastWave::variables(                                         \
+          const tnsr::I<DTYPE(data), 3, Frame::Inertial>& x,                   \
+          const double /* t */, tmpl::list<TAG(data) < DTYPE(data)>> /*meta*/) \
+          const noexcept;
 
 GENERATE_INSTANTIATIONS(
     INSTANTIATE_SCALARS, (double, DataVector),
@@ -216,6 +217,7 @@ GENERATE_INSTANTIATIONS(
   template tuples::TaggedTuple<TAG(data) < DTYPE(data), 3>>                  \
       CylindricalBlastWave::variables(                                       \
           const tnsr::I<DTYPE(data), 3, Frame::Inertial>& x,                 \
+          const double /* t */,                                              \
           tmpl::list<TAG(data) < DTYPE(data), 3, Frame::Inertial>> /*meta*/) \
           const noexcept;
 

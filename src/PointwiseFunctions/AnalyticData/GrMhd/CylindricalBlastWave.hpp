@@ -143,31 +143,31 @@ class CylindricalBlastWave {
   /// Retrieve the GRMHD variables at a given position.
   template <typename DataType>
   auto variables(
-      const tnsr::I<DataType, 3>& x,
+      const tnsr::I<DataType, 3>& x, double /* t */,
       tmpl::list<hydro::Tags::RestMassDensity<DataType>> /*meta*/) const
       noexcept -> tuples::TaggedTuple<hydro::Tags::RestMassDensity<DataType>>;
 
   template <typename DataType>
   auto variables(
-      const tnsr::I<DataType, 3>& x,
+      const tnsr::I<DataType, 3>& x, double t,
       tmpl::list<hydro::Tags::SpecificInternalEnergy<DataType>> /*meta*/) const
       noexcept
       -> tuples::TaggedTuple<hydro::Tags::SpecificInternalEnergy<DataType>>;
 
   template <typename DataType>
-  auto variables(const tnsr::I<DataType, 3>& x,
+  auto variables(const tnsr::I<DataType, 3>& x, double /* t */,
                  tmpl::list<hydro::Tags::Pressure<DataType>> /*meta*/) const
       noexcept -> tuples::TaggedTuple<hydro::Tags::Pressure<DataType>>;
 
   template <typename DataType>
-  auto variables(const tnsr::I<DataType, 3>& x,
+  auto variables(const tnsr::I<DataType, 3>& x, double /* t */,
                  tmpl::list<hydro::Tags::SpatialVelocity<
                      DataType, 3, Frame::Inertial>> /*meta*/) const noexcept
       -> tuples::TaggedTuple<
           hydro::Tags::SpatialVelocity<DataType, 3, Frame::Inertial>>;
 
   template <typename DataType>
-  auto variables(const tnsr::I<DataType, 3>& x,
+  auto variables(const tnsr::I<DataType, 3>& x, double /* t */,
                  tmpl::list<hydro::Tags::MagneticField<
                      DataType, 3, Frame::Inertial>> /*meta*/) const noexcept
       -> tuples::TaggedTuple<
@@ -175,20 +175,20 @@ class CylindricalBlastWave {
 
   template <typename DataType>
   auto variables(
-      const tnsr::I<DataType, 3>& x,
+      const tnsr::I<DataType, 3>& x, double /* t */,
       tmpl::list<hydro::Tags::DivergenceCleaningField<DataType>> /*meta*/) const
       noexcept
       -> tuples::TaggedTuple<hydro::Tags::DivergenceCleaningField<DataType>>;
 
   template <typename DataType>
   auto variables(
-      const tnsr::I<DataType, 3>& x,
+      const tnsr::I<DataType, 3>& x, double /* t */,
       tmpl::list<hydro::Tags::LorentzFactor<DataType>> /*meta*/) const noexcept
       -> tuples::TaggedTuple<hydro::Tags::LorentzFactor<DataType>>;
 
   template <typename DataType>
   auto variables(
-      const tnsr::I<DataType, 3>& x,
+      const tnsr::I<DataType, 3>& x, double t,
       tmpl::list<hydro::Tags::SpecificEnthalpy<DataType>> /*meta*/) const
       noexcept -> tuples::TaggedTuple<hydro::Tags::SpecificEnthalpy<DataType>>;
   // @}
@@ -196,20 +196,19 @@ class CylindricalBlastWave {
   /// Retrieve a collection of hydrodynamic variables at position x
   template <typename DataType, typename... Tags>
   tuples::TaggedTuple<Tags...> variables(
-      const tnsr::I<DataType, 3, Frame::Inertial>& x,
+      const tnsr::I<DataType, 3, Frame::Inertial>& x, const double t,
       tmpl::list<Tags...> /*meta*/) const noexcept {
     static_assert(sizeof...(Tags) > 1,
                   "The generic template will recurse infinitely if only one "
                   "tag is being retrieved.");
-    return {tuples::get<Tags>(variables(x, tmpl::list<Tags>{}))...};
+    return {tuples::get<Tags>(variables(x, t, tmpl::list<Tags>{}))...};
   }
 
   /// Retrieve the metric variables
   template <typename DataType, typename Tag>
-  tuples::TaggedTuple<Tag> variables(const tnsr::I<DataType, 3>& x,
+  tuples::TaggedTuple<Tag> variables(const tnsr::I<DataType, 3>& x, double t,
                                      tmpl::list<Tag> /*meta*/) const noexcept {
-    constexpr double dummy_time = 0.0;
-    return background_spacetime_.variables(x, dummy_time, tmpl::list<Tag>{});
+    return background_spacetime_.variables(x, t, tmpl::list<Tag>{});
   }
 
   const EquationsOfState::IdealFluid<true>& equation_of_state() const noexcept {
