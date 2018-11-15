@@ -6,30 +6,30 @@
 
 InitialTime: 0.0
 InitialTimeStep: 0.01
-FinalTime: 0.1
+FinalTime: 0.02
 
 # InitialSlabSize is only needed for local time stepping
 # InitialSlabSize: 0.01
 
 DomainCreator:
   Brick:
-    LowerBound: [10.5, 0.0, 0.0]
-    UpperBound: [11.5, 1.0, 1.0]
-    IsPeriodicIn: [false, false, false]
-    InitialRefinement: [0, 0, 0]
-    InitialGridPoints: [5, 5, 5]
+    LowerBound: [-6.0, -6.0, -6.0]
+    UpperBound: [6.0, 6.0, 6.0]
+    IsPeriodicIn: [false, false, true]
+    InitialRefinement: [3, 3, 0]
+    InitialGridPoints: [2, 2, 2]
 
 AnalyticSolution:
-  BlackHoleMass: 1.0
-  BlackHoleSpin: 0.9375
-  InnerEdgeRadius: 6.0
-  MaxPressureRadius: 12.0
-  PolytropicConstant: 0.001
-  PolytropicExponent: 1.3333333333333333333333
+  InnerRadius: 0.8
+  OuterRadius: 1.0
+  InnerDensity: 1.0e-2
+  OuterDensity: 1.0e-4
+  InnerPressure: 1.0
+  OuterPressure: 5.0e-4
+  MagneticField: [0.1, 0.0, 0.0]
+  AdiabaticIndex: 1.3333333333333333333
 
-TimeStepper:
-  AdamsBashforthN:
-    Order: 3
+TimeStepper: RungeKutta3
 
 # StepController and StepChoosers are needed only for local time stepping
 # StepController: BinaryFraction
@@ -48,11 +48,8 @@ NumericalFluxParams:
 DampingParameter: 0.0
 
 SlopeLimiterParams:
-  # Uncomment line below to turn off the limiter:
-  # DisableForDebugging: True
-  Type: LambdaPiN
-  # Recommended value from minmod papers:
-  TvbmConstant: 50.0
+  Type: Muscl
+  TvbmConstant: 0
 
 FixConservatives:
   CutoffD: 1.0e-12
