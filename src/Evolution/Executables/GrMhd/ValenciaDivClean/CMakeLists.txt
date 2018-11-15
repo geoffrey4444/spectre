@@ -6,6 +6,7 @@ set(LIBS_TO_LINK
   DiscontinuousGalerkin
   DomainCreators
   GeneralRelativitySolutions
+  GrMhdAnalyticData
   GrMhdSolutions
   Hydro
   IO
