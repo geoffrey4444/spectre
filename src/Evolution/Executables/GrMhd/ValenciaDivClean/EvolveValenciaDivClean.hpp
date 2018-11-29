@@ -15,7 +15,7 @@
 #include "Evolution/Conservative/UpdatePrimitives.hpp"
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"
 #include "Evolution/DiscontinuousGalerkin/SlopeLimiters/LimiterActions.hpp"
-#include "Evolution/DiscontinuousGalerkin/SlopeLimiters/Minmod.hpp"
+#include "Evolution/DiscontinuousGalerkin/SlopeLimiters/SimpleWeno.hpp"
 #include "Evolution/DiscontinuousGalerkin/SlopeLimiters/Tags.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/FixConservatives.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/Initialize.hpp"
@@ -91,7 +91,7 @@ struct EvolutionMetavars {
   using normal_dot_numerical_flux = OptionTags::NumericalFluxParams<
       dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
   using limiter = OptionTags::SlopeLimiterParams<
-      SlopeLimiters::Minmod<3, system::variables_tag::tags_list>>;
+      SlopeLimiters::SimpleWeno<3, system::variables_tag::tags_list>>;
   using step_choosers =
       tmpl::list<StepChoosers::Register::Cfl<3, Frame::Inertial>,
                  StepChoosers::Register::Constant,

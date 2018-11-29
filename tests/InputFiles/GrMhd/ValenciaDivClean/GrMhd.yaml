@@ -48,8 +48,6 @@ NumericalFluxParams:
 DampingParameter: 0.0
 
 SlopeLimiterParams:
-  Type: Muscl
-  TvbmConstant: 0
 
 FixConservatives:
   CutoffD: 1.0e-12
