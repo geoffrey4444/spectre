@@ -586,7 +586,6 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.UpwindFlux",
   const gr::Solutions::KerrSchild solution_1(mass, spin, center);
   const gr::Solutions::KerrSchild solution_2(2.0 * mass, spin, center);
 
-  const size_t grid_size = 8;
   const std::array<double, 3> lower_bound{{0.82, 1.22, 1.32}};
   const std::array<double, 3> upper_bound{{0.78, 1.18, 1.28}};
 
