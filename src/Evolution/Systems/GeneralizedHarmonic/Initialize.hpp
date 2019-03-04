@@ -58,11 +58,10 @@ struct Initialize {
     using Inertial = Frame::Inertial;
     using system = typename Metavariables::system;
     using variables_tag = typename system::variables_tag;
-    using constraint_damping_tag = typename system::constraint_damping_tag;
     using extras_tag = typename system::extras_tag;
 
     using simple_tags = db::AddSimpleTags<
-        variables_tag, constraint_damping_tag, extras_tag,
+        variables_tag, extras_tag,
         GeneralizedHarmonic::Tags::TimeDerivGaugeH<Dim, Inertial>>;
     using compute_tags = db::AddComputeTags<
         gr::Tags::SpatialMetricCompute<Dim, Inertial, DataVector>,
@@ -96,6 +95,9 @@ struct Initialize {
         GeneralizedHarmonic::Tags::ExtrinsicCurvatureCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::TraceExtrinsicCurvatureCompute<Dim,
                                                                   Inertial>,
+        GeneralizedHarmonic::Tags::ConstraintGamma0Compute<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::ConstraintGamma1Compute<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::ConstraintGamma2Compute<Dim, Inertial>,
         // Because DerivCompute<GaugeH> operates on GaugeH wrapped in a
         // Variables container, we insert GaugeH that way into the box (below),
         // instead of directly adding GaugeHCompute tag here.
@@ -137,27 +139,6 @@ struct Initialize {
       const auto& inertial_coords =
           db::get<::Tags::Coordinates<Dim, Inertial>>(box);
 
-      // Set constraint damping parameters
-      // For now, hard code these; later, make these options / AnalyticData
-      // The values here are the same as in SpEC standard input files for
-      // evolving a single black hole.
-      const DataVector r_squared =
-          get(dot_product(inertial_coords, inertial_coords));
-      const DataVector one = exp(0.0 * r_squared);
-      const typename GeneralizedHarmonic::Tags::ConstraintGamma0::type gamma0{
-          3.0 * exp(-0.5 * r_squared / 64.0) + 0.001 * one};
-      const auto& gamma1 = make_with_value<
-          typename GeneralizedHarmonic::Tags::ConstraintGamma1::type>(
-          inertial_coords, -1.);
-      const typename GeneralizedHarmonic::Tags::ConstraintGamma2::type gamma2{
-          exp(-0.5 * r_squared / 64.0) + 0.001 * one};
-      const tuples::TaggedTuple<GeneralizedHarmonic::Tags::ConstraintGamma0,
-                                GeneralizedHarmonic::Tags::ConstraintGamma1,
-                                GeneralizedHarmonic::Tags::ConstraintGamma2>
-          constraints_tuple(gamma0, gamma1, gamma2);
-      typename constraint_damping_tag::type constraints_vars{num_grid_points};
-      constraints_vars.assign_subset(constraints_tuple);
-
       // Set initial data from analytic solution
       using Vars = typename variables_tag::type;
       Vars vars{num_grid_points};
@@ -186,8 +167,8 @@ struct Initialize {
         const auto& dt_lapse =
             get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(solution_vars);
         const auto& deriv_lapse =
-            get<::Tags::deriv<gr::Tags::Lapse<DataVector>,
-                              tmpl::size_t<Dim>, Inertial>>(solution_vars);
+            get<::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<Dim>,
+                              Inertial>>(solution_vars);
 
         const auto& shift =
             get<gr::Tags::Shift<Dim, Inertial, DataVector>>(solution_vars);
@@ -201,24 +182,23 @@ struct Initialize {
         const auto& spatial_metric =
             get<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>(
                 solution_vars);
-        const auto& dt_spatial_metric = get<
-            ::Tags::dt<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>>(
+        const auto& dt_spatial_metric =
+            get<::Tags::dt<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>>(
                 solution_vars);
-        const auto& deriv_spatial_metric = get<::Tags::deriv<
-            gr::Tags::SpatialMetric<Dim, Inertial, DataVector>,
-            tmpl::size_t<Dim>, Inertial>>(solution_vars);
+        const auto& deriv_spatial_metric = get<
+            ::Tags::deriv<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>,
+                          tmpl::size_t<Dim>, Inertial>>(solution_vars);
 
         // Next, compute Gh evolution variables from them
         const auto& spacetime_metric =
-            ::gr::spacetime_metric<Dim, Inertial, DataVector>(
-                lapse, shift, spatial_metric);
-        const auto& phi =
-            GeneralizedHarmonic::phi<Dim, Inertial, DataVector>(
-                lapse, deriv_lapse, shift, deriv_shift, spatial_metric,
-                deriv_spatial_metric);
+            ::gr::spacetime_metric<Dim, Inertial, DataVector>(lapse, shift,
+                                                              spatial_metric);
+        const auto& phi = GeneralizedHarmonic::phi<Dim, Inertial, DataVector>(
+            lapse, deriv_lapse, shift, deriv_shift, spatial_metric,
+            deriv_spatial_metric);
         const auto& pi = GeneralizedHarmonic::pi<Dim, Inertial, DataVector>(
-            lapse, dt_lapse, shift, dt_shift, spatial_metric,
-            dt_spatial_metric, phi);
+            lapse, dt_lapse, shift, dt_shift, spatial_metric, dt_spatial_metric,
+            phi);
 
         const tuples::TaggedTuple<gr::Tags::SpacetimeMetric<Dim>,
                                   GeneralizedHarmonic::Tags::Phi<Dim>,
@@ -268,7 +248,8 @@ struct Initialize {
 
       // Set the time derivatives of GaugeH
       const auto& dt_gauge_source =
-          make_with_value<tnsr::a<DataVector, Dim, Inertial>>(gamma0, 0.0);
+          make_with_value<tnsr::a<DataVector, Dim, Inertial>>(inertial_coords,
+                                                              0.);
 
       using ExtraVars = typename extras_tag::type;
       ExtraVars extra_vars{num_grid_points};
@@ -276,8 +257,8 @@ struct Initialize {
           gauge_source;
 
       return db::create_from<db::RemoveTags<>, simple_tags, compute_tags>(
-          std::move(box), std::move(vars), std::move(constraints_vars),
-          std::move(extra_vars), std::move(dt_gauge_source));
+          std::move(box), std::move(vars), std::move(extra_vars),
+          std::move(dt_gauge_source));
     }
   };
 

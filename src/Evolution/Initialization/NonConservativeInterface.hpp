@@ -12,6 +12,7 @@
 #include "Domain/FaceNormal.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ComputeGhQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeSpacetimeQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "Utilities/TMPL.hpp"
@@ -52,9 +53,18 @@ struct InterfaceForNonConservativeSystem {
   using face_tags = tmpl::list<
       Directions, Tags::InterfaceComputeItem<Directions, Tags::Direction<dim>>,
       Tags::InterfaceComputeItem<Directions, Tags::InterfaceMesh<dim>>,
+      Tags::InterfaceComputeItem<Directions,
+                                 Tags::BoundaryCoordinates<dim, Inertial>>,
       Tags::Slice<Directions, typename System::variables_tag>,
-      Tags::Slice<Directions, typename System::constraint_damping_tag>,
-      // Tags::Slice<Directions, typename System::extras_tag>,
+      Tags::InterfaceComputeItem<
+          Directions,
+          GeneralizedHarmonic::Tags::ConstraintGamma0Compute<dim, Inertial>>,
+      Tags::InterfaceComputeItem<
+          Directions,
+          GeneralizedHarmonic::Tags::ConstraintGamma1Compute<dim, Inertial>>,
+      Tags::InterfaceComputeItem<
+          Directions,
+          GeneralizedHarmonic::Tags::ConstraintGamma2Compute<dim, Inertial>>,
       Tags::InterfaceComputeItem<Directions, gr::Tags::SpatialMetricCompute<
                                                  dim, Inertial, DataVector>>,
       Tags::InterfaceComputeItem<
@@ -112,8 +122,15 @@ struct InterfaceForNonConservativeSystem {
       Tags::InterfaceComputeItem<Tags::BoundaryDirectionsExterior<dim>,
                                  typename System::template magnitude_tag<
                                      Tags::UnnormalizedFaceNormal<dim>>>,
-      Tags::Slice<Tags::BoundaryDirectionsExterior<dim>,
-                  typename System::constraint_damping_tag>,
+      Tags::InterfaceComputeItem<
+          Tags::BoundaryDirectionsExterior<dim>,
+          GeneralizedHarmonic::Tags::ConstraintGamma0Compute<dim, Inertial>>,
+      Tags::InterfaceComputeItem<
+          Tags::BoundaryDirectionsExterior<dim>,
+          GeneralizedHarmonic::Tags::ConstraintGamma1Compute<dim, Inertial>>,
+      Tags::InterfaceComputeItem<
+          Tags::BoundaryDirectionsExterior<dim>,
+          GeneralizedHarmonic::Tags::ConstraintGamma2Compute<dim, Inertial>>,
       Tags::InterfaceComputeItem<
           Tags::BoundaryDirectionsExterior<dim>,
           Tags::UnitFaceNormalCompute<dim, Frame::Inertial>>,

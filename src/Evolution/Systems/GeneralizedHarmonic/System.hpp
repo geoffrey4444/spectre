@@ -45,6 +45,8 @@ struct System {
       tmpl::list<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>,
                  Tags::Pi<Dim, Frame::Inertial>,
                  Tags::Phi<Dim, Frame::Inertial>>;
+  // `constraint_damping_tag` can be used to `Slice` gamma's onto `Interface`s,
+  // but it has been replaced by compute items for damping parameters
   using constraint_damping_tag = ::Tags::Variables<
       tmpl::list<GeneralizedHarmonic::Tags::ConstraintGamma0,
                  GeneralizedHarmonic::Tags::ConstraintGamma1,

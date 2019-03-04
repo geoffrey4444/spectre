@@ -714,11 +714,11 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
   using base = ConstraintGamma0;
   using type = typename base::type;
-  static const Scalar<DataVector> function(
+  static constexpr auto function(
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
-    const DataVector r_squared = get(dot_product(coords, coords));
-    typename ConstraintGamma0::type gamma{
-        3. * exp(-0.5 * r_squared / 64.) + 0.001};
+    const auto& r_squared = get(dot_product(coords, coords));
+    auto gamma = make_with_value<type>(coords, 0.);
+    get(gamma) = 3. * exp(-0.5 * r_squared / 64.) + 0.001;
     return gamma;
   }
   using argument_tags = tmpl::list<::Tags::Coordinates<SpatialDim, Frame>>;
@@ -728,9 +728,9 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma1Compute : ConstraintGamma1, db::ComputeTag {
   using base = ConstraintGamma1;
   using type = typename base::type;
-  static const Scalar<DataVector> function(
+  static constexpr auto function(
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
-    return make_with_value<typename ConstraintGamma1::type>(coords, -1.);
+    return make_with_value<type>(coords, -1.);
   }
   using argument_tags = tmpl::list<::Tags::Coordinates<SpatialDim, Frame>>;
 };
@@ -739,11 +739,11 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
   using base = ConstraintGamma2;
   using type = typename base::type;
-  static const Scalar<DataVector> function(
+  static constexpr auto function(
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
-    const DataVector r_squared = get(dot_product(coords, coords));
-    typename ConstraintGamma2::type gamma{
-        exp(-0.5 * r_squared / 64.0) + 0.001};
+    const auto& r_squared = get(dot_product(coords, coords));
+    auto gamma = make_with_value<type>(coords, 0.);
+    get(gamma) = exp(-0.5 * r_squared / 64.) + 0.001;
     return gamma;
   }
   using argument_tags = tmpl::list<::Tags::Coordinates<SpatialDim, Frame>>;
