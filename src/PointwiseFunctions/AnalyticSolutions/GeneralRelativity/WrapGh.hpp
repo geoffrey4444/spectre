@@ -74,16 +74,26 @@ class WrapGh : public SolutionType {
         get<Tags>(variables(x, t, tmpl::list<Tags>{}, intermediate_vars))...};
   }
 
-  template <typename... Tags>
-  tuples::TaggedTuple<Tags...> variables(
+//  template <typename... Tags>
+//  tuples::TaggedTuple<Tags...> variables(
+//      const tnsr::I<DataVector, volume_dim>& x, double t,
+//      tmpl::list<Tags...> /*meta*/,
+//      const IntermediateVars& intermediate_vars) const noexcept {
+//    static_assert(sizeof...(Tags) > 1,
+//                  "The generic template will recurse infinitely if only one "
+//                  "tag is being retrieved.");
+//    return {
+//        get<Tags>(variables(x, t, tmpl::list<Tags>{}, intermediate_vars))...};
+//  }
+
+  template <typename Tag>
+  tuples::TaggedTuple<Tag> variables(
       const tnsr::I<DataVector, volume_dim>& x, double t,
-      tmpl::list<Tags...> /*meta*/,
-      const IntermediateVars& intermediate_vars) const noexcept {
-    static_assert(sizeof...(Tags) > 1,
-                  "The generic template will recurse infinitely if only one "
-                  "tag is being retrieved.");
+      tmpl::list<Tag> /*meta*/) const noexcept {
+    const IntermediateVars& intermediate_vars = SolutionType::variables(
+        x, t, typename SolutionType::template tags<DataVector>{});
     return {
-        get<Tags>(variables(x, t, tmpl::list<Tags>{}, intermediate_vars))...};
+        get<Tag>(variables(x, t, tmpl::list<Tag>{}, intermediate_vars))};
   }
 
  private:
