@@ -53,7 +53,7 @@ struct InterfaceForNonConservativeSystem {
       Directions, Tags::InterfaceComputeItem<Directions, Tags::Direction<dim>>,
       Tags::InterfaceComputeItem<Directions, Tags::InterfaceMesh<dim>>,
       Tags::Slice<Directions, typename System::variables_tag>,
-      Tags::Slice<Directions, typename System::constraints_tag>,
+      Tags::Slice<Directions, typename System::constraint_damping_tag>,
       // Tags::Slice<Directions, typename System::extras_tag>,
       Tags::InterfaceComputeItem<Directions, gr::Tags::SpatialMetricCompute<
                                                  dim, Inertial, DataVector>>,
@@ -113,7 +113,7 @@ struct InterfaceForNonConservativeSystem {
                                  typename System::template magnitude_tag<
                                      Tags::UnnormalizedFaceNormal<dim>>>,
       Tags::Slice<Tags::BoundaryDirectionsExterior<dim>,
-                  typename System::constraints_tag>,
+                  typename System::constraint_damping_tag>,
       Tags::InterfaceComputeItem<
           Tags::BoundaryDirectionsExterior<dim>,
           Tags::UnitFaceNormalCompute<dim, Frame::Inertial>>,

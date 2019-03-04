@@ -58,11 +58,11 @@ struct Initialize {
     using Inertial = Frame::Inertial;
     using system = typename Metavariables::system;
     using variables_tag = typename system::variables_tag;
-    using constraints_tag = typename system::constraints_tag;
+    using constraint_damping_tag = typename system::constraint_damping_tag;
     using extras_tag = typename system::extras_tag;
 
     using simple_tags = db::AddSimpleTags<
-        variables_tag, constraints_tag, extras_tag,
+        variables_tag, constraint_damping_tag, extras_tag,
         GeneralizedHarmonic::Tags::TimeDerivGaugeH<Dim, Inertial>>;
     using compute_tags = db::AddComputeTags<
         gr::Tags::SpatialMetricCompute<Dim, Inertial, DataVector>,
@@ -155,7 +155,7 @@ struct Initialize {
                                 GeneralizedHarmonic::Tags::ConstraintGamma1,
                                 GeneralizedHarmonic::Tags::ConstraintGamma2>
           constraints_tuple(gamma0, gamma1, gamma2);
-      typename constraints_tag::type constraints_vars{num_grid_points};
+      typename constraint_damping_tag::type constraints_vars{num_grid_points};
       constraints_vars.assign_subset(constraints_tuple);
 
       // Set initial data from analytic solution

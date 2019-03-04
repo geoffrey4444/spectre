@@ -45,7 +45,7 @@ struct System {
       tmpl::list<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>,
                  Tags::Pi<Dim, Frame::Inertial>,
                  Tags::Phi<Dim, Frame::Inertial>>;
-  using constraints_tag = ::Tags::Variables<
+  using constraint_damping_tag = ::Tags::Variables<
       tmpl::list<GeneralizedHarmonic::Tags::ConstraintGamma0,
                  GeneralizedHarmonic::Tags::ConstraintGamma1,
                  GeneralizedHarmonic::Tags::ConstraintGamma2>>;
