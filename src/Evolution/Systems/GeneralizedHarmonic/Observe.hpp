@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/Prefixes.hpp"
 #include "Domain/Tags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "IO/Observer/Actions.hpp"
@@ -17,10 +18,12 @@
 #include "IO/Observer/ObserverComponent.hpp"
 #include "IO/Observer/ReductionActions.hpp"
 #include "IO/Observer/VolumeActions.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/Options.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ComputeGhQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeSpacetimeQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "Time/Tags.hpp"
@@ -33,9 +36,7 @@
 namespace GeneralizedHarmonic {
 namespace Actions {
 
-namespace observe_detail {
-
-}  // namespace observe_detail
+namespace observe_detail {}  // namespace observe_detail
 
 /*!
  * \brief Temporary action for observing volume and reduction data
@@ -112,15 +113,39 @@ struct Observe {
           gr::Solutions::KerrSchild::tags<DataVector>{});
       const auto& exact_lapse =
           get<gr::Tags::Lapse<DataVector>>(exact_solution_variables);
+      const auto& exact_dt_lapse = get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(
+          exact_solution_variables);
+      const auto& exact_deriv_lapse =
+          get<::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<Dim>,
+                            Frame::Inertial>>(exact_solution_variables);
       const auto& exact_shift =
           get<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>(
+              exact_solution_variables);
+      const auto& exact_dt_shift =
+          get<::Tags::dt<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>>(
+              exact_solution_variables);
+      const auto& exact_deriv_shift =
+          get<::Tags::deriv<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>,
+                            tmpl::size_t<Dim>, Frame::Inertial>>(
               exact_solution_variables);
       const auto& exact_spatial_metric =
           get<gr::Tags::SpatialMetric<Dim, Frame::Inertial, DataVector>>(
               exact_solution_variables);
+      const auto& exact_dt_spatial_metric = get<::Tags::dt<
+          gr::Tags::SpatialMetric<Dim, Frame::Inertial, DataVector>>>(
+          exact_solution_variables);
+      const auto& exact_deriv_spatial_metric = get<::Tags::deriv<
+          gr::Tags::SpatialMetric<Dim, Frame::Inertial, DataVector>,
+          tmpl::size_t<Dim>, Frame::Inertial>>(exact_solution_variables);
 
       const auto& exact_psi =
           gr::spacetime_metric(exact_lapse, exact_shift, exact_spatial_metric);
+      const auto& exact_phi = GeneralizedHarmonic::phi(
+          exact_lapse, exact_deriv_lapse, exact_shift, exact_deriv_shift,
+          exact_spatial_metric, exact_deriv_spatial_metric);
+      const auto& exact_pi = GeneralizedHarmonic::pi(
+          exact_lapse, exact_dt_lapse, exact_shift, exact_dt_shift,
+          exact_spatial_metric, exact_dt_spatial_metric, exact_phi);
 
       // Remove tensor types, only storing individual components.
       std::vector<TensorComponent> components;
