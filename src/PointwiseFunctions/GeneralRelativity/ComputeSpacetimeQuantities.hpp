@@ -213,6 +213,7 @@ struct SpacetimeMetricCompute : SpacetimeMetric<SpatialDim, Frame, DataType>,
       tmpl::list<Lapse<DataType>, Shift<SpatialDim, Frame, DataType>,
                  SpatialMetric<SpatialDim, Frame, DataType>>;
   using base = SpacetimeMetric<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for spatial metric \f$g_{ij}\f$ from the
@@ -226,6 +227,7 @@ struct SpatialMetricCompute : SpatialMetric<SpatialDim, Frame, DataType>,
   using argument_tags =
       tmpl::list<SpacetimeMetric<SpatialDim, Frame, DataType>>;
   using base = SpatialMetric<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for inverse spacetime metric \f$\psi^{ab}\f$
@@ -243,6 +245,7 @@ struct InverseSpacetimeMetricCompute
       tmpl::list<Lapse<DataType>, Shift<SpatialDim, Frame, DataType>,
                  InverseSpatialMetric<SpatialDim, Frame, DataType>>;
   using base = InverseSpacetimeMetric<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for spatial metric determinant \f$\g\f$
@@ -255,6 +258,7 @@ struct DetAndInverseSpatialMetricCompute
       db::ComputeTag {
   using argument_tags = tmpl::list<SpatialMetric<SpatialDim, Frame, DataType>>;
   using base = DetAndInverseSpatialMetric<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
   static constexpr auto function =
       &determinant_and_inverse<DataType,
                                tmpl::integral_list<std::int32_t, 1, 1>,
@@ -277,6 +281,7 @@ struct SqrtDetSpatialMetricCompute : SqrtDetSpatialMetric<DataType>,
   using argument_tags =
       tmpl::list<DetAndInverseSpatialMetric<SpatialDim, Frame, DataType>>;
   using base = SqrtDetSpatialMetric<DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for inverse spatial metric \f$\g^{ij}\f$
@@ -295,6 +300,7 @@ struct InverseSpatialMetricCompute
   using argument_tags =
       tmpl::list<DetAndInverseSpatialMetric<SpatialDim, Frame, DataType>>;
   using base = InverseSpatialMetric<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for shift \f$N^i\f$ from the spacetime metric
@@ -308,6 +314,7 @@ struct ShiftCompute : Shift<SpatialDim, Frame, DataType>, db::ComputeTag {
       tmpl::list<SpacetimeMetric<SpatialDim, Frame, DataType>,
                  InverseSpatialMetric<SpatialDim, Frame, DataType>>;
   using base = Shift<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for lapse \f$N\f$ from the spacetime metric
@@ -321,6 +328,7 @@ struct LapseCompute : Lapse<DataType>, db::ComputeTag {
       tmpl::list<Shift<SpatialDim, Frame, DataType>,
                  SpacetimeMetric<SpatialDim, Frame, DataType>>;
   using base = Lapse<DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for spacetime normal oneform \f$n_a\f$ from
@@ -335,6 +343,7 @@ struct SpacetimeNormalOneFormCompute
       &spacetime_normal_one_form<SpatialDim, Frame, DataType>;
   using argument_tags = tmpl::list<Lapse<DataType>>;
   using base = SpacetimeNormalOneForm<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 
 /// Compute item for spacetime normal vector \f$n^a\f$ from
@@ -350,6 +359,7 @@ struct SpacetimeNormalVectorCompute
   using argument_tags =
       tmpl::list<Lapse<DataType>, Shift<SpatialDim, Frame, DataType>>;
   using base = SpacetimeNormalVector<SpatialDim, Frame, DataType>;
+  using type = typename base::type;
 };
 }  // namespace Tags
 }  // namespace gr
