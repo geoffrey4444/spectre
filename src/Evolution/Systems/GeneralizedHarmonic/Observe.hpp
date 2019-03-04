@@ -124,7 +124,7 @@ struct Observe {
 
       // Remove tensor types, only storing individual components.
       std::vector<TensorComponent> components;
-      components.reserve(1);
+      components.reserve(4);
 
       using PlusSquare = funcl::Plus<funcl::Identity, funcl::Square<>>;
 
@@ -141,6 +141,15 @@ struct Observe {
           element_name + "Error" +
               gr::Tags::SpacetimeMetric<Dim, Frame::Inertial>::name(),
           error);
+
+      for (size_t d = 0; d < Dim; ++d) {
+        const std::string component_suffix =
+            d == 0 ? "_x" : d == 1 ? "_y" : "_z";
+        components.emplace_back(
+            element_name + ::Tags::Coordinates<Dim, Frame::Inertial>::name() +
+                component_suffix,
+            inertial_coordinates.get(d));
+      }
 
       // Send data to volume observer
       auto& local_observer =
