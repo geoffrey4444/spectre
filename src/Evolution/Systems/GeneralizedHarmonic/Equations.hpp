@@ -247,11 +247,14 @@ struct UpwindFlux {
   // into, then the package_tags on the interior side of the mortar followed by
   // the package_tags on the exterior side.
   void operator()(
-      gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
+          GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>>*>
           pi_normal_dot_numerical_flux,
-      gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
+          GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>>*>
           phi_normal_dot_numerical_flux,
-      gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
+          gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>>*>
           psi_normal_dot_numerical_flux,
       const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi_int,
       const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero_int,
