@@ -101,7 +101,6 @@ struct Observe {
           db::get<::Tags::Coordinates<Dim, Frame::Inertial>>(box);
 
       // Compute the error in the solution, and generate tensor component list.
-      using Vars = typename Metavariables::system::variables_tag::type;
       using solution_tag = OptionTags::AnalyticSolutionBase;
 
       const auto& exact_solution = Parallel::get<solution_tag>(cache);

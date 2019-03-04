@@ -243,9 +243,9 @@ void test_upwind_flux_analytic(
   tnsr::iaa<DataVector, spatial_dim, Frame::Inertial>
       normal_dot_numerical_flux_phi(n_pts, 0.0);
   apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
+                       make_not_null(&normal_dot_numerical_flux_psi),
                        make_not_null(&normal_dot_numerical_flux_pi),
-                       make_not_null(&normal_dot_numerical_flux_phi),
-                       make_not_null(&normal_dot_numerical_flux_psi));
+                       make_not_null(&normal_dot_numerical_flux_phi));
 
   CHECK_ITERABLE_APPROX(normal_dot_numerical_flux_psi, spacetime_metric_int);
   CHECK_ITERABLE_APPROX(normal_dot_numerical_flux_pi, pi_int);
@@ -283,9 +283,9 @@ void test_upwind_flux_analytic(
       gamma_2, unit_normal_one_form_ext);
 
   apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
+                       make_not_null(&normal_dot_numerical_flux_psi),
                        make_not_null(&normal_dot_numerical_flux_pi),
-                       make_not_null(&normal_dot_numerical_flux_phi),
-                       make_not_null(&normal_dot_numerical_flux_psi));
+                       make_not_null(&normal_dot_numerical_flux_phi));
   for (size_t i = 0; i < normal_dot_numerical_flux_psi.size(); ++i) {
     normal_dot_numerical_flux_psi[i] *= -1.0;
     normal_dot_numerical_flux_pi[i] *= -1.0;
@@ -349,9 +349,9 @@ void test_upwind_flux_analytic(
           char_speeds_ext),
       gamma_2, unit_normal_one_form_ext);
   apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
+                       make_not_null(&normal_dot_numerical_flux_psi),
                        make_not_null(&normal_dot_numerical_flux_pi),
-                       make_not_null(&normal_dot_numerical_flux_phi),
-                       make_not_null(&normal_dot_numerical_flux_psi));
+                       make_not_null(&normal_dot_numerical_flux_phi));
 
   // The flux leaving the neighbor: just swap int/ext fields & speeds
   flux_computer.package_data(
@@ -409,9 +409,9 @@ void test_upwind_flux_analytic(
       normal_dot_numerical_flux_phi_different_fields(n_pts, 0.0);
   apply_numerical_flux(
       flux_computer, packaged_data_int, packaged_data_ext,
+      make_not_null(&normal_dot_numerical_flux_psi_different_fields),
       make_not_null(&normal_dot_numerical_flux_pi_different_fields),
-      make_not_null(&normal_dot_numerical_flux_phi_different_fields),
-      make_not_null(&normal_dot_numerical_flux_psi_different_fields));
+      make_not_null(&normal_dot_numerical_flux_phi_different_fields));
 
   // The flux leaving the neighbor should have the same magnitude but
   // opposite sign as the flux entering the element
@@ -505,9 +505,9 @@ void test_upwind_flux_analytic(
             char_speeds_ext),
         gamma_2, unit_normal_one_form_ext);
     apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
+                         make_not_null(&normal_dot_numerical_flux_psi),
                          make_not_null(&normal_dot_numerical_flux_pi),
-                         make_not_null(&normal_dot_numerical_flux_phi),
-                         make_not_null(&normal_dot_numerical_flux_psi));
+                         make_not_null(&normal_dot_numerical_flux_phi));
 
     // Compute the upwind flux using solution_ext for both the interior and
     // the exterior, but keep everything else the same (2)
@@ -559,9 +559,9 @@ void test_upwind_flux_analytic(
         gamma_2, unit_normal_one_form_ext);
     apply_numerical_flux(
         flux_computer, packaged_data_int, packaged_data_ext,
+        make_not_null(&normal_dot_numerical_flux_psi_different_fields),
         make_not_null(&normal_dot_numerical_flux_pi_different_fields),
-        make_not_null(&normal_dot_numerical_flux_phi_different_fields),
-        make_not_null(&normal_dot_numerical_flux_psi_different_fields));
+        make_not_null(&normal_dot_numerical_flux_phi_different_fields));
 
     // Check that (1) and (2) are the same
     CHECK_ITERABLE_APPROX(normal_dot_numerical_flux_pi,
