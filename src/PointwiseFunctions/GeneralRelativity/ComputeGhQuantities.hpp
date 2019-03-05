@@ -801,6 +801,30 @@ struct FourIndexConstraintCompute : FourIndexConstraint<SpatialDim, Frame>,
 };
 
 template <size_t SpatialDim, typename Frame>
+struct ConstraintEnergyCompute : ConstraintEnergy<SpatialDim, Frame>,
+                                 db::ComputeTag {
+  using base = ConstraintEnergy<SpatialDim, Frame>;
+  using type = typename base::type;
+  static constexpr Scalar<DataVector> (*function)(
+    const tnsr::a<DataVector, SpatialDim, Frame>&,
+    const tnsr::a<DataVector, SpatialDim, Frame>&,
+    const tnsr::ia<DataVector, SpatialDim, Frame>&,
+    const tnsr::iaa<DataVector, SpatialDim, Frame>&,
+    const tnsr::iaa<DataVector, SpatialDim, Frame>&,
+    const tnsr::II<DataVector, SpatialDim, Frame>&,
+    const Scalar<DataVector>&) =
+    &constraint_energy<SpatialDim, Frame, DataVector>;
+  using argument_tags =
+      tmpl::list<GaugeConstraint<SpatialDim, Frame>,
+                 FConstraint<SpatialDim, Frame>,
+                 TwoIndexConstraint<SpatialDim, Frame>,
+                 ThreeIndexConstraint<SpatialDim, Frame>,
+                 FourIndexConstraint<SpatialDim, Frame>,
+                 gr::Tags::InverseSpatialMetric<SpatialDim, Frame, DataVector>,
+                 gr::Tags::DetSpatialMetric<DataVector>>;
+};
+
+template <size_t SpatialDim, typename Frame>
 struct DerivSpacetimeMetricCompute
     : gr::Tags::DerivSpacetimeMetric<SpatialDim, Frame>,
       db::ComputeTag {

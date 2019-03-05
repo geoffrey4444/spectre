@@ -39,6 +39,11 @@ struct InverseSpatialMetric : db::SimpleTag {
   static std::string name() noexcept { return "InverseSpatialMetric"; }
 };
 template <typename DataType>
+struct DetSpatialMetric : db::SimpleTag {
+  using type = Scalar<DataType>;
+  static std::string name() noexcept { return "DetSpatialMetric"; }
+};
+template <typename DataType>
 struct SqrtDetSpatialMetric : db::SimpleTag {
   using type = Scalar<DataType>;
   static std::string name() noexcept { return "SqrtDetSpatialMetric"; }

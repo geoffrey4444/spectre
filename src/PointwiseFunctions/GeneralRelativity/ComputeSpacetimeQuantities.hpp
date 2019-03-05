@@ -269,6 +269,24 @@ struct DetAndInverseSpatialMetricCompute
 /// Compute item to get the square root of the determinant of the spatial
 /// metric \f$\sqrt{g}\f$ via `gr::Tags::DetAndInverseSpatialMetric`.
 ///
+/// Can be retrieved using `gr::Tags::DetSpatialMetric`
+template <size_t SpatialDim, typename Frame, typename DataType>
+struct DetSpatialMetricCompute : DetSpatialMetric<DataType>,
+                                 db::ComputeTag {
+  static auto& function(
+      const std::pair<Scalar<DataType>, tnsr::II<DataType, SpatialDim, Frame>>&
+          det_and_inverse_spatial_metric) {
+    return det_and_inverse_spatial_metric.first;
+  }
+  using argument_tags =
+      tmpl::list<DetAndInverseSpatialMetric<SpatialDim, Frame, DataType>>;
+  using base = DetSpatialMetric<DataType>;
+  using type = typename base::type;
+};
+
+/// Compute item to get the square root of the determinant of the spatial
+/// metric \f$\sqrt{g}\f$ via `gr::Tags::DetAndInverseSpatialMetric`.
+///
 /// Can be retrieved using `gr::Tags::SqrtDetSpatialMetric`
 template <size_t SpatialDim, typename Frame, typename DataType>
 struct SqrtDetSpatialMetricCompute : SqrtDetSpatialMetric<DataType>,
