@@ -81,6 +81,7 @@ struct Initialize {
         GeneralizedHarmonic::Tags::TimeDerivShiftCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::DerivativesOfSpacetimeMetricCompute<
             Dim, Inertial>,
+        GeneralizedHarmonic::Tags::DerivSpacetimeMetricCompute<Dim, Inertial>,
         gr::Tags::SpacetimeChristoffelFirstKindCompute<Dim, Inertial,
                                                        DataVector>,
         gr::Tags::SpacetimeChristoffelSecondKindCompute<Dim, Inertial,
@@ -106,7 +107,9 @@ struct Initialize {
                 tmpl::list<GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>>>,
             ::Tags::InverseJacobian<::Tags::ElementMap<Dim, Inertial>,
                                     ::Tags::LogicalCoordinates<Dim>>>,
-        GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<Dim, Inertial>>;
+        GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, Inertial>>;
 
     /* NOT YET ADDED BUT NEEDED BY ComputeDuDt
           ::Tags::deriv<Tags::Pi<Dim>, tmpl::size_t<Dim>, Inertial>,

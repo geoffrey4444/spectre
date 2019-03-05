@@ -698,7 +698,7 @@ struct GaugeConstraintCompute
   using base =
       GeneralizedHarmonic::Tags::GaugeConstraint<SpatialDim, Frame>;
   using type = typename base::type;
-  static constexpr tnsr::iaa<DataVector, SpatialDim, Frame> (*function)(
+  static constexpr tnsr::a<DataVector, SpatialDim, Frame> (*function)(
     const tnsr::a<DataVector, SpatialDim, Frame>&,
     const tnsr::a<DataVector, SpatialDim, Frame>&,
     const tnsr::A<DataVector, SpatialDim, Frame>&,
@@ -706,7 +706,7 @@ struct GaugeConstraintCompute
     const tnsr::AA<DataVector, SpatialDim, Frame>&,
     const tnsr::aa<DataVector, SpatialDim, Frame>&,
     const tnsr::iaa<DataVector, SpatialDim, Frame>&) =
-      &gauge_constraint<SpatialDim, Frame, DataVector>;
+    &gauge_constraint<SpatialDim, Frame, DataVector>;
   using argument_tags =
       tmpl::list<GeneralizedHarmonic::Tags::GaugeH<SpatialDim, Frame>,
                  gr::Tags::SpacetimeNormalOneForm<SpatialDim, Frame,
@@ -745,14 +745,14 @@ struct DerivSpacetimeMetricCompute
   static constexpr auto function(
       const tnsr::abb<DataVector, SpatialDim, Frame>&
           spacetime_deriv_of_spacetime_metric) noexcept {
-    auto& deriv_spacetime_metric =
+    auto deriv_spacetime_metric =
         make_with_value<tnsr::iaa<DataVector, SpatialDim, Frame>>(
           spacetime_deriv_of_spacetime_metric, 0.);
     for (size_t i = 0; i < SpatialDim; ++i) {
       for (size_t a = 0; a < SpatialDim + 1; ++a) {
         for (size_t b = a; b < SpatialDim + 1; ++b) {
           deriv_spacetime_metric.get(i, a, b) =
-            spacetime_deriv_of_spacetime_metric.get(i + 1, a, b);
+              spacetime_deriv_of_spacetime_metric.get(i + 1, a, b);
         }
       }
     }

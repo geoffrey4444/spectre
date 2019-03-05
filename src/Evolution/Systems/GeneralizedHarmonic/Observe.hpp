@@ -58,7 +58,7 @@ struct Observe {
   using reduction_data = Parallel::ReductionData<
       Parallel::ReductionDatum<double, funcl::AssertEqual<>>,
       Parallel::ReductionDatum<size_t, funcl::Plus<>>, reduction_datum,
-      reduction_datum, reduction_datum>;
+      reduction_datum, reduction_datum, reduction_datum, reduction_datum>;
 
  public:
   struct ObserveNSlabs {
@@ -107,6 +107,12 @@ struct Observe {
           db::get<GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>(box);
       const auto& pi =
           db::get<GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>(box);
+      const auto& gauge_constraint =
+          db::get<GeneralizedHarmonic::Tags::GaugeConstraint<Dim,
+              Frame::Inertial>>(box);
+      const auto& three_index_constraint =
+          db::get<GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim,
+              Frame::Inertial>>(box);
 
       const auto& inertial_coordinates =
           db::get<::Tags::Coordinates<Dim, Frame::Inertial>>(box);
@@ -159,7 +165,7 @@ struct Observe {
 
       // Remove tensor types, only storing individual components.
       std::vector<TensorComponent> components;
-      components.reserve(6);
+      components.reserve(8); // FIXME
 
       using PlusSquare = funcl::Plus<funcl::Identity, funcl::Square<>>;
 
@@ -167,23 +173,33 @@ struct Observe {
       DataVector error_in_psi_components{num_grid_points, 0.};
       DataVector error_in_phi_components{num_grid_points, 0.};
       DataVector error_in_pi_components{num_grid_points, 0.};
+      DataVector gauge_constraint_all_components{num_grid_points, 0.};
+      DataVector three_index_constraint_all_components{num_grid_points, 0.};
       for (size_t a = 0; a < Dim + 1; ++a) {
+        gauge_constraint_all_components += square(gauge_constraint.get(a));
         for (size_t b = 0; b < Dim + 1; ++b) {
           error_in_psi_components +=
               square(exact_psi.get(a, b) - psi.get(a, b));
           error_in_pi_components += square(exact_pi.get(a, b) - pi.get(a, b));
           for (size_t i = 0; i < Dim; ++i) {
+            three_index_constraint_all_components +=
+                square(three_index_constraint.get(i, a, b));
             error_in_phi_components +=
                 square(exact_phi.get(i, a, b) - phi.get(i, a, b));
           }
         }
       }
       const double psi_error =
-          alg::accumulate(error_in_psi_components, 0.0, PlusSquare{});
+          alg::accumulate(error_in_psi_components, 0., PlusSquare{});
       const double phi_error =
-          alg::accumulate(error_in_phi_components, 0.0, PlusSquare{});
+          alg::accumulate(error_in_phi_components, 0., PlusSquare{});
       const double pi_error =
-          alg::accumulate(error_in_pi_components, 0.0, PlusSquare{});
+          alg::accumulate(error_in_pi_components, 0., PlusSquare{});
+      const double gauge_constraint_cumulative =
+          alg::accumulate(gauge_constraint_all_components, 0., PlusSquare{});
+      const double three_index_constraint_cumulative =
+          alg::accumulate(three_index_constraint_all_components, 0.,
+                          PlusSquare{});
 
       components.emplace_back(
           element_name + "Error" +
@@ -197,6 +213,16 @@ struct Observe {
           element_name + "Error" +
               GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>::name(),
           error_in_pi_components);
+      components.emplace_back(
+          element_name + "L2Norm" +
+              GeneralizedHarmonic::Tags::GaugeConstraint<Dim,
+                  Frame::Inertial>::name(),
+          gauge_constraint_all_components);
+      components.emplace_back(
+          element_name + "L2Norm" +
+              GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim,
+                  Frame::Inertial>::name(),
+          three_index_constraint_all_components);
 
       for (size_t d = 0; d < Dim; ++d) {
         const std::string component_suffix =
@@ -229,11 +255,14 @@ struct Observe {
               time, typename Metavariables::element_observation_type{}),
           std::string{"/element_data"},
           std::vector<std::string>{"Time", "NumberOfPoints", "PsiError",
-                                   "PhiError", "PiError"},
+                                   "PhiError", "PiError",
+                                   "L2NormGaugeConstraint",
+                                   "L2NormThreeIndexConstraint"},
           reduction_data{
               time.value(),
               db::get<::Tags::Mesh<Dim>>(box).number_of_grid_points(),
-              psi_error, phi_error, pi_error});
+              psi_error, phi_error, pi_error, gauge_constraint_cumulative,
+              three_index_constraint_cumulative});
     }
     return std::forward_as_tuple(std::move(box));
   }
