@@ -730,7 +730,7 @@ struct FConstraintCompute : FConstraint<SpatialDim, Frame>, db::ComputeTag {
       const tnsr::ijaa<DataVector, SpatialDim, Frame>&,
       const Scalar<DataVector>&,
       const tnsr::iaa<DataVector, SpatialDim, Frame>&) =
-      &two_index_constraint<SpatialDim, Frame, DataVector>;
+      &f_constraint<SpatialDim, Frame, DataVector>;
   using argument_tags = tmpl::list<
       GaugeH<SpatialDim, Frame>,
       ::Tags::deriv<GaugeH<SpatialDim, Frame>, tmpl::size_t<SpatialDim>, Frame>,
