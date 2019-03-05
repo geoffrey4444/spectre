@@ -27,7 +27,6 @@
 #include "NumericalAlgorithms/LinearOperators/Divergence.tpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "PointwiseFunctions/AnalyticData/Tags.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeGhQuantities.hpp"
@@ -163,8 +162,8 @@ struct Initialize {
         const auto& solution_vars =
             Parallel::get<analytic_solution_tag>(local_cache)
                 .variables(inertial_coords, initial_time,
-                           typename gr::Solutions::KerrSchild::template tags<
-                               DataVector>{});
+                           typename Metavariables::template
+                               analytic_tags_internal<DataVector>{});
         // First fetch lapse, shift, spatial metric and their derivs
         const auto& lapse = get<gr::Tags::Lapse<DataVector>>(solution_vars);
         const auto& dt_lapse =
