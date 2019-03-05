@@ -53,6 +53,11 @@ struct Lapse : db::SimpleTag {
   using type = Scalar<DataType>;
   static std::string name() noexcept { return "Lapse"; }
 };
+template <size_t SpatialDim, typename Frame>
+struct DerivSpacetimeMetric : db::SimpleTag {
+  using type = tnsr::iaa<DataVector, SpatialDim, Frame>;
+  static std::string name() noexcept { return "DerivSpacetimeMetric"; }
+};
 template <size_t Dim, typename Frame, typename DataType>
 struct DerivativesOfSpacetimeMetric : db::SimpleTag {
   using type = tnsr::abb<DataType, Dim, Frame>;

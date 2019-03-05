@@ -11,6 +11,7 @@
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/Tags.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"  // IWYU pragma: keep
 #include "PointwiseFunctions/GeneralRelativity/ComputeSpacetimeQuantities.hpp"
@@ -688,6 +689,49 @@ struct TimeDerivShiftCompute : TimeDerivShift<SpatialDim, Frame>,
                  gr::Tags::InverseSpatialMetric<SpatialDim, Frame, DataVector>,
                  gr::Tags::SpacetimeNormalVector<SpatialDim, Frame, DataVector>,
                  Phi<SpatialDim, Frame>, Pi<SpatialDim, Frame>>;
+};
+
+template <size_t SpatialDim, typename Frame>
+struct ThreeIndexConstraintCompute
+    : GeneralizedHarmonic::Tags::ThreeIndexConstraint<SpatialDim, Frame>,
+      db::ComputeTag {
+  using base =
+      GeneralizedHarmonic::Tags::ThreeIndexConstraint<SpatialDim, Frame>;
+  using type = typename base::type;
+  static constexpr tnsr::iaa<DataVector, SpatialDim, Frame> (*function)(
+      const tnsr::iaa<DataVector, SpatialDim, Frame>&,
+      const tnsr::iaa<DataVector, SpatialDim, Frame>&) =
+      &three_index_constraint<SpatialDim, Frame, DataVector>;
+  using argument_tags =
+      tmpl::list<gr::Tags::DerivSpacetimeMetric<SpatialDim, Frame>,
+                 GeneralizedHarmonic::Tags::Phi<SpatialDim, Frame>>;
+};
+
+template <size_t SpatialDim, typename Frame>
+struct DerivSpacetimeMetricCompute
+    : gr::Tags::DerivSpacetimeMetric<SpatialDim, Frame>,
+      db::ComputeTag {
+  using base =
+      gr::Tags::DerivSpacetimeMetric<SpatialDim, Frame>;
+  using type = typename base::type;
+  static constexpr auto function(
+      const tnsr::abb<DataVector, SpatialDim, Frame>&
+          spacetime_deriv_of_spacetime_metric) noexcept {
+    auto& deriv_spacetime_metric =
+        make_with_value<tnsr::iaa<DataVector, SpatialDim, Frame>>(
+          spacetime_deriv_of_spacetime_metric, 0.);
+    for (size_t i = 0; i < SpatialDim; ++i) {
+      for (size_t a = 0; a < SpatialDim + 1; ++a) {
+        for (size_t b = a; b < SpatialDim + 1; ++b) {
+          deriv_spacetime_metric.get(i, a, b) =
+            spacetime_deriv_of_spacetime_metric.get(i + 1, a, b);
+        }
+      }
+    }
+    return deriv_spacetime_metric;
+  }
+  using argument_tags = tmpl::list<
+      gr::Tags::DerivativesOfSpacetimeMetric<SpatialDim, Frame, DataVector>>;
 };
 
 template <size_t SpatialDim, typename Frame>
