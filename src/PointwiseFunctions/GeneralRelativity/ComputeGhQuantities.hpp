@@ -676,7 +676,7 @@ struct TimeDerivShiftCompute : TimeDerivShift<SpatialDim, Frame>,
   using base = TimeDerivShift<SpatialDim, Frame>;
   using type = typename base::type;
   static constexpr tnsr::I<DataVector, SpatialDim, Frame> (*function)(
-      const Scalar<DataVector>& lapse,
+      const Scalar<DataVector>&,
       const tnsr::I<DataVector, SpatialDim, Frame>&,
       const tnsr::II<DataVector, SpatialDim, Frame>&,
       const tnsr::A<DataVector, SpatialDim, Frame>&,
@@ -689,6 +689,34 @@ struct TimeDerivShiftCompute : TimeDerivShift<SpatialDim, Frame>,
                  gr::Tags::InverseSpatialMetric<SpatialDim, Frame, DataVector>,
                  gr::Tags::SpacetimeNormalVector<SpatialDim, Frame, DataVector>,
                  Phi<SpatialDim, Frame>, Pi<SpatialDim, Frame>>;
+};
+
+template <size_t SpatialDim, typename Frame>
+struct GaugeConstraintCompute
+    : GeneralizedHarmonic::Tags::GaugeConstraint<SpatialDim, Frame>,
+      db::ComputeTag {
+  using base =
+      GeneralizedHarmonic::Tags::GaugeConstraint<SpatialDim, Frame>;
+  using type = typename base::type;
+  static constexpr tnsr::iaa<DataVector, SpatialDim, Frame> (*function)(
+    const tnsr::a<DataVector, SpatialDim, Frame>&,
+    const tnsr::a<DataVector, SpatialDim, Frame>&,
+    const tnsr::A<DataVector, SpatialDim, Frame>&,
+    const tnsr::II<DataVector, SpatialDim, Frame>&,
+    const tnsr::AA<DataVector, SpatialDim, Frame>&,
+    const tnsr::aa<DataVector, SpatialDim, Frame>&,
+    const tnsr::iaa<DataVector, SpatialDim, Frame>&) =
+      &gauge_constraint<SpatialDim, Frame, DataVector>;
+  using argument_tags =
+      tmpl::list<GeneralizedHarmonic::Tags::GaugeH<SpatialDim, Frame>,
+                 gr::Tags::SpacetimeNormalOneForm<SpatialDim, Frame,
+                                                  DataVector>,
+                 gr::Tags::SpacetimeNormalVector<SpatialDim, Frame, DataVector>,
+                 gr::Tags::InverseSpatialMetric<SpatialDim, Frame, DataVector>,
+                 gr::Tags::InverseSpacetimeMetric<SpatialDim, Frame,
+                                                  DataVector>,
+                 GeneralizedHarmonic::Tags::Pi<SpatialDim, Frame>,
+                 GeneralizedHarmonic::Tags::Phi<SpatialDim, Frame>>;
 };
 
 template <size_t SpatialDim, typename Frame>
