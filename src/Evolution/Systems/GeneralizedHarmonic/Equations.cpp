@@ -24,7 +24,7 @@ typename FieldTag::type weight_char_field(
     const typename Tags::CharSpeed<FieldTag>::type& char_speed_ext) noexcept {
   typename FieldTag::type weighted_char_field = char_field_int;
   DataVector char_speed_avg = get(char_speed_int);
-  char_speed_avg -= 0.5 * (get(char_speed_int) + get(char_speed_ext));
+  char_speed_avg -= 0.5 * (get(char_speed_int) - get(char_speed_ext));
 
   auto weighted_char_field_it = weighted_char_field.begin();
   for (auto int_it = char_field_int.begin(), ext_it = char_field_ext.begin();
@@ -424,7 +424,7 @@ void UpwindFlux<Dim>::operator()(
           char_speed_u_minus_ext);
 
   Scalar<DataVector> gamma2_avg = gamma2_int;
-  get(gamma2_avg) += 0.5 * (get(gamma2_ext) - get(gamma2_int));
+  get(gamma2_avg) += 0.5 * (get(gamma2_ext) + get(gamma2_int));
   const auto weighted_evolved_fields =
       EvolvedFieldsFromCharacteristicFieldsCompute<
           Dim, Frame::Inertial>::function(gamma2_avg, weighted_u_psi,

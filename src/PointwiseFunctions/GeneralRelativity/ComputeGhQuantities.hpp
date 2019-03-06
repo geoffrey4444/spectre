@@ -874,10 +874,10 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
   using base = ConstraintGamma0;
   using type = typename base::type;
-  static constexpr auto function(
+  static auto function(
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
-    const auto& r_squared = get(dot_product(coords, coords));
-    auto gamma = make_with_value<type>(coords, 0.);
+    const DataVector r_squared = get(dot_product(coords, coords));
+    Scalar<DataVector> gamma = make_with_value<type>(coords, 0.);
     get(gamma) = 3. * exp(-0.5 * r_squared / 64.) + 0.001;
     return gamma;
   }
@@ -899,10 +899,10 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
   using base = ConstraintGamma2;
   using type = typename base::type;
-  static constexpr auto function(
+  static auto function(
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
-    const auto& r_squared = get(dot_product(coords, coords));
-    auto gamma = make_with_value<type>(coords, 0.);
+    const DataVector r_squared = get(dot_product(coords, coords));
+    Scalar<DataVector> gamma = make_with_value<type>(coords, 0.);
     get(gamma) = exp(-0.5 * r_squared / 64.) + 0.001;
     return gamma;
   }
