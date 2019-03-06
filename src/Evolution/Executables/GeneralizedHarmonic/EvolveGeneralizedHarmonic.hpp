@@ -26,6 +26,7 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/ComputeNonconservativeBoundaryFluxes.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/FluxCommunication.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/ImposeBoundaryConditions.hpp"  // IWYU pragma: keep
+#include "NumericalAlgorithms/DiscontinuousGalerkin/NumericalFluxes/LocalLaxFriedrichs.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "Options/Options.hpp"
 #include "Parallel/GotoAction.hpp"  // IWYU pragma: keep
@@ -33,6 +34,7 @@
 #include "Parallel/Reduction.hpp"
 #include "Parallel/RegisterDerivedClassesWithCharm.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"  // IWYU pragma: keep
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Minkowski.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrapGh.hpp"  // IWYU pragma: keep
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/WaveEquation/PlaneWave.hpp"  // IWYU pragma: keep
@@ -72,16 +74,16 @@ class CProxy_ConstGlobalCache;
 
 struct EvolutionMetavars {
   // Customization/"input options" to simulation
-  static constexpr int dim = 3;  // Note: this assumes 3D
+  static constexpr int dim = 1;
   using Inertial = Frame::Inertial;
   using system = GeneralizedHarmonic::System<dim>;
   using temporal_id = Tags::TimeId;
   static constexpr bool local_time_stepping = false;
   using analytic_solution_tag = OptionTags::AnalyticSolution<
-      GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::KerrSchild>>;
+      GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::Minkowski<dim>>>;
   using boundary_condition_tag = analytic_solution_tag;
-  using normal_dot_numerical_flux =
-      OptionTags::NumericalFluxParams<GeneralizedHarmonic::UpwindFlux<dim>>;
+  using normal_dot_numerical_flux = OptionTags::NumericalFluxParams<
+      dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
   using const_global_cache_tag_list =
@@ -135,8 +137,8 @@ struct EvolutionMetavars {
               Actions::Goto<EvolvePhaseStart>>>>>;
 
   static constexpr OptionString help{
-      "Evolve a Kerr-Schild black hole in 3 spatial dimensions.\n\n"
-      "The analytic solution is: KerrSchild\n"
+      "Evolve a generalized harmonic analytic solution.\n\n"
+      "The analytic solution is: Minkowski\n"
       "The numerical flux is:    UpwindFlux\n"};
 
   enum class Phase { Initialization, RegisterWithObserver, Evolve, Exit };
