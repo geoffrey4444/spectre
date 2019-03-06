@@ -79,9 +79,6 @@ struct EvolutionMetavars {
   static constexpr bool local_time_stepping = false;
   using analytic_solution_tag = OptionTags::AnalyticSolution<
       GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::KerrSchild>>;
-  template <typename DataType>
-  using analytic_tags_internal =
-      typename analytic_solution_tag::type::template tags<DataType>;
   using boundary_condition_tag = analytic_solution_tag;
   using normal_dot_numerical_flux =
       OptionTags::NumericalFluxParams<GeneralizedHarmonic::UpwindFlux<dim>>;
