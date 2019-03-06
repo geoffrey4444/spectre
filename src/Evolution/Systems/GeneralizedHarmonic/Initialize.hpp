@@ -27,7 +27,6 @@
 #include "NumericalAlgorithms/LinearOperators/Divergence.tpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "PointwiseFunctions/AnalyticData/Tags.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeGhQuantities.hpp"
@@ -72,7 +71,7 @@ struct Initialize {
         gr::Tags::SqrtDetSpatialMetricCompute<Dim, Inertial, DataVector>,
         gr::Tags::SpacetimeNormalOneFormCompute<Dim, Inertial, DataVector>,
         gr::Tags::SpacetimeNormalVectorCompute<Dim, Inertial, DataVector>,
-        gr::Tags::InverseSpacetimeMetricCompute<3, Inertial, DataVector>,
+        gr::Tags::InverseSpacetimeMetricCompute<Dim, Inertial, DataVector>,
         GeneralizedHarmonic::Tags::DerivSpatialMetricCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::DerivLapseCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::DerivShiftCompute<Dim, Inertial>,
@@ -154,17 +153,12 @@ struct Initialize {
         using analytic_solution_tag = OptionTags::AnalyticSolutionBase;
         /*
          * It is assumed here that the analytic solution makes available the
-         * following foliation-related variables (only):
-         * 1. Lapse,
-         * 2. Shift,
-         * 3. SpatialMetric,
-         * and their spatial + temporal derivatives.
+         * tags listed in gr::analytic_solution_tags
          */
         const auto& solution_vars =
             Parallel::get<analytic_solution_tag>(local_cache)
                 .variables(inertial_coords, initial_time,
-                           typename gr::Solutions::KerrSchild::template tags<
-                               DataVector>{});
+                           gr::analytic_solution_tags<Dim, DataVector>{});
         // First fetch lapse, shift, spatial metric and their derivs
         const auto& lapse = get<gr::Tags::Lapse<DataVector>>(solution_vars);
         const auto& dt_lapse =

@@ -22,7 +22,6 @@
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/Options.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeGhQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeSpacetimeQuantities.hpp"
@@ -122,11 +121,9 @@ struct Observe {
 
       const auto& exact_solution = Parallel::get<solution_tag>(cache);
 
-      // NOTE: This observer currently assumes you are evolving a KerrSchild
-      // analytic solution
       const auto& exact_solution_variables = exact_solution.variables(
           inertial_coordinates, time.value(),
-          gr::Solutions::KerrSchild::tags<DataVector>{});
+          gr::analytic_solution_tags<Dim, DataVector>{});
       const auto& exact_lapse =
           get<gr::Tags::Lapse<DataVector>>(exact_solution_variables);
       const auto& exact_dt_lapse = get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(
