@@ -417,7 +417,7 @@ void UpwindFlux<Dim>::operator()(
       u_minus_int, char_speed_u_minus_int, u_minus_ext, char_speed_u_minus_ext);
 
   Scalar<DataVector> gamma2_avg = gamma2_int;
-  get(gamma2_avg) += 0.5 * (get(gamma2_ext) + get(gamma2_int));
+  get(gamma2_avg) -= 0.5 * (get(gamma2_int) - get(gamma2_ext));
   const auto weighted_evolved_fields =
       EvolvedFieldsFromCharacteristicFieldsCompute<
           Dim, Frame::Inertial>::function(gamma2_avg, weighted_u_psi,
