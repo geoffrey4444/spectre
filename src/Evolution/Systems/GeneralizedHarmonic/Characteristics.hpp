@@ -62,6 +62,8 @@ namespace GeneralizedHarmonic {
 template <size_t Dim, typename Frame>
 struct CharacteristicSpeedsCompute : Tags::CharacteristicSpeeds<Dim, Frame>,
                                      db::ComputeTag {
+  using base = Tags::CharacteristicSpeeds<Dim, Frame>;
+  using type = typename base::type;
   using argument_tags = tmpl::list<
       Tags::ConstraintGamma1, gr::Tags::Lapse<DataVector>,
       gr::Tags::Shift<Dim, Frame, DataVector>,

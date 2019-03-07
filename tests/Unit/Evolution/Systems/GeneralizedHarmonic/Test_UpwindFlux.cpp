@@ -215,7 +215,8 @@ void test_upwind_flux_analytic(
           char_fields_int),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_int),
-      unity_char_speed, unity_char_speed, unity_char_speed, unity_char_speed,
+      std::array<DataVector, 4>{{get(unity_char_speed), get(unity_char_speed),
+                                 get(unity_char_speed), get(unity_char_speed)}},
       gamma_2, unit_normal_one_form_int);
   flux_computer.package_data(
       make_not_null(&packaged_data_ext),
@@ -227,8 +228,10 @@ void test_upwind_flux_analytic(
           char_fields_ext),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_ext),
-      minus_unity_char_speed, minus_unity_char_speed, minus_unity_char_speed,
-      minus_unity_char_speed, gamma_2, minus_unit_normal_one_form_int);
+      std::array<DataVector, 4>{
+          {get(minus_unity_char_speed), get(minus_unity_char_speed),
+           get(minus_unity_char_speed), get(minus_unity_char_speed)}},
+      gamma_2, minus_unit_normal_one_form_int);
 
   tnsr::aa<DataVector, spatial_dim, Frame::Inertial>
       normal_dot_numerical_flux_pi(n_pts, 0.0);
@@ -261,8 +264,10 @@ void test_upwind_flux_analytic(
           char_fields_int),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_int),
-      minus_unity_char_speed, minus_unity_char_speed, minus_unity_char_speed,
-      minus_unity_char_speed, gamma_2, unit_normal_one_form_ext);
+      std::array<DataVector, 4>{
+          {get(minus_unity_char_speed), get(minus_unity_char_speed),
+           get(minus_unity_char_speed), get(minus_unity_char_speed)}},
+      gamma_2, unit_normal_one_form_ext);
   flux_computer.package_data(
       make_not_null(&packaged_data_ext),
       get<GeneralizedHarmonic::Tags::UPsi<spatial_dim, Frame::Inertial>>(
@@ -273,7 +278,8 @@ void test_upwind_flux_analytic(
           char_fields_ext),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_ext),
-      unity_char_speed, unity_char_speed, unity_char_speed, unity_char_speed,
+      std::array<DataVector, 4>{{get(unity_char_speed), get(unity_char_speed),
+                                 get(unity_char_speed), get(unity_char_speed)}},
       gamma_2, unit_normal_one_form_ext);
 
   apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
@@ -306,11 +312,7 @@ void test_upwind_flux_analytic(
           char_fields_int),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_int),
-      Scalar<DataVector>{char_speeds_int[0]},
-      Scalar<DataVector>{char_speeds_int[1]},
-      Scalar<DataVector>{char_speeds_int[2]},
-      Scalar<DataVector>{char_speeds_int[3]}, gamma_2,
-      unit_normal_one_form_int);
+      char_speeds_int, gamma_2, unit_normal_one_form_int);
   flux_computer.package_data(
       make_not_null(&packaged_data_ext),
       get<GeneralizedHarmonic::Tags::UPsi<spatial_dim, Frame::Inertial>>(
@@ -321,11 +323,7 @@ void test_upwind_flux_analytic(
           char_fields_ext),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_ext),
-      Scalar<DataVector>{char_speeds_ext[0]},
-      Scalar<DataVector>{char_speeds_ext[1]},
-      Scalar<DataVector>{char_speeds_ext[2]},
-      Scalar<DataVector>{char_speeds_ext[3]}, gamma_2,
-      unit_normal_one_form_ext);
+      char_speeds_ext, gamma_2, unit_normal_one_form_ext);
   apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
                        make_not_null(&normal_dot_numerical_flux_psi),
                        make_not_null(&normal_dot_numerical_flux_pi),
@@ -342,11 +340,7 @@ void test_upwind_flux_analytic(
           char_fields_int),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_int),
-      Scalar<DataVector>{char_speeds_int[0]},
-      Scalar<DataVector>{char_speeds_int[1]},
-      Scalar<DataVector>{char_speeds_int[2]},
-      Scalar<DataVector>{char_speeds_int[3]}, gamma_2,
-      unit_normal_one_form_ext);
+      char_speeds_int, gamma_2, unit_normal_one_form_ext);
   flux_computer.package_data(
       make_not_null(&packaged_data_int),
       get<GeneralizedHarmonic::Tags::UPsi<spatial_dim, Frame::Inertial>>(
@@ -357,11 +351,7 @@ void test_upwind_flux_analytic(
           char_fields_ext),
       get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
           char_fields_ext),
-      Scalar<DataVector>{char_speeds_ext[0]},
-      Scalar<DataVector>{char_speeds_ext[1]},
-      Scalar<DataVector>{char_speeds_ext[2]},
-      Scalar<DataVector>{char_speeds_ext[3]}, gamma_2,
-      unit_normal_one_form_int);
+      char_speeds_ext, gamma_2, unit_normal_one_form_int);
 
   tnsr::aa<DataVector, spatial_dim, Frame::Inertial>
       normal_dot_numerical_flux_pi_different_fields(n_pts, 0.0);
@@ -415,11 +405,7 @@ void test_upwind_flux_analytic(
             char_fields_int),
         get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
             char_fields_int),
-        Scalar<DataVector>{char_speeds_int[0]},
-        Scalar<DataVector>{char_speeds_int[1]},
-        Scalar<DataVector>{char_speeds_int[2]},
-        Scalar<DataVector>{char_speeds_int[3]}, gamma_2,
-        unit_normal_one_form_int);
+        char_speeds_int, gamma_2, unit_normal_one_form_int);
     flux_computer.package_data(
         make_not_null(&packaged_data_ext),
         get<GeneralizedHarmonic::Tags::UPsi<spatial_dim, Frame::Inertial>>(
@@ -430,11 +416,7 @@ void test_upwind_flux_analytic(
             char_fields_ext),
         get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
             char_fields_ext),
-        Scalar<DataVector>{char_speeds_ext[0]},
-        Scalar<DataVector>{char_speeds_ext[1]},
-        Scalar<DataVector>{char_speeds_ext[2]},
-        Scalar<DataVector>{char_speeds_ext[3]}, gamma_2,
-        unit_normal_one_form_ext);
+        char_speeds_ext, gamma_2, unit_normal_one_form_ext);
     apply_numerical_flux(flux_computer, packaged_data_int, packaged_data_ext,
                          make_not_null(&normal_dot_numerical_flux_psi),
                          make_not_null(&normal_dot_numerical_flux_pi),
@@ -452,11 +434,7 @@ void test_upwind_flux_analytic(
             char_fields_ext),
         get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
             char_fields_ext),
-        Scalar<DataVector>{char_speeds_int[0]},
-        Scalar<DataVector>{char_speeds_int[1]},
-        Scalar<DataVector>{char_speeds_int[2]},
-        Scalar<DataVector>{char_speeds_int[3]}, gamma_2,
-        unit_normal_one_form_int);
+        char_speeds_int, gamma_2, unit_normal_one_form_int);
     flux_computer.package_data(
         make_not_null(&packaged_data_ext),
         get<GeneralizedHarmonic::Tags::UPsi<spatial_dim, Frame::Inertial>>(
@@ -467,11 +445,7 @@ void test_upwind_flux_analytic(
             char_fields_ext),
         get<GeneralizedHarmonic::Tags::UMinus<spatial_dim, Frame::Inertial>>(
             char_fields_ext),
-        Scalar<DataVector>{char_speeds_ext[0]},
-        Scalar<DataVector>{char_speeds_ext[1]},
-        Scalar<DataVector>{char_speeds_ext[2]},
-        Scalar<DataVector>{char_speeds_ext[3]}, gamma_2,
-        unit_normal_one_form_ext);
+        char_speeds_ext, gamma_2, unit_normal_one_form_ext);
     apply_numerical_flux(
         flux_computer, packaged_data_int, packaged_data_ext,
         make_not_null(&normal_dot_numerical_flux_psi_different_fields),

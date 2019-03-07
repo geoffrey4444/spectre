@@ -83,7 +83,8 @@ struct EvolutionMetavars {
       GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::Minkowski<dim>>>;
   using boundary_condition_tag = analytic_solution_tag;
   using normal_dot_numerical_flux = OptionTags::NumericalFluxParams<
-      dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
+      //dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
+      GeneralizedHarmonic::UpwindFlux<dim>>;
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
   using const_global_cache_tag_list =

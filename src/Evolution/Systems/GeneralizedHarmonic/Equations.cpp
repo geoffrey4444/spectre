@@ -341,14 +341,8 @@ void UpwindFlux<Dim>::package_data(
     const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero,
     const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus,
     const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus,
-    const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-        char_speed_u_psi,
-    const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-        char_speed_u_zero,
-    const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-        char_speed_u_plus,
-    const typename ::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>::type&
-        char_speed_u_minus,
+    const typename Tags::CharacteristicSpeeds<Dim, Frame::Inertial>::type&
+        char_speeds,
     const typename Tags::ConstraintGamma2::type& gamma2,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
     const noexcept {
@@ -357,13 +351,13 @@ void UpwindFlux<Dim>::package_data(
   get<Tags::UPlus<Dim, Frame::Inertial>>(*packaged_data) = u_plus;
   get<Tags::UMinus<Dim, Frame::Inertial>>(*packaged_data) = u_minus;
   get<::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>>(*packaged_data) =
-      char_speed_u_psi;
+      Scalar<DataVector>{char_speeds[0]};
   get<::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>>(*packaged_data) =
-      char_speed_u_zero;
+      Scalar<DataVector>{char_speeds[1]};
   get<::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>>(*packaged_data) =
-      char_speed_u_plus;
+      Scalar<DataVector>{char_speeds[2]};
   get<::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>>(*packaged_data) =
-      char_speed_u_minus;
+      Scalar<DataVector>{char_speeds[3]};
   get<Tags::ConstraintGamma2>(*packaged_data) = gamma2;
   get<::Tags::UnitFaceNormal<Dim, Frame::Inertial>>(*packaged_data) =
       interface_unit_normal;
@@ -416,12 +410,11 @@ void UpwindFlux<Dim>::operator()(
       weight_char_field<GeneralizedHarmonic::Tags::UZero<Dim, Frame::Inertial>>(
           u_zero_int, char_speed_u_zero_int, u_zero_ext, char_speed_u_zero_ext);
   const auto weighted_u_plus =
-      weight_char_field<GeneralizedHarmonic::Tags::UPsi<Dim, Frame::Inertial>>(
+      weight_char_field<GeneralizedHarmonic::Tags::UPlus<Dim, Frame::Inertial>>(
           u_plus_int, char_speed_u_plus_int, u_plus_ext, char_speed_u_plus_ext);
-  const auto weighted_u_minus =
-      weight_char_field<GeneralizedHarmonic::Tags::UPsi<Dim, Frame::Inertial>>(
-          u_minus_int, char_speed_u_minus_int, u_minus_ext,
-          char_speed_u_minus_ext);
+  const auto weighted_u_minus = weight_char_field<
+      GeneralizedHarmonic::Tags::UMinus<Dim, Frame::Inertial>>(
+      u_minus_int, char_speed_u_minus_int, u_minus_ext, char_speed_u_minus_ext);
 
   Scalar<DataVector> gamma2_avg = gamma2_int;
   get(gamma2_avg) += 0.5 * (get(gamma2_ext) + get(gamma2_int));

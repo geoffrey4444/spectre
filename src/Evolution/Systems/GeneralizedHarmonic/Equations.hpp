@@ -212,11 +212,8 @@ struct UpwindFlux {
   using argument_tags = tmpl::list<
       Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
       Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
-      ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>,
-      Tags::ConstraintGamma2, ::Tags::UnitFaceNormal<Dim, Frame::Inertial>>;
+      Tags::CharacteristicSpeeds<Dim, Frame::Inertial>, Tags::ConstraintGamma2,
+      ::Tags::UnitFaceNormal<Dim, Frame::Inertial>>;
 
   // pseudo-interface: used internally by Algorithm infrastructure, not
   // user-level code
@@ -228,14 +225,8 @@ struct UpwindFlux {
       const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero,
       const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus,
       const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus,
-      const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-          char_speed_u_psi,
-      const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-          char_speed_u_zero,
-      const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-          char_speed_u_plus,
-      const typename ::Tags::CharSpeed<
-          Tags::UMinus<Dim, Frame::Inertial>>::type& char_speed_u_minus,
+      const typename Tags::CharacteristicSpeeds<Dim, Frame::Inertial>::type&
+          char_speeds,
       const typename Tags::ConstraintGamma2::type& gamma2,
       const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
       const noexcept;
