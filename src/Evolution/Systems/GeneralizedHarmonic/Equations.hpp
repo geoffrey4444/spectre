@@ -153,26 +153,24 @@ struct ComputeNormalDotFluxes {
  * speed at the interface.
  *
  * Here, \f$S^{-1}u^-\f$ represents the
- * characteristic variables at the boundary of the element interior,
- * \f$S^{-1}u^+\f$ represents the characteristic variables at the boundary
- * but in the exterior, neighboring element, \f$\Lambda^+\f$ is a diagonal
+ * characteristic variables at the element interface, computed using
+ * evolved variables from the element interior;
+ * \f$S^{-1}u^+\f$ represents the characteristic variables at the element
+ * interface, computed using evolved variables from the exterior, neighboring
+ * element; \f$\Lambda^+\f$ is a diagonal
  * matrix whose nonzero entries are the average characteristic speeds
- * that are positive ("outgoing", i.e. leaving the element), and
- * \f$\Lambda^-\f$ is a diagonal matrix whose
- * nonzero entries are the average characteristic speeds that are negative
- * ("incoming", i.e. entering the element). If a characteristic field
+ * that are positive ("outgoing", i.e. leaving the element); and
+ * \f$\Lambda^-\f$ is a diagonal matrix whose nonzero entries are the average
+ * characteristic speeds that are negative ("incoming", i.e. entering the
+ * element). If a characteristic field
  * \f$U^-\f$ has a characteristic speed \f$v^-\f$ and the same
  * field in the exterior \f$U^+\f$ has speed \f$v^+\f$, then the
- * average characteristic speed is \f$v^{\rm avg} = (1/2)(v^- - v^+)\f$.
- * Note the minus sign in the average is because characteristic speeds
- * in the interior and exterior are defined with opposite-pointing normals,
- * so e.g. a characteristic field flowing from the exterior to the interior
- * will have a positive sign in the exterior speed (since the field is
- * outgoing) but a negative sign in the interior speed (since the field is
- * incoming).
+ * average characteristic speed is \f$v^{\rm avg} = (1/2)(v^- + v^+)\f$.
  *
  * This function implements the upwind flux for the generalized harmonic
- * system. Specifically, it computes \f$\Lambda^+\f$ and \f$\Lambda^-\f$
+ * system. First, it computes the characteristic variables using i) the
+ * evolved variables from the interior and ii) the evolved variables from the
+ * exterior. Then, it computes \f$\Lambda^+\f$ and \f$\Lambda^-\f$
  * from the average characteristic speeds. Then, it computes the
  * combination \f$\Lambda^+ S^{-1} u^- + \Lambda^- S^{-1} u^+\f$. Finally, it
  * applies \f$S\f$ by converting the result back from characteristic to
@@ -198,22 +196,25 @@ struct UpwindFlux {
   // Variables. Local and remote values of this data are then combined in the
   // `()` operator.
 
-  using package_tags = tmpl::list<
-      Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
-      Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
-      ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>,
-      ::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>,
-      Tags::ConstraintGamma2, ::Tags::UnitFaceNormal<Dim, Frame::Inertial>>;
+  using package_tags =
+      tmpl::list<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>,
+                 Tags::Pi<Dim, Frame::Inertial>,
+                 Tags::Phi<Dim, Frame::Inertial>, gr::Tags::Lapse<DataVector>,
+                 gr::Tags::Shift<Dim, Frame::Inertial, DataVector>,
+                 Tags::ConstraintGamma1, Tags::ConstraintGamma2,
+                 ::Tags::UnitFaceNormal<Dim, Frame::Inertial>,
+                 ::Tags::UnitFaceNormalVector<Dim, Frame::Inertial>>;
 
   // These tags on the interface of the element are passed to
   // `package_data` to provide the data needed to compute the numerical fluxes.
-  using argument_tags = tmpl::list<
-      Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
-      Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
-      Tags::CharacteristicSpeeds<Dim, Frame::Inertial>, Tags::ConstraintGamma2,
-      ::Tags::UnitFaceNormal<Dim, Frame::Inertial>>;
+  using argument_tags =
+      tmpl::list<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>,
+                 Tags::Pi<Dim, Frame::Inertial>,
+                 Tags::Phi<Dim, Frame::Inertial>, gr::Tags::Lapse<DataVector>,
+                 gr::Tags::Shift<Dim, Frame::Inertial, DataVector>,
+                 Tags::ConstraintGamma1, Tags::ConstraintGamma2,
+                 ::Tags::UnitFaceNormal<Dim, Frame::Inertial>,
+                 ::Tags::UnitFaceNormalVector<Dim, Frame::Inertial>>;
 
   // pseudo-interface: used internally by Algorithm infrastructure, not
   // user-level code
@@ -221,15 +222,18 @@ struct UpwindFlux {
   // arguments the databox types of the `argument_tags`.
   void package_data(
       gsl::not_null<Variables<package_tags>*> packaged_data,
-      const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi,
-      const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero,
-      const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus,
-      const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus,
-      const typename Tags::CharacteristicSpeeds<Dim, Frame::Inertial>::type&
-          char_speeds,
+      const typename gr::Tags::SpacetimeMetric<
+          Dim, Frame::Inertial, DataVector>::type& spacetime_metric,
+      const typename Tags::Pi<Dim, Frame::Inertial>::type& pi,
+      const typename Tags::Phi<Dim, Frame::Inertial>::type& phi,
+      const typename gr::Tags::Lapse<DataVector>::type& lapse,
+      const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+          shift,
+      const typename Tags::ConstraintGamma1::type& gamma1,
       const typename Tags::ConstraintGamma2::type& gamma2,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
-      const noexcept;
+      const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+          interface_unit_normal_vector) const noexcept;
 
   // pseudo-interface: used internally by Algorithm infrastructure, not
   // user-level code
@@ -247,35 +251,31 @@ struct UpwindFlux {
       gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
           GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>>*>
           phi_normal_dot_numerical_flux,
-      const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi_int,
-      const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero_int,
-      const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus_int,
-      const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus_int,
-      const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-          char_speed_u_psi_int,
-      const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-          char_speed_u_zero_int,
-      const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-          char_speed_u_plus_int,
-      const typename ::Tags::CharSpeed<
-          Tags::UMinus<Dim, Frame::Inertial>>::type& char_speed_u_minus_int,
+      const typename gr::Tags::SpacetimeMetric<
+          Dim, Frame::Inertial, DataVector>::type& spacetime_metric_int,
+      const typename Tags::Pi<Dim, Frame::Inertial>::type& pi_int,
+      const typename Tags::Phi<Dim, Frame::Inertial>::type& phi_int,
+      const typename gr::Tags::Lapse<DataVector>::type& lapse_int,
+      const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+          shift_int,
+      const typename Tags::ConstraintGamma2::type& gamma1_int,
       const typename Tags::ConstraintGamma2::type& gamma2_int,
       const tnsr::i<DataVector, Dim, Frame::Inertial>&
           interface_unit_normal_int,
-      const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi_ext,
-      const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero_ext,
-      const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus_ext,
-      const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus_ext,
-      const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-          char_speed_u_psi_ext,
-      const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-          char_speed_u_zero_ext,
-      const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-          char_speed_u_plus_ext,
-      const typename ::Tags::CharSpeed<
-          Tags::UMinus<Dim, Frame::Inertial>>::type& char_speed_u_minus_ext,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+          interface_unit_normal_vector_int,
+      const typename gr::Tags::SpacetimeMetric<
+          Dim, Frame::Inertial, DataVector>::type& spacetime_metric_ext,
+      const typename Tags::Pi<Dim, Frame::Inertial>::type& pi_ext,
+      const typename Tags::Phi<Dim, Frame::Inertial>::type& phi_ext,
+      const typename gr::Tags::Lapse<DataVector>::type& lapse_ext,
+      const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+          shift_ext,
+      const typename Tags::ConstraintGamma2::type& gamma1_ext,
       const typename Tags::ConstraintGamma2::type& gamma2_ext,
       const tnsr::i<DataVector, Dim, Frame::Inertial>&
-          interface_unit_normal_ext) const noexcept;
+          interface_unit_normal_ext,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+          interface_unit_normal_vector_ext) const noexcept;
 };
 }  // namespace GeneralizedHarmonic

@@ -34,6 +34,13 @@ typename FieldTag::type weight_char_field(
     *weighted_char_field_it +=
         char_speed_avg * step_function(-char_speed_avg) * *ext_it;
   }
+
+  /*std::cout << "char_speed_int: \n\n" << char_speed_int << "\n\n";
+  std::cout << "char_speed_ext: \n\n" << char_speed_ext << "\n\n";
+  std::cout << "char_field_int: \n\n" << char_field_int << "\n\n";
+  std::cout << "char_field_ext: \n\n" << char_field_ext << "\n\n";
+  std::cout << "weighted_char_field: \n\n" << weighted_char_field << "\n\n";*/
+
   return weighted_char_field;
 }
 }  // namespace
@@ -337,30 +344,31 @@ void ComputeNormalDotFluxes<Dim>::apply(
 template <size_t Dim>
 void UpwindFlux<Dim>::package_data(
     gsl::not_null<Variables<package_tags>*> packaged_data,
-    const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi,
-    const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero,
-    const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus,
-    const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus,
-    const typename Tags::CharacteristicSpeeds<Dim, Frame::Inertial>::type&
-        char_speeds,
+    const typename gr::Tags::SpacetimeMetric<
+        Dim, Frame::Inertial, DataVector>::type& spacetime_metric,
+    const typename Tags::Pi<Dim, Frame::Inertial>::type& pi,
+    const typename Tags::Phi<Dim, Frame::Inertial>::type& phi,
+    const typename gr::Tags::Lapse<DataVector>::type& lapse,
+    const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+        shift,
+    const typename Tags::ConstraintGamma1::type& gamma1,
     const typename Tags::ConstraintGamma2::type& gamma2,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
-    const noexcept {
-  get<Tags::UPsi<Dim, Frame::Inertial>>(*packaged_data) = u_psi;
-  get<Tags::UZero<Dim, Frame::Inertial>>(*packaged_data) = u_zero;
-  get<Tags::UPlus<Dim, Frame::Inertial>>(*packaged_data) = u_plus;
-  get<Tags::UMinus<Dim, Frame::Inertial>>(*packaged_data) = u_minus;
-  get<::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>>(*packaged_data) =
-      Scalar<DataVector>{char_speeds[0]};
-  get<::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>>(*packaged_data) =
-      Scalar<DataVector>{char_speeds[1]};
-  get<::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>>(*packaged_data) =
-      Scalar<DataVector>{char_speeds[2]};
-  get<::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>>(*packaged_data) =
-      Scalar<DataVector>{char_speeds[3]};
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+        interface_unit_normal_vector) const noexcept {
+  get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>(
+      *packaged_data) = spacetime_metric;
+  get<Tags::Pi<Dim, Frame::Inertial>>(*packaged_data) = pi;
+  get<Tags::Phi<Dim, Frame::Inertial>>(*packaged_data) = phi;
+  get<gr::Tags::Lapse<DataVector>>(*packaged_data) = lapse;
+  get<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>(*packaged_data) =
+      shift;
+  get<Tags::ConstraintGamma1>(*packaged_data) = gamma1;
   get<Tags::ConstraintGamma2>(*packaged_data) = gamma2;
   get<::Tags::UnitFaceNormal<Dim, Frame::Inertial>>(*packaged_data) =
       interface_unit_normal;
+  get<::Tags::UnitFaceNormalVector<Dim, Frame::Inertial>>(*packaged_data) =
+      interface_unit_normal_vector;
 }
 
 template <size_t Dim>
@@ -374,35 +382,80 @@ void UpwindFlux<Dim>::operator()(
     gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
         GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>>*>
         phi_normal_dot_numerical_flux,
-    const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi_int,
-    const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero_int,
-    const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus_int,
-    const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus_int,
-    const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-        char_speed_u_psi_int,
-    const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-        char_speed_u_zero_int,
-    const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-        char_speed_u_plus_int,
-    const typename ::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>::type&
-        char_speed_u_minus_int,
+    const typename gr::Tags::SpacetimeMetric<
+        Dim, Frame::Inertial, DataVector>::type& spacetime_metric_int,
+    const typename Tags::Pi<Dim, Frame::Inertial>::type& pi_int,
+    const typename Tags::Phi<Dim, Frame::Inertial>::type& phi_int,
+    const typename gr::Tags::Lapse<DataVector>::type& lapse_int,
+    const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+        shift_int,
+    const typename Tags::ConstraintGamma2::type& gamma1_int,
     const typename Tags::ConstraintGamma2::type& gamma2_int,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_int,
-    const typename Tags::UPsi<Dim, Frame::Inertial>::type& u_psi_ext,
-    const typename Tags::UZero<Dim, Frame::Inertial>::type& u_zero_ext,
-    const typename Tags::UPlus<Dim, Frame::Inertial>::type& u_plus_ext,
-    const typename Tags::UMinus<Dim, Frame::Inertial>::type& u_minus_ext,
-    const typename ::Tags::CharSpeed<Tags::UPsi<Dim, Frame::Inertial>>::type&
-        char_speed_u_psi_ext,
-    const typename ::Tags::CharSpeed<Tags::UZero<Dim, Frame::Inertial>>::type&
-        char_speed_u_zero_ext,
-    const typename ::Tags::CharSpeed<Tags::UPlus<Dim, Frame::Inertial>>::type&
-        char_speed_u_plus_ext,
-    const typename ::Tags::CharSpeed<Tags::UMinus<Dim, Frame::Inertial>>::type&
-        char_speed_u_minus_ext,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+        interface_unit_normal_vector_int,
+    const typename gr::Tags::SpacetimeMetric<
+        Dim, Frame::Inertial, DataVector>::type& spacetime_metric_ext,
+    const typename Tags::Pi<Dim, Frame::Inertial>::type& pi_ext,
+    const typename Tags::Phi<Dim, Frame::Inertial>::type& phi_ext,
+    const typename gr::Tags::Lapse<DataVector>::type& lapse_ext,
+    const typename gr::Tags::Shift<Dim, Frame::Inertial, DataVector>::type&
+        shift_ext,
+    const typename Tags::ConstraintGamma2::type& gamma1_ext,
     const typename Tags::ConstraintGamma2::type& gamma2_ext,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-    /*interface_unit_normal_ext*/) const noexcept {
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_ext,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+        interface_unit_normal_vector_ext) const noexcept {
+  // Average the constraint damping parameters
+  Scalar<DataVector> gamma1_avg = gamma1_int;
+  get(gamma1_avg) -= 0.5 * (get(gamma1_int) - get(gamma1_ext));
+  Scalar<DataVector> gamma2_avg = gamma2_int;
+  get(gamma2_avg) -= 0.5 * (get(gamma2_int) - get(gamma2_ext));
+
+  // Get the characteristic fields - interior
+  const auto char_fields_int =
+      CharacteristicFieldsCompute<Dim, Frame::Inertial>::function(
+          gamma2_avg, spacetime_metric_int, pi_int, phi_int,
+          interface_unit_normal_int, interface_unit_normal_vector_int);
+  const auto u_psi_int = get<Tags::UPsi<Dim, Frame::Inertial>>(char_fields_int);
+  const auto u_zero_int =
+      get<Tags::UZero<Dim, Frame::Inertial>>(char_fields_int);
+  const auto u_plus_int =
+      get<Tags::UPlus<Dim, Frame::Inertial>>(char_fields_int);
+  const auto u_minus_int =
+      get<Tags::UMinus<Dim, Frame::Inertial>>(char_fields_int);
+
+  // Get the characteristic speeds - interior
+  const auto char_speeds_int =
+      CharacteristicSpeedsCompute<Dim, Frame::Inertial>::function(
+          gamma1_avg, lapse_int, shift_int, interface_unit_normal_int);
+  const Scalar<DataVector> char_speed_u_psi_int{char_speeds_int[0]};
+  const Scalar<DataVector> char_speed_u_zero_int{char_speeds_int[1]};
+  const Scalar<DataVector> char_speed_u_plus_int{char_speeds_int[2]};
+  const Scalar<DataVector> char_speed_u_minus_int{char_speeds_int[3]};
+
+  // Get the characteristic fields - exterior
+  const auto char_fields_ext =
+      CharacteristicFieldsCompute<Dim, Frame::Inertial>::function(
+          gamma2_avg, spacetime_metric_ext, pi_ext, phi_ext,
+          interface_unit_normal_int, interface_unit_normal_vector_int);
+  const auto u_psi_ext = get<Tags::UPsi<Dim, Frame::Inertial>>(char_fields_ext);
+  const auto u_zero_ext =
+      get<Tags::UZero<Dim, Frame::Inertial>>(char_fields_ext);
+  const auto u_plus_ext =
+      get<Tags::UPlus<Dim, Frame::Inertial>>(char_fields_ext);
+  const auto u_minus_ext =
+      get<Tags::UMinus<Dim, Frame::Inertial>>(char_fields_ext);
+
+  // Get the characteristic speeds - exterior
+  const auto char_speeds_ext =
+      CharacteristicSpeedsCompute<Dim, Frame::Inertial>::function(
+          gamma1_avg, lapse_ext, shift_ext, interface_unit_normal_int);
+  const Scalar<DataVector> char_speed_u_psi_ext{char_speeds_ext[0]};
+  const Scalar<DataVector> char_speed_u_zero_ext{char_speeds_ext[1]};
+  const Scalar<DataVector> char_speed_u_plus_ext{char_speeds_ext[2]};
+  const Scalar<DataVector> char_speed_u_minus_ext{char_speeds_ext[3]};
+
   const auto weighted_u_psi =
       weight_char_field<GeneralizedHarmonic::Tags::UPsi<Dim, Frame::Inertial>>(
           u_psi_int, char_speed_u_psi_int, u_psi_ext, char_speed_u_psi_ext);
@@ -416,8 +469,6 @@ void UpwindFlux<Dim>::operator()(
       GeneralizedHarmonic::Tags::UMinus<Dim, Frame::Inertial>>(
       u_minus_int, char_speed_u_minus_int, u_minus_ext, char_speed_u_minus_ext);
 
-  Scalar<DataVector> gamma2_avg = gamma2_int;
-  get(gamma2_avg) -= 0.5 * (get(gamma2_int) - get(gamma2_ext));
   const auto weighted_evolved_fields =
       EvolvedFieldsFromCharacteristicFieldsCompute<
           Dim, Frame::Inertial>::function(gamma2_avg, weighted_u_psi,
