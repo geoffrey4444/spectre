@@ -74,13 +74,13 @@ class CProxy_ConstGlobalCache;
 
 struct EvolutionMetavars {
   // Customization/"input options" to simulation
-  static constexpr int dim = 3;
+  static constexpr int dim = 1;
   using Inertial = Frame::Inertial;
   using system = GeneralizedHarmonic::System<dim>;
   using temporal_id = Tags::TimeId;
   static constexpr bool local_time_stepping = false;
   using analytic_solution_tag = OptionTags::AnalyticSolution<
-      GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::KerrSchild>>;
+      GeneralizedHarmonic::Solutions::WrapGh<gr::Solutions::Minkowski<dim>>>;
   using boundary_condition_tag = analytic_solution_tag;
   using normal_dot_numerical_flux = OptionTags::NumericalFluxParams<
       // dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
