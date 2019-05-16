@@ -76,6 +76,7 @@ enum class UMinusBcMethod {
   Freezing,
   ConstraintPreservingBjorhus,
   ConstraintPreservingPhysicalBjorhus,
+  ConstraintPreservingPhysicalBjorhusGaugeSommerfeld,
   Unknown
 };
 
@@ -121,7 +122,7 @@ using all_local_vars = tmpl::list<
     // fields
     ::Tags::Tempaa<22, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempiaa<23, VolumeDim, Frame::Inertial, DataVector>,
-    // ::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>,
+    ::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempaa<25, VolumeDim, Frame::Inertial, DataVector>,
     // Constraint damping parameter gamma2
     ::Tags::TempScalar<26, DataVector>,
@@ -133,9 +134,10 @@ using all_local_vars = tmpl::list<
     // derivatives of psi, pi, phi
     ::Tags::Tempiaa<31, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempiaa<32, VolumeDim, Frame::Inertial, DataVector>,
-    ::Tags::Tempijaa<33, VolumeDim, Frame::Inertial, DataVector>
+    ::Tags::Tempijaa<33, VolumeDim, Frame::Inertial, DataVector>,
     // <34>, <35>, <36> defined above
-    >;
+    // mapped coordinates
+    ::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>;
 
 // \brief This function computes intermediate variables needed for
 // Bjorhus-type constraint preserving boundary conditions for the
@@ -182,7 +184,9 @@ void local_variables(
       Tags::TwoIndexConstraint<VolumeDim, Frame::Inertial>,
       Tags::ThreeIndexConstraint<VolumeDim, Frame::Inertial>,
       Tags::FourIndexConstraint<VolumeDim, Frame::Inertial>,
-      Tags::FConstraint<VolumeDim, Frame::Inertial>
+      Tags::FConstraint<VolumeDim, Frame::Inertial>,
+      ::Tags::MappedCoordinates<::Tags::ElementMap<3, Frame::Inertial>,
+                                ::Tags::LogicalCoordinates<3>>
       //
       >;
   const auto vars_on_this_slice = db::data_on_slice(
@@ -304,8 +308,8 @@ void local_variables(
       get<Tags::UPsi<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   get<::Tags::Tempiaa<23, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
       get<Tags::UZero<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
-  // get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
-  //     get<Tags::UPlus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
+  get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
+      get<Tags::UPlus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   get<::Tags::Tempaa<25, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
       get<Tags::UMinus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   // Spatial derivatives of evolved variables: Psi, Pi and Phi
@@ -336,6 +340,12 @@ void local_variables(
   auto& _bc_uminus =
       get<::Tags::Tempaa<30, VolumeDim, Frame::Inertial, DataVector>>(*buffer);
   std::fill(_bc_uminus.begin(), _bc_uminus.end(), 0.);
+
+  // Coordinates
+  get<::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>(*buffer) = get<
+      ::Tags::MappedCoordinates<::Tags::ElementMap<VolumeDim, Frame::Inertial>,
+                                ::Tags::LogicalCoordinates<VolumeDim>>>(
+      vars_on_this_slice);
 
   // 4) Compute intermediate variables now
   // 4.1) Spacetime form of interface normal (vector and oneform)
@@ -459,6 +469,8 @@ struct set_dt_u_psi {
       default:
         ASSERT(false, "Requested BC method fo UPsi not implemented!");
     }
+    // dummy return to suppress compiler warning
+    return ReturnType{};
   }
 
  private:
@@ -606,6 +618,8 @@ struct set_dt_u_zero {
       default:
         ASSERT(false, "Requested BC method fo UZero not implemented!");
     }
+    // dummy return to suppress compiler warning
+    return ReturnType{};
   }
 
  private:
@@ -848,6 +862,8 @@ struct set_dt_u_plus {
       default:
         ASSERT(false, "Requested BC method fo UPlus not implemented!");
     }
+    // dummy return to suppress compiler warning
+    return ReturnType{};
   }
 
  private:
@@ -857,12 +873,14 @@ struct set_dt_u_plus {
 template <typename ReturnType, size_t VolumeDim>
 struct set_dt_u_minus {
   template <typename TagsList, typename VarsTagsList, typename DtVarsTagsList>
-  static ReturnType apply(const UMinusBcMethod Method,
-                          TempBuffer<TagsList>& buffer,
-                          const Variables<VarsTagsList>& vars,
-                          const Variables<DtVarsTagsList>& /* dt_vars */,
-                          const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                          /* unit_normal_one_form */) noexcept {
+  static ReturnType apply(
+      const UMinusBcMethod Method, TempBuffer<TagsList>& buffer,
+      const Variables<VarsTagsList>& vars,
+      const Variables<DtVarsTagsList>& /* dt_vars */,
+      const typename ::Tags::Coordinates<VolumeDim, Frame::Inertial>::type&
+          inertial_coords,
+      const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
+      /* unit_normal_one_form */) noexcept {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const typename Tags::ConstraintGamma2::type& constraint_gamma2 =
@@ -881,6 +899,10 @@ struct set_dt_u_minus {
                   Frame::Inertial>& spacetime_unit_normal_vector =
         get<::Tags::TempA<7, VolumeDim, Frame::Inertial, DataVector>>(buffer);
 
+    const typename Tags::UPsi<VolumeDim, Frame::Inertial>::type&
+        char_projected_rhs_dt_u_psi =
+            get<::Tags::Tempaa<22, VolumeDim, Frame::Inertial, DataVector>>(
+                buffer);
     const typename Tags::UMinus<VolumeDim, Frame::Inertial>::type&
         char_projected_rhs_dt_u_minus =
             get<::Tags::Tempaa<25, VolumeDim, Frame::Inertial, DataVector>>(
@@ -956,10 +978,31 @@ struct set_dt_u_minus {
             projection_AB, inverse_spatial_metric, extrinsic_curvature,
             inverse_spacetime_metric, three_index_constraint,
             char_projected_rhs_dt_u_minus, phi, d_phi, char_speeds);
+      case UMinusBcMethod::ConstraintPreservingPhysicalBjorhusGaugeSommerfeld:
+        apply_bjorhus_constraint_preserving(
+            make_not_null(&bc_dt_u_minus), incoming_null_one_form,
+            outgoing_null_one_form, incoming_null_vector, outgoing_null_vector,
+            projection_ab, projection_Ab, projection_AB,
+            constraint_char_zero_plus, constraint_char_zero_minus,
+            char_projected_rhs_dt_u_minus, char_speeds);
+        apply_bjorhus_constraint_preserving_physical(
+            make_not_null(&bc_dt_u_minus), constraint_gamma2,
+            unit_interface_normal_one_form, unit_interface_normal_vector,
+            spacetime_unit_normal_vector, projection_ab, projection_Ab,
+            projection_AB, inverse_spatial_metric, extrinsic_curvature,
+            inverse_spacetime_metric, three_index_constraint,
+            char_projected_rhs_dt_u_minus, phi, d_phi, char_speeds);
+        return apply_gauge_sommerfeld(
+            make_not_null(&bc_dt_u_minus), constraint_gamma2, inertial_coords,
+            incoming_null_one_form, outgoing_null_one_form,
+            incoming_null_vector, outgoing_null_vector, projection_Ab,
+            char_projected_rhs_dt_u_psi);
       case UMinusBcMethod::Unknown:
       default:
         ASSERT(false, "Requested BC method fo UMinus not implemented!");
     }
+    // dummy return to suppress compiler warning
+    return ReturnType{};
   }
 
  private:
@@ -1008,6 +1051,22 @@ struct set_dt_u_minus {
       const tnsr::iaa<DataVector, VolumeDim, Frame::Inertial>& phi,
       const tnsr::ijaa<DataVector, VolumeDim, Frame::Inertial>& d_phi,
       const std::array<DataVector, 4>& char_speeds) noexcept;
+  static ReturnType apply_gauge_sommerfeld(
+      const gsl::not_null<ReturnType*> bc_dt_u_minus,
+      const Scalar<DataVector>& gamma2,
+      const typename ::Tags::Coordinates<VolumeDim, Frame::Inertial>::type&
+          inertial_coords,
+      const tnsr::a<DataVector, VolumeDim, Frame::Inertial>&
+          incoming_null_one_form,
+      const tnsr::a<DataVector, VolumeDim, Frame::Inertial>&
+          outgoing_null_one_form,
+      const tnsr::A<DataVector, VolumeDim, Frame::Inertial>&
+          incoming_null_vector,
+      const tnsr::A<DataVector, VolumeDim, Frame::Inertial>&
+          outgoing_null_vector,
+      const tnsr::Ab<DataVector, VolumeDim, Frame::Inertial>& projection_Ab,
+      const tnsr::aa<DataVector, VolumeDim, Frame::Inertial>&
+          char_projected_rhs_dt_u_psi) noexcept;
 };
 
 template <typename ReturnType, size_t VolumeDim>
@@ -1268,8 +1327,8 @@ ReturnType set_dt_u_minus<ReturnType, VolumeDim>::
     // Tensor<DataMesh> P3Ij(VolumeDim, "12", mesh);
     // TransverseProjectionOperator(P3IJ, nI, Invg);
     // Tensor<DataMesh> g(VolumeDim, "11", mesh);
-    // for (int i = 0; i < VolumeDim; ++i) {
-    //   for (int j = i; j < VolumeDim; ++j) {
+    // for (size_t i = 0; i < VolumeDim; ++i) {
+    //   for (size_t j = i; j < VolumeDim; ++j) {
     //     g(i, j) = psi(i + 1, j + 1);
     //   }
     // }
@@ -1339,6 +1398,102 @@ ReturnType set_dt_u_minus<ReturnType, VolumeDim>::
     }
   }
   // #endif
+
+  return *bc_dt_u_minus;
+}
+
+template <typename ReturnType, size_t VolumeDim>
+ReturnType set_dt_u_minus<ReturnType, VolumeDim>::apply_gauge_sommerfeld(
+    const gsl::not_null<ReturnType*> bc_dt_u_minus,
+    const Scalar<DataVector>& gamma2,
+    const typename ::Tags::Coordinates<VolumeDim, Frame::Inertial>::type&
+        inertial_coords,
+    const tnsr::a<DataVector, VolumeDim, Frame::Inertial>&
+        incoming_null_one_form,
+    const tnsr::a<DataVector, VolumeDim, Frame::Inertial>&
+        outgoing_null_one_form,
+    const tnsr::A<DataVector, VolumeDim, Frame::Inertial>& incoming_null_vector,
+    const tnsr::A<DataVector, VolumeDim, Frame::Inertial>& outgoing_null_vector,
+    const tnsr::Ab<DataVector, VolumeDim, Frame::Inertial>& projection_Ab,
+    const tnsr::aa<DataVector, VolumeDim, Frame::Inertial>&
+        char_projected_rhs_dt_u_psi) noexcept {
+  ASSERT(get_size(get<0, 0>(*bc_dt_u_minus)) ==
+             get_size(get<0>(incoming_null_one_form)),
+         "Size of input variables and temporary memory do not match.");
+  const double GaugeBcCoeff = 1.;
+
+#if 0
+  // get options
+  OptionParser gp(mGaugeBcOpts,Help());
+  const std::string SpatialMapName = gp.Get<std::string>("Map");
+  const double GaugeBcCoeff = gp.Get<double>("Coefficient", 1.0);
+  // get (inverse) inertial coordinate radius of boundary
+  MyVector<DataMesh> InertialCoords;
+  if (SpatialMapName == "") {
+    InertialCoords = Box.Get<MyVector<DataMesh>>("GlobalCoords");
+  } else {
+    const MyVector<DataMesh>& MovingCoords =
+        Box.Get<MyVector<DataMesh>>("GlobalCoords");
+    const SpatialCoordMap& SpatialMap =
+        Box.Root().Get<SpatialCoordMap>(SpatialMapName);
+    const double t = Box.Root().Get<double>("Time");
+    InertialCoords = SpatialMap.MappedCoords(MovingCoords, t, Box);
+  }
+  DataMesh InertialRadius(mesh, 0.0);
+  for (size_t i = 0; i < VolumeDim; ++i)
+    InertialRadius += sqr(InertialCoords[i]);
+  InertialRadius = sqrt(InertialRadius);
+
+  // add in gauge BC
+  for (size_t a = 0; a <= VolumeDim; ++a) {
+    for (size_t b = a; b <= VolumeDim; ++b) {
+      for (size_t c = 0; c <= VolumeDim; ++c) {
+        for (size_t d = 0; d <= VolumeDim; ++d) {
+          BcDtUm(a, b) +=
+              0.5 *
+              (ui(a) * PIj(c, b) * vI(d) + ui(b) * PIj(c, a) * vI(d) -
+               0.5 * ui(a) * vi(b) * uI(c) * vI(d) -
+               0.5 * ui(b) * vi(a) * uI(c) * vI(d) -
+               0.5 * ui(a) * ui(b) * vI(c) * vI(d)) *
+              (gamma2 - GaugeBcCoeff / InertialRadius) * RhsUpsi(c, d);
+        }
+      }
+    }
+  }
+#endif
+
+  DataVector inertial_radius(get_size(get<0>(inertial_coords)), 0.);
+  for (size_t i = 0; i < VolumeDim; ++i) {
+    inertial_radius += square(inertial_coords.get(i));
+  }
+  inertial_radius = sqrt(inertial_radius);
+
+  // add in gauge BC
+  for (size_t a = 0; a <= VolumeDim; ++a) {
+    for (size_t b = a; b <= VolumeDim; ++b) {
+      for (size_t c = 0; c <= VolumeDim; ++c) {
+        for (size_t d = 0; d <= VolumeDim; ++d) {
+          bc_dt_u_minus->get(a, b) +=
+              0.5 *
+              (incoming_null_one_form.get(a) * projection_Ab.get(c, b) *
+                   outgoing_null_vector.get(d) +
+               incoming_null_one_form.get(b) * projection_Ab.get(c, a) *
+                   outgoing_null_vector.get(d) -
+               0.5 * incoming_null_one_form.get(a) *
+                   outgoing_null_one_form.get(b) * incoming_null_vector.get(c) *
+                   outgoing_null_vector.get(d) -
+               0.5 * incoming_null_one_form.get(b) *
+                   outgoing_null_one_form.get(a) * incoming_null_vector.get(c) *
+                   outgoing_null_vector.get(d) -
+               0.5 * incoming_null_one_form.get(a) *
+                   incoming_null_one_form.get(b) * outgoing_null_vector.get(c) *
+                   outgoing_null_vector.get(d)) *
+              (get(gamma2) - GaugeBcCoeff * (1. / inertial_radius)) *
+              char_projected_rhs_dt_u_psi.get(c, d);
+        }
+      }
+    }
+  }
 
   return *bc_dt_u_minus;
 }

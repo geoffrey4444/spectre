@@ -20,6 +20,7 @@
 #include "Domain/IndexToSliceAt.hpp"
 #include "Domain/Tags.hpp"
 #include "ErrorHandling/Assert.hpp"
+#include "ErrorHandling/Error.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditionsImpl.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
@@ -27,8 +28,10 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/FluxCommunicationTypes.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/MortarHelpers.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
+#include "Parallel/Abort.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/Printf.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "Time/Tags.hpp"
 #include "Utilities/ContainerHelpers.hpp"
@@ -133,15 +136,19 @@ struct ImposeConstraintPreservingBoundaryConditions {
           db::get<::Tags::Mesh<VolumeDim>>(box);
       const size_t volume_grid_points = mesh.extents().product();
       const auto& unit_normal_one_forms = db::get<
-          ::Tags::Interface<::Tags::BoundaryDirectionsExterior<VolumeDim>,
+          ::Tags::Interface<::Tags::BoundaryDirectionsInterior<VolumeDim>,
                             ::Tags::Normalized<::Tags::UnnormalizedFaceNormal<
                                 VolumeDim, Frame::Inertial>>>>(box);
       const auto& external_bdry_vars = db::get<::Tags::Interface<
-          ::Tags::BoundaryDirectionsExterior<VolumeDim>, variables_tag>>(box);
+          ::Tags::BoundaryDirectionsInterior<VolumeDim>, variables_tag>>(box);
       const auto& volume_all_at_vars = db::get<dt_variables_tag>(box);
       const auto& external_bdry_char_speeds = db::get<::Tags::Interface<
-          ::Tags::BoundaryDirectionsExterior<VolumeDim>,
+          ::Tags::BoundaryDirectionsInterior<VolumeDim>,
           Tags::CharacteristicSpeeds<VolumeDim, Frame::Inertial>>>(box);
+      const auto& external_bdry_inertial_coords = db::get<
+          ::Tags::Interface<::Tags::BoundaryDirectionsInterior<VolumeDim>,
+                            ::Tags::Coordinates<VolumeDim, Frame::Inertial>>>(
+          box);
 
       // ------------------------------- (2)
       // Apply the boundary condition
@@ -162,7 +169,17 @@ struct ImposeConstraintPreservingBoundaryConditions {
         const auto dt_vars =
             data_on_slice(volume_all_at_vars, mesh.extents(), dimension,
                           index_to_slice_at(mesh.extents(), direction));
+        // Get characteristic speeds
         const auto& char_speeds = external_bdry_char_speeds.at(direction);
+        // For external boundaries that are within a horizon,
+        // all characteristic fields are outgoing (toward the singularity)
+        if (BoundaryConditions_detail::min_characteristic_speed<VolumeDim>(
+                char_speeds) >= 0.) {
+          continue;
+        }
+        // Get boundary coordinates
+        const auto& inertial_coords =
+            external_bdry_inertial_coords.at(direction);
         // ------------------------------- (2)
         // Create a TempTensor that stores all temporaries computed
         // here and elsewhere
@@ -179,12 +196,73 @@ struct ImposeConstraintPreservingBoundaryConditions {
             make_not_null(&buffer), box, direction, dimension, mesh, vars,
             dt_vars, unit_normal_one_form, char_speeds);
 
+        // FIXME: Are there incoming char speeds on the inner boundary?
+        {  // {{{
+          const auto& x =
+              get<::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>(
+                  buffer);
+          // If radius of surface is less than 10, then assume we are on an
+          // inner boundary. FIX ME
+          const auto& min_r_squared =
+              min(square(get<0>(x)) + square(get<1>(x)) + square(get<2>(x)));
+          const auto min_inertial_r_squared =
+              min(square(get<0>(inertial_coords)) +
+                  square(get<1>(inertial_coords)) +
+                  square(get<2>(inertial_coords)));
+          if (min_r_squared < 25.0) {
+            const auto& min_speed =
+                BoundaryConditions_detail::min_characteristic_speed<VolumeDim>(
+                    char_speeds);
+            if (min_speed >= 0.0) {
+              Parallel::printf(
+                  "\n\nMin(CharSpeeds<U>) >= 0 at t=%f: WHY are still here?...",
+                  db::get<::Tags::Time>(box).value());
+              const size_t which_field = BoundaryConditions_detail::
+                  which_field_has_min_characteristic_speed<VolumeDim>(
+                    char_speeds);
+              Parallel::printf("\n...[for field %d]", which_field);
+              Parallel::abort("Aborting for above reason...");
+            } else if (min_speed < 0.0) {
+              Parallel::printf(
+                  "\nWARNING: Incoming char speeds on INNER boundary at t=%f\n",
+                  db::get<::Tags::Time>(box).value());
+              Parallel::printf(
+                  "  Min speed %f at min (inertial) radius %f (%f)\n\n",
+                  min_speed, sqrt(min_r_squared), sqrt(min_inertial_r_squared));
+              // Is the face normal outward facing, really?
+              for (size_t i = 0; i < 5; ++i) {
+                Parallel::printf(
+                    " >> (random pt (%f, %f, %f)) unnormalized_normal_{x,y,z}: "
+                    "(%f, %f, "
+                    "%f)\n",
+                    get<0>(x)[i], get<1>(x)[i], get<2>(x)[i],
+                    get<0>(unit_normal_one_form)[i],
+                    get<1>(unit_normal_one_form)[i],
+                    get<2>(unit_normal_one_form)[i]);
+                Parallel::printf(
+                    "     (same random pt) r dot normal (should be NEGative): "
+                    "%f\n",
+                    get<0>(x)[i] * get<0>(unit_normal_one_form)[i] +
+                        get<1>(x)[i] * get<1>(unit_normal_one_form)[i] +
+                        get<2>(x)[i] * get<2>(unit_normal_one_form)[i]);
+                Parallel::printf(
+                    "     (same random pt) char speeds (psi, 0, +, -): %f, %f, "
+                    "%f, %f\n",
+                    char_speeds.at(0)[i], char_speeds.at(1)[i],
+                    char_speeds.at(2)[i], char_speeds.at(3)[i]);
+              }
+              Parallel::abort("Aborting for above reason...");
+            }
+          }
+        }  // }}}
+
         db::mutate<dt_variables_tag>(
             make_not_null(&box),
             // Function that applies bdry conditions to dt<variables>
             [
               &volume_grid_points, &slice_grid_points, &mesh, &dimension,
-              &direction, &buffer, &vars, &dt_vars, &unit_normal_one_form
+              &direction, &buffer, &vars, &dt_vars, &unit_normal_one_form,
+              &inertial_coords, &char_speeds
             ](const gsl::not_null<db::item_type<dt_variables_tag>*>
                   volume_dt_vars,
               const double /* time */, const auto& /* boundary_condition */
@@ -200,27 +278,52 @@ struct ImposeConstraintPreservingBoundaryConditions {
               // Compute desired values of dt_volume_vars
               //
               // ------------------------------- (2.1)
-              // Get desired values of dt<Uchar>
-              // For now, we set to  (Freezing, Freezing, Freezing)
-              const auto bc_dt_u_psi = BoundaryConditions_detail::set_dt_u_psi<
-                  typename Tags::UPsi<VolumeDim, Frame::Inertial>::type,
-                  VolumeDim>::apply(UPsiMethod, buffer, vars, dt_vars,
-                                    unit_normal_one_form);
+              // Get desired values of CharProjection<dt<U>>
+              //
+              // At all points on the interface where the char speed of any
+              // (given) characteristic field is +ve, we "do nothing", and
+              // when its -ve, we apply Bjorhus BCs. This is achieved through
+              // `set_bc_when_char_speed_is_negative`.
+              const auto bc_dt_u_psi =
+                  BoundaryConditions_detail::set_bc_when_char_speed_is_negative(
+                      get<::Tags::Tempaa<22, VolumeDim, Frame::Inertial,
+                                         DataVector>>(buffer),
+                      BoundaryConditions_detail::set_dt_u_psi<
+                          typename Tags::UPsi<VolumeDim, Frame::Inertial>::type,
+                          VolumeDim>::apply(UPsiMethod, buffer, vars, dt_vars,
+                                            unit_normal_one_form),
+                      char_speeds.at(0));
               const auto bc_dt_u_zero =
-                  BoundaryConditions_detail::set_dt_u_zero<
-                      typename Tags::UZero<VolumeDim, Frame::Inertial>::type,
-                      VolumeDim>::apply(UZeroMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                  BoundaryConditions_detail::set_bc_when_char_speed_is_negative(
+                      get<::Tags::Tempiaa<23, VolumeDim, Frame::Inertial,
+                                          DataVector>>(buffer),
+                      BoundaryConditions_detail::set_dt_u_zero<
+                          typename Tags::UZero<VolumeDim,
+                                               Frame::Inertial>::type,
+                          VolumeDim>::apply(UZeroMethod, buffer, vars, dt_vars,
+                                            unit_normal_one_form),
+                      char_speeds.at(1));
               const auto bc_dt_u_plus =
-                  BoundaryConditions_detail::set_dt_u_plus<
-                      typename Tags::UPlus<VolumeDim, Frame::Inertial>::type,
-                      VolumeDim>::apply(UPlusMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                  BoundaryConditions_detail::set_bc_when_char_speed_is_negative(
+                      get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial,
+                                         DataVector>>(buffer),
+                      BoundaryConditions_detail::set_dt_u_plus<
+                          typename Tags::UPlus<VolumeDim,
+                                               Frame::Inertial>::type,
+                          VolumeDim>::apply(UPlusMethod, buffer, vars, dt_vars,
+                                            unit_normal_one_form),
+                      char_speeds.at(2));
               const auto bc_dt_u_minus =
-                  BoundaryConditions_detail::set_dt_u_minus<
-                      typename Tags::UMinus<VolumeDim, Frame::Inertial>::type,
-                      VolumeDim>::apply(UMinusMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                  BoundaryConditions_detail::set_bc_when_char_speed_is_negative(
+                      get<::Tags::Tempaa<25, VolumeDim, Frame::Inertial,
+                                         DataVector>>(buffer),
+                      BoundaryConditions_detail::set_dt_u_minus<
+                          typename Tags::UMinus<VolumeDim,
+                                                Frame::Inertial>::type,
+                          VolumeDim>::apply(UMinusMethod, buffer, vars, dt_vars,
+                                            inertial_coords,
+                                            unit_normal_one_form),
+                      char_speeds.at(3));
               // Convert them to desired values on dt<U>
               const auto bc_dt_all_u =
                   evolved_fields_from_characteristic_fields(
@@ -252,6 +355,68 @@ struct ImposeConstraintPreservingBoundaryConditions {
                           bc_dt_all_u)));
               const auto slice_data_ = variables_from_tagged_tuple(bc_dt_tuple);
               const auto* slice_data = slice_data_.data();
+
+              // FIXME: In case no boundary condition was needed, i.e. on the
+              // inner domain boundary, we check here that really no changes
+              // were made to dt<U> on the external boundaries...
+              {  // {{{
+                 // First, get dt<U> after BC has been applied
+                 // const auto applied_bc_dt_psi =
+                 //     get<gr::Tags::SpacetimeMetric<VolumeDim,
+                 //     Frame::Inertial,
+                 //                                   DataVector>>(bc_dt_all_u);
+                 // const auto applied_bc_dt_pi =
+                 //     get<Tags::Pi<VolumeDim, Frame::Inertial>>(bc_dt_all_u);
+                 // const auto applied_bc_dt_phi =
+                 //     get<Tags::Phi<VolumeDim, Frame::Inertial>>(bc_dt_all_u);
+                 // // Second, get dt<U> before BC has been applied
+                 // const auto& rhs_dt_psi =
+                 //     get<::Tags::dt<gr::Tags::SpacetimeMetric<
+                 //         VolumeDim, Frame::Inertial, DataVector>>>(dt_vars);
+                 // const auto& rhs_dt_pi =
+                 //     get<::Tags::dt<Tags::Pi<VolumeDim, Frame::Inertial>>>(
+                 //         dt_vars);
+                 // const auto& rhs_dt_phi =
+                 //     get<::Tags::dt<Tags::Phi<VolumeDim, Frame::Inertial>>>(
+                 //         dt_vars);
+                 // Third, take their difference
+                 // double max_diff = 0.;
+                 // double min_field = 1.e99;
+                 // for (size_t a = 0; a <= VolumeDim; ++a) {
+                 //   for (size_t b = 0; b <= VolumeDim; ++b) {
+                 //     // First, PSI
+                 //     double diff_ = max(abs(applied_bc_dt_psi.get(a, b) -
+                 //                            rhs_dt_psi.get(a, b)));
+                 //     max_diff = (diff_ > max_diff) ? diff_ : max_diff;
+                 //
+                 //     double min_ = min(abs(applied_bc_dt_psi.get(a, b)));
+                 //     min_field = (min_ < min_field) ? min_ : min_field;
+                 //     // Second, PI
+                 //     diff_ = max(
+                 //         abs(applied_bc_dt_pi.get(a, b) - rhs_dt_pi.get(a,
+                 //         b)));
+                 //     max_diff = (diff_ > max_diff) ? diff_ : max_diff;
+                 //
+                 //     min_ = min(abs(applied_bc_dt_pi.get(a, b)));
+                 //     min_field = (min_ < min_field) ? min_ : min_field;
+                 //     // Third, PHI
+                 //     for (size_t i = 0; i < VolumeDim; ++i) {
+                 //       diff_ = max(abs(applied_bc_dt_phi.get(i, a, b) -
+                 //                       rhs_dt_phi.get(i, a, b)));
+                 //       max_diff = (diff_ > max_diff) ? diff_ : max_diff;
+                 //
+                 //       min_ = min(abs(applied_bc_dt_phi.get(i, a, b)));
+                 //       min_field = (min_ < min_field) ? min_ : min_field;
+                 //     }
+                 //   }
+                 // }
+                 //
+                 // Parallel::printf(
+                 //     " >> Maximum difference between pre-BC and post-BC
+                 //     values" " of dt<U>: %.12e\n", max_diff);
+                 // Parallel::printf(" >> Minimum abs value of dt<U>: %.12e\n",
+                 //                  min_field);
+              }  // }}}
 
               // ------------------------------- (2.4)
               // Assign BC values of dt_volume_vars on external boundary
@@ -376,7 +541,7 @@ struct ImposeConstraintPreservingBoundaryConditions {
     // setting BCs on individual characteristic variables
     return apply_impl<Metavariables::system::volume_dim,
                       // Constraint preserving Bjorhus-type BC
-                      UPsiBcMethod::ConstraintPreservingBjorhus,
+                      UPsiBcMethod::Freezing,
                       // Freezing BC
                       UZeroBcMethod::Freezing,
                       // dont change choice for UPlus below, unless
