@@ -404,19 +404,13 @@ void ComputeNormalDotFluxes<Dim>::apply(
 template <size_t Dim>
 void UpwindFlux<Dim>::package_data(
     gsl::not_null<Variables<package_tags>*> packaged_data,
-    const db::item_type<
-        gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>&
-        spacetime_metric,
-    const db::item_type<Tags::Pi<Dim, Frame::Inertial>>& pi,
-    const db::item_type<Tags::Phi<Dim, Frame::Inertial>>& phi,
-    const db::item_type<gr::Tags::Lapse<DataVector>>& lapse,
-    const db::item_type<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>&
-        shift,
-    const db::item_type<
-        gr::Tags::InverseSpatialMetric<Dim, Frame::Inertial, DataVector>>&
-        inverse_spatial_metric,
-    const db::item_type<Tags::ConstraintGamma1>& gamma1,
-    const db::item_type<Tags::ConstraintGamma2>& gamma2,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& spacetime_metric,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& pi,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& phi,
+    const Scalar<DataVector>& lapse,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& shift,
+    const tnsr::II<DataVector, Dim, Frame::Inertial>& inverse_spatial_metric,
+    const Scalar<DataVector>& gamma1, const Scalar<DataVector>& gamma2,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
     const noexcept {
   get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>(
@@ -445,33 +439,23 @@ void UpwindFlux<Dim>::operator()(
     gsl::not_null<db::item_type<::Tags::NormalDotNumericalFlux<
         GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>>*>
         phi_normal_dot_numerical_flux,
-    const db::item_type<
-        gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>&
-        spacetime_metric_int,
-    const db::item_type<Tags::Pi<Dim, Frame::Inertial>>& pi_int,
-    const db::item_type<Tags::Phi<Dim, Frame::Inertial>>& phi_int,
-    const db::item_type<gr::Tags::Lapse<DataVector>>& lapse_int,
-    const db::item_type<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>&
-        shift_int,
-    const db::item_type<
-        gr::Tags::InverseSpatialMetric<Dim, Frame::Inertial, DataVector>>&
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& spacetime_metric_int,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& pi_int,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& phi_int,
+    const Scalar<DataVector>& lapse_int,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& shift_int,
+    const tnsr::II<DataVector, Dim, Frame::Inertial>&
         inverse_spatial_metric_int,
-    const db::item_type<Tags::ConstraintGamma2>& gamma1_int,
-    const db::item_type<Tags::ConstraintGamma2>& gamma2_int,
+    const Scalar<DataVector>& gamma1_int, const Scalar<DataVector>& gamma2_int,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_int,
-    const db::item_type<
-        gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>&
-        spacetime_metric_ext,
-    const db::item_type<Tags::Pi<Dim, Frame::Inertial>>& pi_ext,
-    const db::item_type<Tags::Phi<Dim, Frame::Inertial>>& phi_ext,
-    const db::item_type<gr::Tags::Lapse<DataVector>>& lapse_ext,
-    const db::item_type<gr::Tags::Shift<Dim, Frame::Inertial, DataVector>>&
-        shift_ext,
-    const db::item_type<
-        gr::Tags::InverseSpatialMetric<Dim, Frame::Inertial, DataVector>>&
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& spacetime_metric_ext,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& pi_ext,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& phi_ext,
+    const Scalar<DataVector>& lapse_ext,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& shift_ext,
+    const tnsr::II<DataVector, Dim, Frame::Inertial>&
         inverse_spatial_metric_ext,
-    const db::item_type<Tags::ConstraintGamma2>& gamma1_ext,
-    const db::item_type<Tags::ConstraintGamma2>& gamma2_ext,
+    const Scalar<DataVector>& gamma1_ext, const Scalar<DataVector>& gamma2_ext,
     const tnsr::i<DataVector, Dim,
                   Frame::Inertial>& /*interface_unit_normal_ext*/) const
     noexcept {
