@@ -23,7 +23,7 @@ AnalyticSolution:
     Center: [0.0, 0.0, 0.0]
 
 
-NumericalFluxParams:
+NumericalFlux:
 
 EventsAndTriggers:
   ? PastTime: 1.0

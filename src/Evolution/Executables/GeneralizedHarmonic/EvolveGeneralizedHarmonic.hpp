@@ -84,7 +84,7 @@ struct EvolutionMetavars {
   using analytic_solution_tag = OptionTags::AnalyticSolution<
       GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>>;
   using boundary_condition_tag = analytic_solution_tag;
-  using normal_dot_numerical_flux = OptionTags::NumericalFluxParams<
+  using normal_dot_numerical_flux = OptionTags::NumericalFlux<
       // dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
       GeneralizedHarmonic::UpwindFlux<dim>>;
   using events = tmpl::list<>;
