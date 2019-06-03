@@ -20,6 +20,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Observe.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
 #include "IO/Observer/Actions.hpp"  // IWYU pragma: keep
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"  // IWYU pragma: keep
@@ -74,6 +75,11 @@ class CProxy_ConstGlobalCache;
 }  // namespace Parallel
 /// \endcond
 
+struct NumericalInitialData {
+  using group = importer::OptionTags::Group;
+  static constexpr OptionString help = "Numerical initial data";
+};
+
 struct EvolutionMetavars {
   // Customization/"input options" to simulation
   static constexpr int dim = 3;
@@ -127,6 +133,14 @@ struct EvolutionMetavars {
                           tmpl::list<>>,
       Actions::UpdateU>>;
 
+  // Read in evolution variables and GaugeH. For now, use the compute
+  // item that forces the spacetime deriv of GaugeH to vanish
+  using numerical_tags_to_read =
+      tmpl::list<gr::Tags::SpacetimeMetric<dim, Inertial, DataVector>,
+                 GeneralizedHarmonic::Tags::Pi<dim, Inertial>,
+                 GeneralizedHarmonic::Tags::Phi<dim, Inertial>,
+                 GeneralizedHarmonic::Tags::GaugeH<dim, Inertial>>;
+
   struct EvolvePhaseStart;
   using component_list = tmpl::list<
       observers::Observer<EvolutionMetavars>,
@@ -141,15 +155,22 @@ struct EvolutionMetavars {
               tmpl::conditional_t<local_time_stepping,
                                   Actions::ChangeStepSize<step_choosers>,
                                   tmpl::list<>>,
-              compute_rhs, update_variables,
-              Actions::Goto<EvolvePhaseStart>>>>>;
+              compute_rhs, update_variables, Actions::Goto<EvolvePhaseStart>>>,
+          NumericalInitialData, numerical_tags_to_read>,
+          importer::DataFileReader<EvolutionMetavars>>;
 
   static constexpr OptionString help{
       "Evolve a generalized harmonic analytic solution.\n\n"
       "The analytic solution is: KerrSchild\n"
       "The numerical flux is:    UpwindFlux\n"};
 
-  enum class Phase { Initialization, RegisterWithObserver, Evolve, Exit };
+  enum class Phase {
+    Initialization,
+    RegisterElements,
+    ImportData,
+    Evolve,
+    Exit
+  };
 
   static Phase determine_next_phase(
       const Phase& current_phase,
@@ -157,8 +178,10 @@ struct EvolutionMetavars {
           EvolutionMetavars>& /*cache_proxy*/) noexcept {
     switch (current_phase) {
       case Phase::Initialization:
-        return Phase::RegisterWithObserver;
-      case Phase::RegisterWithObserver:
+        return Phase::RegisterElements;
+      case Phase::RegisterElements:
+        return Phase::ImportData;
+      case Phase::ImportData:
         return Phase::Evolve;
       case Phase::Evolve:
         return Phase::Exit;
