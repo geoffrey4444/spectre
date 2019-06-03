@@ -18,19 +18,20 @@ DomainCreator:
       IsPeriodicIn: [false, false, false]
 
 AnalyticSolution:
-    Mass: 1.0
-    Spin: [0.0, 0.0, 0.4]
-    Center: [0.0, 0.0, 0.0]
-
+    WrappedGr:
+        Mass: 1.0
+        Spin: [0.0, 0.0, 0.4]
+        Center: [0.0, 0.0, 0.0]
 
 NumericalFlux:
+    UpwindFlux:
 
 EventsAndTriggers:
-  ? PastTime: 1.0
+  ? PastTime: 0.02
   : - Completion
 
-ObserveNSlabs: 2
-ObserveAtT0: true
+ObserveNSlabs: 100
+ObserveAtT0: false
 Observers:
   ReductionFileName: ReductionData
   VolumeFileName: VolumeData
