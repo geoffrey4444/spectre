@@ -9,12 +9,16 @@
 #include <vector>
 
 #include "AlgorithmArray.hpp"
+#include "DataStructures/DataBox/Actions/SetData.hpp"
 #include "DataStructures/DataBox/DataBox.hpp"
-#include "Domain/Creators/DomainCreator.hpp"        // IWYU pragma: keep
-#include "Domain/ElementId.hpp"                     // IWYU pragma: keep
+#include "Domain/Creators/DomainCreator.hpp"  // IWYU pragma: keep
+#include "Domain/ElementId.hpp"               // IWYU pragma: keep
 #include "Domain/ElementIndex.hpp"
 #include "Domain/InitialElementIds.hpp"
 #include "ErrorHandling/Error.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
+#include "IO/DataImporter/DataFileReaderActions.hpp"
+#include "IO/DataImporter/ElementActions.hpp"
 #include "IO/Observer/ObservationId.hpp"
 #include "IO/Observer/TypeOfObservation.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
@@ -37,7 +41,10 @@ struct RegisterWithObservers;
 }  // namespace observers
 /// \endcond
 
-template <class Metavariables, class InitializeAction, class ActionList>
+template <class Metavariables, class InitializeAction, class ActionList,
+          // Since these template parameters are only needed for the
+          // `ReadElementData` action, we can remove them once we have PDAL's
+          class ImporterOptionsGroup, class ImportFieldsTags>
 struct DgElementArray {
   static constexpr size_t volume_dim = Metavariables::system::volume_dim;
 
@@ -46,8 +53,13 @@ struct DgElementArray {
   using action_list = ActionList;
   using array_index = ElementIndex<volume_dim>;
 
-  using const_global_cache_tag_list =
-      Parallel::get_const_global_cache_tags<action_list>;
+  using read_element_data_action = importer::ThreadedActions::ReadElementData<
+      ImporterOptionsGroup, ImportFieldsTags,
+      db::Actions::SetData<ImportFieldsTags>, DgElementArray>;
+
+  using const_global_cache_tag_list = tmpl::append<
+      Parallel::get_const_global_cache_tags<action_list>,
+      typename read_element_data_action::const_global_cache_tag_list>;
 
   using initial_databox = db::compute_databox_type<
       typename InitializeAction::template return_tag_list<Metavariables>>;
@@ -76,12 +88,41 @@ struct DgElementArray {
       const typename Metavariables::Phase next_phase,
       Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache) noexcept {
     auto& local_cache = *(global_cache.ckLocalBranch());
-    if (next_phase == Metavariables::Phase::Evolve) {
-      Parallel::get_parallel_component<DgElementArray>(local_cache)
-          .perform_algorithm();
-    } else {
-      try_register_with_observers(next_phase, global_cache);
+    auto& dg_element_array =
+        Parallel::get_parallel_component<DgElementArray>(local_cache);
+    switch (next_phase) {
+      case Metavariables::Phase::Evolve:
+        dg_element_array.perform_algorithm();
+        break;
+      case Metavariables::Phase::RegisterElements:
+        // We currently use an observation_id with a fake time when registering
+        // observers but in the future when we start doing load balancing and
+        // elements migrate around the system they will need to register and
+        // unregister themselves at specific times.
+        Parallel::simple_action<observers::Actions::RegisterWithObservers<
+            observers::TypeOfObservation::ReductionAndVolume>>(
+            dg_element_array,
+            observers::ObservationId(
+                0., typename Metavariables::element_observation_type{}));
+        // Do this here for now. With PDAL's this is part of the action list.
+        Parallel::simple_action<importer::Actions::RegisterWithImporter>(
+            dg_element_array);
+        break;
+      case Metavariables::Phase::ImportData:
+        Parallel::threaded_action<read_element_data_action>(
+            Parallel::get_parallel_component<
+                importer::DataFileReader<Metavariables>>(
+                local_cache)[static_cast<size_t>(Parallel::my_node())]);
+        break;
+      default:
+        break;
     }
+    //    if (next_phase == Metavariables::Phase::Evolve) {
+    //      Parallel::get_parallel_component<DgElementArray>(local_cache)
+    //          .perform_algorithm();
+    //    } else {
+    //      try_register_with_observers(next_phase, global_cache);
+    //    }
   }
 
  private:
@@ -115,22 +156,27 @@ struct DgElementArray {
   }
 };
 
-template <class Metavariables, class InitializeAction, class ActionList>
-void DgElementArray<Metavariables, InitializeAction, ActionList>::initialize(
-    Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
-    std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>> domain_creator,
-    const double initial_time, const double initial_dt) noexcept {
+template <class Metavariables, class InitializeAction, class ActionList,
+          class ImporterOptionsGroup, class ImportFieldsTags>
+void DgElementArray<Metavariables, InitializeAction, ActionList,
+                    ImporterOptionsGroup, ImportFieldsTags>::
+    initialize(Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
+               std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
+                   domain_creator,
+               const double initial_time, const double initial_dt) noexcept {
   initialize(global_cache, std::move(domain_creator), initial_time, initial_dt,
              std::abs(initial_dt));
 }
 
-template <class Metavariables, class InitializeAction, class ActionList>
-void DgElementArray<Metavariables, InitializeAction, ActionList>::initialize(
-    Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
-    const std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
-        domain_creator,
-    const double initial_time, const double initial_dt,
-    const double initial_slab_size) noexcept {
+template <class Metavariables, class InitializeAction, class ActionList,
+          class ImporterOptionsGroup, class ImportFieldsTags>
+void DgElementArray<Metavariables, InitializeAction, ActionList,
+                    ImporterOptionsGroup, ImportFieldsTags>::
+    initialize(Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
+               const std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
+                   domain_creator,
+               const double initial_time, const double initial_dt,
+               const double initial_slab_size) noexcept {
   auto& cache = *global_cache.ckLocalBranch();
   auto& dg_element_array =
       Parallel::get_parallel_component<DgElementArray>(cache);
