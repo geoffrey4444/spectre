@@ -9,6 +9,7 @@ set(LIBS_TO_LINK
     GeneralRelativity
     GeneralRelativitySolutions
     GeneralizedHarmonic
+    GeneralizedHarmonicGaugeSourceFunctions
     IO
     Informer
     LinearOperators
