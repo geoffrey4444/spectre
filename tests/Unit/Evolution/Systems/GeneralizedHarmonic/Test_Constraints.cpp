@@ -693,6 +693,8 @@ void test_constraint_compute_items(
             3, Frame::Inertial>::name() == "GaugeH");
   CHECK(GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<
             3, Frame::Inertial>::name() == "SpacetimeDerivGaugeH");
+  CHECK(GeneralizedHarmonic::Tags::SpatialDerivGaugeHCompute<
+            3, Frame::Inertial>::name() == "deriv(GaugeH)");
   CHECK(GeneralizedHarmonic::Tags::GaugeConstraintCompute<
             3, Frame::Inertial>::name() == "GaugeConstraint");
   CHECK(GeneralizedHarmonic::Tags::FConstraintCompute<
@@ -818,6 +820,12 @@ void test_constraint_compute_items(
       GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<
           3, Frame::Inertial>::function(time_deriv_gauge_source,
                                         deriv_gauge_source);
+
+  // Check that computing the spatial derivative of the gauge source function
+  // from the spacetime derivative recovers the original spatial derivative
+  CHECK(GeneralizedHarmonic::Tags::SpatialDerivGaugeHCompute<
+            3, Frame::Inertial>::function(derivatives_of_gauge_source) ==
+        deriv_gauge_source);
 
   // Insert into databox
   const auto box = db::create<
