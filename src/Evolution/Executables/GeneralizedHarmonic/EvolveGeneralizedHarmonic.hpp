@@ -135,11 +135,12 @@ struct EvolutionMetavars {
 
   // Read in evolution variables and GaugeH. For now, use the compute
   // item that forces the spacetime deriv of GaugeH to vanish
-  using numerical_tags_to_read =
-      tmpl::list<gr::Tags::SpacetimeMetric<dim, Inertial, DataVector>,
-                 GeneralizedHarmonic::Tags::Pi<dim, Inertial>,
-                 GeneralizedHarmonic::Tags::Phi<dim, Inertial>,
-                 GeneralizedHarmonic::Tags::GaugeH<dim, Inertial>>;
+  using numerical_tags_to_read = tmpl::list<
+      gr::Tags::SpacetimeMetric<dim, Inertial, DataVector>,
+      GeneralizedHarmonic::Tags::Pi<dim, Inertial>,
+      GeneralizedHarmonic::Tags::Phi<dim, Inertial>,
+      GeneralizedHarmonic::Tags::InitialGaugeH<dim, Inertial>,
+      GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<dim, Inertial>>;
 
   struct EvolvePhaseStart;
   using component_list = tmpl::list<

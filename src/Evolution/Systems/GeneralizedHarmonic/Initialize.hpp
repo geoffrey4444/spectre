@@ -23,6 +23,7 @@
 #include "Evolution/Initialization/GeneralizedHarmonicInterface.hpp"
 #include "Evolution/Initialization/Limiter.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonic.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/Divergence.tpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
@@ -54,10 +55,15 @@ struct has_analytic_solution_alias<
 template <size_t Dim>
 struct Initialize {
   template <typename Metavariables>
-  struct ConstraintsTags {
+  struct ConstraintsAndGaugeTags {
     using Inertial = Frame::Inertial;
     using simple_tags = db::AddSimpleTags<>;
     using compute_tags = db::AddComputeTags<
+        GeneralizedHarmonic::DampedHarmonicHCompute<Dim, Inertial>,
+        GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim,
+                                                                  Inertial>,
+        GeneralizedHarmonic::Tags::SpatialDerivGaugeHCompute<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::FConstraintCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::TwoIndexConstraintCompute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, Inertial>,
@@ -74,15 +80,14 @@ struct Initialize {
     using Inertial = Frame::Inertial;
     using system = typename Metavariables::system;
     using variables_tag = typename system::variables_tag;
-    // `extras_tag` can be used with `Tags::DerivCompute` to get spatial
-    // derivatives of quantities that are otherwise not available within
-    // a `Variables<>` container.
-    using extras_tag = ::Tags::Variables<
-        tmpl::list<GeneralizedHarmonic::Tags::GaugeH<Dim, Frame::Inertial>>>;
 
     using simple_tags = db::AddSimpleTags<
-        variables_tag, extras_tag,
-        ::Tags::dt<GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>>>;
+        variables_tag, GeneralizedHarmonic::Tags::InitialGaugeH<Dim, Inertial>,
+        GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, Inertial>,
+        GeneralizedHarmonic::OptionTags::GaugeHRollOnStartTime,
+        GeneralizedHarmonic::OptionTags::GaugeHRollOnTimeWindow,
+        GeneralizedHarmonic::OptionTags::GaugeHSpatialWeightDecayWidth<
+            Inertial>>;
     using compute_tags = db::AddComputeTags<
         gr::Tags::SpatialMetricCompute<Dim, Inertial, DataVector>,
         gr::Tags::DetAndInverseSpatialMetricCompute<Dim, Inertial, DataVector>,
@@ -117,168 +122,73 @@ struct Initialize {
                                                                   Inertial>,
         GeneralizedHarmonic::Tags::ConstraintGamma0Compute<Dim, Inertial>,
         GeneralizedHarmonic::Tags::ConstraintGamma1Compute<Dim, Inertial>,
-        GeneralizedHarmonic::Tags::ConstraintGamma2Compute<Dim, Inertial>,
-        // Because DerivCompute<GaugeH> operates on GaugeH wrapped in a
-        // Variables container, we inserted GaugeH that way into the box
-        // (through `extras_tag`), instead of adding `GaugeHCompute` item here.
-        ::Tags::DerivCompute<extras_tag, ::Tags::InverseJacobian<
-                                             ::Tags::ElementMap<Dim, Inertial>,
-                                             ::Tags::LogicalCoordinates<Dim>>>,
-        GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<Dim, Inertial>,
-        GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, Inertial>>;
+        GeneralizedHarmonic::Tags::ConstraintGamma2Compute<Dim, Inertial>>;
 
     template <typename TagsList>
     static auto initialize(
         db::DataBox<TagsList>&& box,
-        const Parallel::ConstGlobalCache<Metavariables>& cache,
-        const double initial_time) noexcept {
+        const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
+        const double /*initial_time*/) noexcept {
       const size_t num_grid_points =
           db::get<::Tags::Mesh<Dim>>(box).number_of_grid_points();
       const auto& inertial_coords =
           db::get<::Tags::Coordinates<Dim, Inertial>>(box);
 
-      // Set initial data from analytic solution
+      // The evolution variables, gauge source function, and spacetime
+      // derivative of the gauge source function will be overwritten by
+      // numerical initial data. So here just initialize them to signaling nans.
+      const auto& spacetime_metric =
+          make_with_value<tnsr::aa<DataVector, Dim, Inertial>>(
+              inertial_coords, std::numeric_limits<double>::signaling_NaN());
+      const auto& phi = make_with_value<tnsr::iaa<DataVector, Dim, Inertial>>(
+          inertial_coords, std::numeric_limits<double>::signaling_NaN());
+      const auto& pi = make_with_value<tnsr::aa<DataVector, Dim, Inertial>>(
+          inertial_coords, std::numeric_limits<double>::signaling_NaN());
+
       using Vars = db::item_type<variables_tag>;
       Vars vars{num_grid_points};
-      typename GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>::type
-          gauge_source{num_grid_points};
-      make_overloader([ initial_time, &inertial_coords, &gauge_source ](
-                          std::true_type /*is_analytic_solution*/,
-                          const gsl::not_null<Vars*> local_vars,
-                          const auto& local_cache) noexcept {
-        using analytic_solution_tag = ::OptionTags::AnalyticSolutionBase;
-        /*
-         * It is assumed here that the analytic solution makes available the
-         * tags listed in gr::analytic_solution_tags
-         */
-        const auto& solution_vars =
-            Parallel::get<analytic_solution_tag>(local_cache)
-                .variables(inertial_coords, initial_time,
-                           gr::analytic_solution_tags<Dim, DataVector>{});
-        // First fetch lapse, shift, spatial metric and their derivs
-        const auto& lapse = get<gr::Tags::Lapse<DataVector>>(solution_vars);
-        const auto& dt_lapse =
-            get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(solution_vars);
-        const auto& deriv_lapse =
-            get<::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<Dim>,
-                              Inertial>>(solution_vars);
+      const tuples::TaggedTuple<gr::Tags::SpacetimeMetric<Dim>,
+                                GeneralizedHarmonic::Tags::Phi<Dim>,
+                                GeneralizedHarmonic::Tags::Pi<Dim>>
+          solution_tuple(spacetime_metric, phi, pi);
 
-        const auto& shift =
-            get<gr::Tags::Shift<Dim, Inertial, DataVector>>(solution_vars);
-        const auto& dt_shift =
-            get<::Tags::dt<gr::Tags::Shift<Dim, Inertial, DataVector>>>(
-                solution_vars);
-        const auto& deriv_shift =
-            get<::Tags::deriv<gr::Tags::Shift<Dim, Inertial, DataVector>,
-                              tmpl::size_t<Dim>, Inertial>>(solution_vars);
+      vars.assign_subset(solution_tuple);
 
-        const auto& spatial_metric =
-            get<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>(
-                solution_vars);
-        const auto& dt_spatial_metric =
-            get<::Tags::dt<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>>(
-                solution_vars);
-        const auto& deriv_spatial_metric = get<
-            ::Tags::deriv<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>,
-                          tmpl::size_t<Dim>, Inertial>>(solution_vars);
-
-        // Next, compute Gh evolution variables from them
-        const auto& spacetime_metric =
-            ::gr::spacetime_metric<Dim, Inertial, DataVector>(lapse, shift,
-                                                              spatial_metric);
-        const auto& phi = GeneralizedHarmonic::phi<Dim, Inertial, DataVector>(
-            lapse, deriv_lapse, shift, deriv_shift, spatial_metric,
-            deriv_spatial_metric);
-        const auto& pi = GeneralizedHarmonic::pi<Dim, Inertial, DataVector>(
-            lapse, dt_lapse, shift, dt_shift, spatial_metric, dt_spatial_metric,
-            phi);
-
-        const tuples::TaggedTuple<gr::Tags::SpacetimeMetric<Dim>,
-                                  GeneralizedHarmonic::Tags::Phi<Dim>,
-                                  GeneralizedHarmonic::Tags::Pi<Dim>>
-            solution_tuple(spacetime_metric, phi, pi);
-
-        local_vars->assign_subset(solution_tuple);
-
-        // Compute the initial gauge source function
-        // 1. Trace of extrinsic curvature
-        const auto& extrinsic_curvature =
-            get<gr::Tags::ExtrinsicCurvature<Dim, Inertial, DataVector>>(
-                solution_vars);
-        const auto& inverse_spatial_metric =
-            get<gr::Tags::InverseSpatialMetric<Dim, Inertial, DataVector>>(
-                solution_vars);
-        const auto& trace_extrinsic_curvature =
-            trace(extrinsic_curvature, inverse_spatial_metric);
-        // 2. Trace of Christoffel
-        const auto& spatial_christoffel_first_kind =
-            gr::Tags::SpatialChristoffelFirstKindCompute<
-                Dim, Inertial, DataVector>::function(deriv_spatial_metric);
-        const auto& trace_christoffel_last_indices =
-            gr::Tags::TraceSpatialChristoffelFirstKindCompute<
-                Dim, Inertial,
-                DataVector>::function(spatial_christoffel_first_kind,
-                                      inverse_spatial_metric);
-        // 3. Call the compute item for the gauge source function
-        gauge_source =
-            GeneralizedHarmonic::Tags::GaugeHImplicitFrom3p1QuantitiesCompute<
-                Dim, Inertial>::function(lapse, dt_lapse, deriv_lapse, shift,
-                                         dt_shift, deriv_shift, spatial_metric,
-                                         trace_extrinsic_curvature,
-                                         trace_christoffel_last_indices);
-      },
-                      [&inertial_coords](
-                          std::false_type /*is_analytic_solution*/,
-                          const gsl::not_null<Vars*> local_vars,
-                          const auto& local_cache) noexcept {
-                        ASSERT(false, "Analytic Solution does not work yet.");
-                        using analytic_data_tag =
-                            ::OptionTags::AnalyticDataBase;
-                        local_vars->assign_subset(
-                            Parallel::get<analytic_data_tag>(local_cache)
-                                .variables(inertial_coords,
-                                           typename Vars::tags_list{}));
-                      })(detail::has_analytic_solution_alias<Metavariables>{},
-                         make_not_null(&vars), cache);
-
-      // Set the time derivatives of GaugeH
-      const auto& dt_gauge_source =
-          make_with_value<tnsr::a<DataVector, Dim, Inertial>>(inertial_coords,
-                                                              0.);
-
-      using ExtraVars = db::item_type<extras_tag>;
-      ExtraVars extra_vars{num_grid_points};
-      get<GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>>(extra_vars) =
-          gauge_source;
+      const auto& initial_gauge_source =
+          make_with_value<tnsr::a<DataVector, Dim, Inertial>>(
+              inertial_coords, std::numeric_limits<double>::signaling_NaN());
+      const auto& spacetime_deriv_initial_gauge_source =
+          make_with_value<tnsr::ab<DataVector, Dim, Inertial>>(
+              inertial_coords, std::numeric_limits<double>::signaling_NaN());
 
       return db::create_from<db::RemoveTags<>, simple_tags, compute_tags>(
-          std::move(box), std::move(vars), std::move(extra_vars),
-          std::move(dt_gauge_source));
+          std::move(box), std::move(vars), std::move(initial_gauge_source),
+          std::move(spacetime_deriv_initial_gauge_source), 0.0, 100.0, 50.0);
     }
   };
 
   template <class Metavariables>
-  using return_tag_list =
-      tmpl::append<typename Initialization::Domain<Dim>::simple_tags,
-                   typename VariablesTags<Metavariables>::simple_tags,
-                   typename Initialization::GeneralizedHarmonicInterface<
-                       typename Metavariables::system>::simple_tags,
-                   typename Initialization::Evolution<
-                       typename Metavariables::system>::simple_tags,
-                   typename ConstraintsTags<Metavariables>::simple_tags,
-                   typename Initialization::DiscontinuousGalerkin<
-                       Metavariables>::simple_tags,
-                   typename Initialization::MinMod<Dim>::simple_tags,
-                   typename Initialization::Domain<Dim>::compute_tags,
-                   typename VariablesTags<Metavariables>::compute_tags,
-                   typename Initialization::GeneralizedHarmonicInterface<
-                       typename Metavariables::system>::compute_tags,
-                   typename Initialization::Evolution<
-                       typename Metavariables::system>::compute_tags,
-                   typename ConstraintsTags<Metavariables>::compute_tags,
-                   typename Initialization::DiscontinuousGalerkin<
-                       Metavariables>::compute_tags,
-                   typename Initialization::MinMod<Dim>::compute_tags>;
+  using return_tag_list = tmpl::append<
+      typename Initialization::Domain<Dim>::simple_tags,
+      typename VariablesTags<Metavariables>::simple_tags,
+      typename Initialization::GeneralizedHarmonicInterface<
+          typename Metavariables::system>::simple_tags,
+      typename Initialization::Evolution<
+          typename Metavariables::system>::simple_tags,
+      typename ConstraintsAndGaugeTags<Metavariables>::simple_tags,
+      typename Initialization::DiscontinuousGalerkin<
+          Metavariables>::simple_tags,
+      typename Initialization::MinMod<Dim>::simple_tags,
+      typename Initialization::Domain<Dim>::compute_tags,
+      typename VariablesTags<Metavariables>::compute_tags,
+      typename Initialization::GeneralizedHarmonicInterface<
+          typename Metavariables::system>::compute_tags,
+      typename Initialization::Evolution<
+          typename Metavariables::system>::compute_tags,
+      typename ConstraintsAndGaugeTags<Metavariables>::compute_tags,
+      typename Initialization::DiscontinuousGalerkin<
+          Metavariables>::compute_tags,
+      typename Initialization::MinMod<Dim>::compute_tags>;
 
   template <typename... InboxTags, typename Metavariables, typename ActionList,
             typename ParallelComponent>
@@ -303,11 +213,12 @@ struct Initialize {
     auto evolution_box = Initialization::Evolution<system>::initialize(
         std::move(domain_interface_box), cache, initial_time, initial_dt,
         initial_slab_size);
-    auto constraints_box =
-        ConstraintsTags<Metavariables>::initialize(std::move(evolution_box));
+    auto constraints_and_gauge_box =
+        ConstraintsAndGaugeTags<Metavariables>::initialize(
+            std::move(evolution_box));
     auto dg_box =
         Initialization::DiscontinuousGalerkin<Metavariables>::initialize(
-            std::move(constraints_box), initial_extents);
+            std::move(constraints_and_gauge_box), initial_extents);
     auto limiter_box =
         Initialization::MinMod<Dim>::initialize(std::move(dg_box));
     return std::make_tuple(std::move(limiter_box));
