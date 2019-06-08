@@ -49,6 +49,24 @@ struct Magnitude;
 // IWYU pragma: no_forward_declare db::DataBox
 /// \endcond
 
+namespace {
+template <size_t VolumeDim>
+bool only_outgoing_char_speeds(
+    const typename GeneralizedHarmonic::Tags::CharacteristicSpeeds<
+        VolumeDim, Frame::Inertial>::type& char_speeds) noexcept {
+  std::array<double, 4> min_speeds{
+      {min(char_speeds.at(0)), min(char_speeds.at(1)), min(char_speeds.at(2)),
+       min(char_speeds.at(3))}};
+  double min_speed = *std::min_element(min_speeds.begin(), min_speeds.end());
+
+  if (min_speed > 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+}  // namespace
+
 namespace GeneralizedHarmonic {
 namespace Actions {
 
@@ -121,7 +139,7 @@ using all_local_vars = tmpl::list<
     // fields
     ::Tags::Tempaa<22, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempiaa<23, VolumeDim, Frame::Inertial, DataVector>,
-    // ::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>,
+    ::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempaa<25, VolumeDim, Frame::Inertial, DataVector>,
     // Constraint damping parameter gamma2
     ::Tags::TempScalar<26, DataVector>,
@@ -304,8 +322,8 @@ void local_variables(
       get<Tags::UPsi<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   get<::Tags::Tempiaa<23, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
       get<Tags::UZero<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
-  // get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
-  //     get<Tags::UPlus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
+  get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
+      get<Tags::UPlus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   get<::Tags::Tempaa<25, VolumeDim, Frame::Inertial, DataVector>>(*buffer) =
       get<Tags::UMinus<VolumeDim, Frame::Inertial>>(char_projected_dt_u);
   // Spatial derivatives of evolved variables: Psi, Pi and Phi
@@ -444,7 +462,13 @@ struct set_dt_u_psi {
     ReturnType& bc_dt_u_psi =
         get<::Tags::Tempaa<27, VolumeDim, Frame::Inertial, DataVector>>(buffer);
 
-    // Switch on prescribed boundary condition method
+    // Are the char speeds only outgoing? If so, then do nothing
+    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+      return char_projected_rhs_dt_u_psi;
+    }
+
+    // Otherwise, some char speeds are incoming, so
+    // switch on prescribed boundary condition method
     switch (Method) {
       case UPsiBcMethod::Freezing:
         return bc_dt_u_psi;
@@ -585,6 +609,14 @@ struct set_dt_u_zero {
     ReturnType& bc_dt_u_zero =
         get<::Tags::Tempiaa<28, VolumeDim, Frame::Inertial, DataVector>>(
             buffer);
+
+    // Are the char speeds only outgoing? If so, then do nothing
+    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+      return char_projected_rhs_dt_u_zero;
+    }
+
+    // Otherwise, some char speeds are incoming, so
+    // switch on prescribed boundary condition method
     switch (Method) {
       case UZeroBcMethod::Freezing:
         return bc_dt_u_zero;
@@ -839,8 +871,26 @@ struct set_dt_u_plus {
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
                           /* unit_normal_one_form */) noexcept {
+    const typename Tags::CharacteristicSpeeds<VolumeDim, Frame::Inertial>::type
+        char_speeds{{get(get<::Tags::TempScalar<12, DataVector>>(buffer)),
+                     get(get<::Tags::TempScalar<13, DataVector>>(buffer)),
+                     get(get<::Tags::TempScalar<14, DataVector>>(buffer)),
+                     get(get<::Tags::TempScalar<15, DataVector>>(buffer))}};
+    const typename Tags::UPlus<VolumeDim, Frame::Inertial>::type&
+        char_projected_rhs_dt_u_plus =
+            get<::Tags::Tempaa<24, VolumeDim, Frame::Inertial, DataVector>>(
+                buffer);
+
     ReturnType& bc_dt_u_plus =
         get<::Tags::Tempaa<29, VolumeDim, Frame::Inertial, DataVector>>(buffer);
+
+    // Are the char speeds only outgoing? If so, then do nothing
+    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+      return char_projected_rhs_dt_u_plus;
+    }
+
+    // Otherwise, some char speeds are incoming, so
+    // switch on prescribed boundary condition method
     switch (Method) {
       case UPlusBcMethod::Freezing:
         return bc_dt_u_plus;
@@ -932,6 +982,14 @@ struct set_dt_u_minus {
     // Memory allocated for return type
     ReturnType& bc_dt_u_minus =
         get<::Tags::Tempaa<30, VolumeDim, Frame::Inertial, DataVector>>(buffer);
+
+    // Are the char speeds only outgoing? If so, then do nothing
+    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+      return char_projected_rhs_dt_u_minus;
+    }
+
+    // Otherwise, some char speeds are incoming, so
+    // switch on prescribed boundary condition method
     switch (Method) {
       case UMinusBcMethod::Freezing:
         return bc_dt_u_minus;

@@ -376,7 +376,7 @@ struct ImposeConstraintPreservingBoundaryConditions {
     // setting BCs on individual characteristic variables
     return apply_impl<Metavariables::system::volume_dim,
                       // Constraint preserving Bjorhus-type BC
-                      UPsiBcMethod::ConstraintPreservingBjorhus,
+                      UPsiBcMethod::Freezing,
                       // Freezing BC
                       UZeroBcMethod::Freezing,
                       // dont change choice for UPlus below, unless
