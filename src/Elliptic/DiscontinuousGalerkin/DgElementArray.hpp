@@ -114,7 +114,7 @@ struct DgElementArray {
         Parallel::threaded_action<read_element_data_action>(
             Parallel::get_parallel_component<
                 importer::DataFileReader<Metavariables>>(
-                local_cache)[static_cast<size_t>(Parallel::my_node())]);
+                local_cache));
         break;
       default:
         break;
