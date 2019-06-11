@@ -31,6 +31,7 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/Printf.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/IndexManipulation.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
@@ -151,9 +152,10 @@ using all_local_vars = tmpl::list<
     // derivatives of psi, pi, phi
     ::Tags::Tempiaa<31, VolumeDim, Frame::Inertial, DataVector>,
     ::Tags::Tempiaa<32, VolumeDim, Frame::Inertial, DataVector>,
-    ::Tags::Tempijaa<33, VolumeDim, Frame::Inertial, DataVector>
+    ::Tags::Tempijaa<33, VolumeDim, Frame::Inertial, DataVector>,
     // <34>, <35>, <36> defined above
-    >;
+    // mapped coordinates
+    ::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>;
 
 // \brief This function computes intermediate variables needed for
 // Bjorhus-type constraint preserving boundary conditions for the
@@ -200,7 +202,9 @@ void local_variables(
       Tags::TwoIndexConstraint<VolumeDim, Frame::Inertial>,
       Tags::ThreeIndexConstraint<VolumeDim, Frame::Inertial>,
       Tags::FourIndexConstraint<VolumeDim, Frame::Inertial>,
-      Tags::FConstraint<VolumeDim, Frame::Inertial>
+      Tags::FConstraint<VolumeDim, Frame::Inertial>,
+      ::Tags::MappedCoordinates<::Tags::ElementMap<3, Frame::Inertial>,
+                                ::Tags::LogicalCoordinates<3>>
       //
       >;
   const auto vars_on_this_slice = db::data_on_slice(
@@ -355,6 +359,12 @@ void local_variables(
       get<::Tags::Tempaa<30, VolumeDim, Frame::Inertial, DataVector>>(*buffer);
   std::fill(_bc_uminus.begin(), _bc_uminus.end(), 0.);
 
+  // Coordinates
+  get<::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>(*buffer) = get<
+      ::Tags::MappedCoordinates<::Tags::ElementMap<VolumeDim, Frame::Inertial>,
+                                ::Tags::LogicalCoordinates<VolumeDim>>>(
+      vars_on_this_slice);
+
   // 4) Compute intermediate variables now
   // 4.1) Spacetime form of interface normal (vector and oneform)
   const auto unit_interface_normal_vector = raise_or_lower_index(
@@ -461,6 +471,18 @@ struct set_dt_u_psi {
     // Memory allocated for return type
     ReturnType& bc_dt_u_psi =
         get<::Tags::Tempaa<27, VolumeDim, Frame::Inertial, DataVector>>(buffer);
+
+    // Are there incoming char speeds on the inner boundary?
+    const auto& x =
+        get<::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>(buffer);
+    // If radius of surface is less than 10, then assume we are on an inner
+    // boundary. FIX ME
+    if (min(square(get<0>(x)) + square(get<1>(x)) + square(get<2>(x))) <
+        100.0) {
+      if (not only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+        Parallel::printf("WARNING: Incoming char speeds on inner boundary\n");
+      }
+    }
 
     // Are the char speeds for this field only outgoing? If so, then
     // just return the char field dt_u_psi, which will do nothing
