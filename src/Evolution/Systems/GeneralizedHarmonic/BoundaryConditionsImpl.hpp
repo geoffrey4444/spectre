@@ -477,8 +477,8 @@ struct set_dt_u_psi {
       const auto& min_speed = min_char_speed<VolumeDim>(char_speeds);
       if (min_speed < 0.0) {
         Parallel::printf("WARNING: Incoming char speeds on inner boundary\n");
-        Parallel::printf("  Min speed %f at min radius %f\n", min_r_squared,
-                         min_speed);
+        Parallel::printf("  Min speed %f at min radius %f\n", min_speed,
+                         min_r_squared);
       }
     }
 
