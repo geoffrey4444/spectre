@@ -6,8 +6,6 @@
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 
-#include "Parallel/Printf.hpp"
-
 namespace db {
 namespace Actions {
 
@@ -32,7 +30,6 @@ struct SetData {
       const ArrayIndex& array_index, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/,
       tuples::tagged_tuple_from_typelist<TagsList> data) noexcept {
-    Parallel::printf("%s SetData:\n%s\n", array_index, data);
     tmpl::for_each<TagsList>([&box, &data ](auto tag_v) noexcept {
       using tag = tmpl::type_from<decltype(tag_v)>;
       db::mutate<tag>(
