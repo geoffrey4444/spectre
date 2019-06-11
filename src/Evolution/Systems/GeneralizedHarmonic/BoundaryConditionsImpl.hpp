@@ -52,19 +52,13 @@ struct Magnitude;
 
 namespace {
 template <size_t VolumeDim>
-bool only_outgoing_char_speeds(
+double min_char_speed(
     const typename GeneralizedHarmonic::Tags::CharacteristicSpeeds<
         VolumeDim, Frame::Inertial>::type& char_speeds) noexcept {
   std::array<double, 4> min_speeds{
       {min(char_speeds.at(0)), min(char_speeds.at(1)), min(char_speeds.at(2)),
        min(char_speeds.at(3))}};
-  double min_speed = *std::min_element(min_speeds.begin(), min_speeds.end());
-
-  if (min_speed > 0) {
-    return true;
-  } else {
-    return false;
-  }
+  return *std::min_element(min_speeds.begin(), min_speeds.end());
 }
 }  // namespace
 
@@ -477,10 +471,14 @@ struct set_dt_u_psi {
         get<::Tags::TempI<37, VolumeDim, Frame::Inertial, DataVector>>(buffer);
     // If radius of surface is less than 10, then assume we are on an inner
     // boundary. FIX ME
-    if (min(square(get<0>(x)) + square(get<1>(x)) + square(get<2>(x))) <
-        100.0) {
-      if (not only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+    const auto& min_r_squared =
+        min(square(get<0>(x)) + square(get<1>(x)) + square(get<2>(x)));
+    if (min_r_squared < 100.0) {
+      const auto& min_speed = min_char_speed<VolumeDim>(char_speeds);
+      if (min_speed < 0.0) {
         Parallel::printf("WARNING: Incoming char speeds on inner boundary\n");
+        Parallel::printf("  Min speed %f at min radius %f\n", min_r_squared,
+                         min_speed);
       }
     }
 
