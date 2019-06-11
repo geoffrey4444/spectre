@@ -478,7 +478,7 @@ struct set_dt_u_psi {
       if (min_speed < 0.0) {
         Parallel::printf("WARNING: Incoming char speeds on inner boundary\n");
         Parallel::printf("  Min speed %f at min radius %f\n", min_speed,
-                         min_r_squared);
+                         sqrt(min_r_squared));
       }
     }
 
