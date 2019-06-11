@@ -462,8 +462,10 @@ struct set_dt_u_psi {
     ReturnType& bc_dt_u_psi =
         get<::Tags::Tempaa<27, VolumeDim, Frame::Inertial, DataVector>>(buffer);
 
-    // Are the char speeds only outgoing? If so, then do nothing
-    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+    // Are the char speeds for this field only outgoing? If so, then
+    // just return the char field dt_u_psi, which will do nothing
+    // when used in a boundary condition
+    if (min(char_speeds.at(0)) >= 0.0) {
       return char_projected_rhs_dt_u_psi;
     }
 
@@ -610,8 +612,10 @@ struct set_dt_u_zero {
         get<::Tags::Tempiaa<28, VolumeDim, Frame::Inertial, DataVector>>(
             buffer);
 
-    // Are the char speeds only outgoing? If so, then do nothing
-    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+    // Are the char speeds for this field only outgoing? If so, then
+    // just return the char field dt_u_zero, which will do nothing
+    // when used in a boundary condition
+    if (min(char_speeds.at(1)) >= 0.0) {
       return char_projected_rhs_dt_u_zero;
     }
 
@@ -884,8 +888,10 @@ struct set_dt_u_plus {
     ReturnType& bc_dt_u_plus =
         get<::Tags::Tempaa<29, VolumeDim, Frame::Inertial, DataVector>>(buffer);
 
-    // Are the char speeds only outgoing? If so, then do nothing
-    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+    // Are the char speeds for this field only outgoing? If so, then
+    // just return the char field dt_u_plus, which will do nothing
+    // when used in a boundary condition
+    if (min(char_speeds.at(2)) >= 0.0) {
       return char_projected_rhs_dt_u_plus;
     }
 
@@ -983,8 +989,10 @@ struct set_dt_u_minus {
     ReturnType& bc_dt_u_minus =
         get<::Tags::Tempaa<30, VolumeDim, Frame::Inertial, DataVector>>(buffer);
 
-    // Are the char speeds only outgoing? If so, then do nothing
-    if (only_outgoing_char_speeds<VolumeDim>(char_speeds)) {
+    // Are the char speeds for this field only outgoing? If so, then
+    // just return the char field dt_u_minus, which will do nothing
+    // when used in a boundary condition
+    if (min(char_speeds.at(3)) >= 0.0) {
       return char_projected_rhs_dt_u_minus;
     }
 
