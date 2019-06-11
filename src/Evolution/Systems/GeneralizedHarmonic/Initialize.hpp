@@ -163,7 +163,7 @@ struct Initialize {
 
       return db::create_from<db::RemoveTags<>, simple_tags, compute_tags>(
           std::move(box), std::move(vars), std::move(initial_gauge_source),
-          std::move(spacetime_deriv_initial_gauge_source), 0.0, 100.0, 50.0);
+          std::move(spacetime_deriv_initial_gauge_source), 0.0, 1.0e30, 5.0e30);
     }
   };
 
