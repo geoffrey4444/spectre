@@ -133,14 +133,14 @@ struct ImposeConstraintPreservingBoundaryConditions {
           db::get<::Tags::Mesh<VolumeDim>>(box);
       const size_t volume_grid_points = mesh.extents().product();
       const auto& unit_normal_one_forms = db::get<
-          ::Tags::Interface<::Tags::BoundaryDirectionsExterior<VolumeDim>,
+          ::Tags::Interface<::Tags::BoundaryDirectionsInterior<VolumeDim>,
                             ::Tags::Normalized<::Tags::UnnormalizedFaceNormal<
                                 VolumeDim, Frame::Inertial>>>>(box);
       const auto& external_bdry_vars = db::get<::Tags::Interface<
-          ::Tags::BoundaryDirectionsExterior<VolumeDim>, variables_tag>>(box);
+          ::Tags::BoundaryDirectionsInterior<VolumeDim>, variables_tag>>(box);
       const auto& volume_all_at_vars = db::get<dt_variables_tag>(box);
       const auto& external_bdry_char_speeds = db::get<::Tags::Interface<
-          ::Tags::BoundaryDirectionsExterior<VolumeDim>,
+          ::Tags::BoundaryDirectionsInterior<VolumeDim>,
           Tags::CharacteristicSpeeds<VolumeDim, Frame::Inertial>>>(box);
 
       // ------------------------------- (2)
@@ -289,11 +289,11 @@ struct ImposeConstraintPreservingBoundaryConditions {
 
       // Apply the boundary condition
       db::mutate_apply<tmpl::list<::Tags::Interface<
-                           ::Tags::BoundaryDirectionsExterior<VolumeDim>,
+                           ::Tags::BoundaryDirectionsInterior<VolumeDim>,
                            typename system::variables_tag>>,
                        tmpl::list<>>(
           [](const gsl::not_null<db::item_type<::Tags::Interface<
-                 ::Tags::BoundaryDirectionsExterior<VolumeDim>,
+                 ::Tags::BoundaryDirectionsInterior<VolumeDim>,
                  typename system::variables_tag>>*>
                  external_bdry_vars,
              const double time, const auto& boundary_condition,
@@ -312,7 +312,7 @@ struct ImposeConstraintPreservingBoundaryConditions {
           make_not_null(&box), db::get<::Tags::Time>(box).value(),
           get<typename Metavariables::boundary_condition_tag>(cache),
           db::get<::Tags::Interface<
-              ::Tags::BoundaryDirectionsExterior<VolumeDim>,
+              ::Tags::BoundaryDirectionsInterior<VolumeDim>,
               ::Tags::Coordinates<VolumeDim, Frame::Inertial>>>(box));
 
       contribute_data_to_mortar(make_not_null(&box), cache);

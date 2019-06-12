@@ -22,6 +22,7 @@
 #include "Domain/IndexToSliceAt.hpp"
 #include "Domain/Tags.hpp"
 #include "ErrorHandling/Assert.hpp"
+#include "ErrorHandling/Error.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditionsHelpers.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
@@ -434,7 +435,7 @@ struct set_dt_u_psi {
                           const Variables<VarsTagsList>& vars,
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                          /* unit_normal_one_form */) noexcept {
+                          unit_normal_one_form) noexcept {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const typename Tags::ThreeIndexConstraint<VolumeDim, Frame::Inertial>::type&
@@ -476,9 +477,16 @@ struct set_dt_u_psi {
     if (min_r_squared < 100.0) {
       const auto& min_speed = min_char_speed<VolumeDim>(char_speeds);
       if (min_speed < 0.0) {
-        Parallel::printf("WARNING: Incoming char speeds on inner boundary\n");
+        Parallel::printf("ERROR: Incoming char speeds on inner boundary\n");
         Parallel::printf("  Min speed %f at min radius %f\n", min_speed,
                          sqrt(min_r_squared));
+        Parallel::printf("  vPsi: %s \n", char_speeds[0]);
+        Parallel::printf("  vZero: %s \n", char_speeds[1]);
+        Parallel::printf("  vPlus: %s \n", char_speeds[2]);
+        Parallel::printf("  vMinus: %s \n", char_speeds[3]);
+        Parallel::printf("  normal: %s \n", unit_normal_one_form);
+        Parallel::printf("  x: %s", x);
+        ERROR("Incoming characteristic speeds on the inner boundary");
       }
     }
 
