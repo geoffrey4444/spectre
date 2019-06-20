@@ -12,6 +12,7 @@
 #include "ErrorHandling/FloatingPointExceptions.hpp"
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"  // IWYU pragma: keep
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"  // IWYU pragma: keep
+#include "Evolution/DiscontinuousGalerkin/Filtering.hpp"
 #include "Evolution/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"  // IWYU pragma: keep
 #include "Evolution/EventsAndTriggers/Event.hpp"
 #include "Evolution/EventsAndTriggers/EventsAndTriggers.hpp"  // IWYU pragma: keep
@@ -134,7 +135,9 @@ struct EvolutionMetavars {
       tmpl::conditional_t<local_time_stepping,
                           dg::Actions::ApplyBoundaryFluxesLocalTimeStepping,
                           tmpl::list<>>,
-      Actions::UpdateU>>;
+      Actions::UpdateU,
+      dg::Actions::ExponentialFilter<
+          0, typename system::variables_tag::type::tags_list>>>;
 
   // Read in evolution variables and GaugeH. For now, use the compute
   // item that forces the spacetime deriv of GaugeH to vanish
