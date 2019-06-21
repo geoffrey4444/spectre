@@ -187,7 +187,7 @@ struct ImposeConstraintPreservingBoundaryConditions {
               &direction, &buffer, &vars, &dt_vars, &unit_normal_one_form
             ](const gsl::not_null<db::item_type<dt_variables_tag>*>
                   volume_dt_vars,
-              const double /* time */, const auto& /* boundary_condition */
+              const double time, const auto& /* boundary_condition */
               ) noexcept {
               // ------------------------------- (1)
               // Preliminaries
@@ -205,22 +205,22 @@ struct ImposeConstraintPreservingBoundaryConditions {
               const auto bc_dt_u_psi = BoundaryConditions_detail::set_dt_u_psi<
                   typename Tags::UPsi<VolumeDim, Frame::Inertial>::type,
                   VolumeDim>::apply(UPsiMethod, buffer, vars, dt_vars,
-                                    unit_normal_one_form);
+                                    unit_normal_one_form, time);
               const auto bc_dt_u_zero =
                   BoundaryConditions_detail::set_dt_u_zero<
                       typename Tags::UZero<VolumeDim, Frame::Inertial>::type,
                       VolumeDim>::apply(UZeroMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                                        unit_normal_one_form, time);
               const auto bc_dt_u_plus =
                   BoundaryConditions_detail::set_dt_u_plus<
                       typename Tags::UPlus<VolumeDim, Frame::Inertial>::type,
                       VolumeDim>::apply(UPlusMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                                        unit_normal_one_form, time);
               const auto bc_dt_u_minus =
                   BoundaryConditions_detail::set_dt_u_minus<
                       typename Tags::UMinus<VolumeDim, Frame::Inertial>::type,
                       VolumeDim>::apply(UMinusMethod, buffer, vars, dt_vars,
-                                        unit_normal_one_form);
+                                        unit_normal_one_form, time);
               // Convert them to desired values on dt<U>
               const auto bc_dt_all_u =
                   evolved_fields_from_characteristic_fields(
@@ -289,11 +289,11 @@ struct ImposeConstraintPreservingBoundaryConditions {
 
       // Apply the boundary condition
       db::mutate_apply<tmpl::list<::Tags::Interface<
-                           ::Tags::BoundaryDirectionsInterior<VolumeDim>,
+                           ::Tags::BoundaryDirectionsExterior<VolumeDim>,
                            typename system::variables_tag>>,
                        tmpl::list<>>(
           [](const gsl::not_null<db::item_type<::Tags::Interface<
-                 ::Tags::BoundaryDirectionsInterior<VolumeDim>,
+                 ::Tags::BoundaryDirectionsExterior<VolumeDim>,
                  typename system::variables_tag>>*>
                  external_bdry_vars,
              const double time, const auto& boundary_condition,
@@ -312,7 +312,7 @@ struct ImposeConstraintPreservingBoundaryConditions {
           make_not_null(&box), db::get<::Tags::Time>(box).value(),
           get<typename Metavariables::boundary_condition_tag>(cache),
           db::get<::Tags::Interface<
-              ::Tags::BoundaryDirectionsInterior<VolumeDim>,
+              ::Tags::BoundaryDirectionsExterior<VolumeDim>,
               ::Tags::Coordinates<VolumeDim, Frame::Inertial>>>(box));
 
       contribute_data_to_mortar(make_not_null(&box), cache);

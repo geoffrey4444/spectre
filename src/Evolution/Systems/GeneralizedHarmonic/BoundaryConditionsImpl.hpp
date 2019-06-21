@@ -435,7 +435,8 @@ struct set_dt_u_psi {
                           const Variables<VarsTagsList>& vars,
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                          unit_normal_one_form) noexcept {
+                          unit_normal_one_form,
+                          const double time) noexcept {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const typename Tags::ThreeIndexConstraint<VolumeDim, Frame::Inertial>::type&
@@ -478,6 +479,7 @@ struct set_dt_u_psi {
       const auto& min_speed = min_char_speed<VolumeDim>(char_speeds);
       if (min_speed < 0.0) {
         Parallel::printf("ERROR: Incoming char speeds on inner boundary\n");
+        Parallel::printf("  Time: %f\n", time);
         Parallel::printf("  Min speed %f at min radius %f\n", min_speed,
                          sqrt(min_r_squared));
         Parallel::printf("  vPsi: %s \n", char_speeds[0]);
@@ -590,7 +592,8 @@ struct set_dt_u_zero {
                           const Variables<VarsTagsList>& vars,
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                              unit_normal_one_form) noexcept {
+                              unit_normal_one_form,
+                          const double /* time */) noexcept {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const tnsr::A<DataVector, VolumeDim,
@@ -902,7 +905,8 @@ struct set_dt_u_plus {
                           const Variables<VarsTagsList>& /* vars */,
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                          /* unit_normal_one_form */) noexcept {
+                          /* unit_normal_one_form */,
+                          const double /* time */) noexcept {
     const typename Tags::CharacteristicSpeeds<VolumeDim, Frame::Inertial>::type
         char_speeds{{get(get<::Tags::TempScalar<12, DataVector>>(buffer)),
                      get(get<::Tags::TempScalar<13, DataVector>>(buffer)),
@@ -946,7 +950,8 @@ struct set_dt_u_minus {
                           const Variables<VarsTagsList>& vars,
                           const Variables<DtVarsTagsList>& /* dt_vars */,
                           const tnsr::i<DataVector, VolumeDim, Frame::Inertial>&
-                          /* unit_normal_one_form */) noexcept {
+                          /* unit_normal_one_form */,
+                          const double /* time */) noexcept {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const typename Tags::ConstraintGamma2::type& constraint_gamma2 =
