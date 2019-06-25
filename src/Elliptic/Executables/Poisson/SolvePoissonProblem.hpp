@@ -14,6 +14,8 @@
 #include "Elliptic/Systems/Poisson/Actions/Observe.hpp"
 #include "Elliptic/Systems/Poisson/FirstOrderSystem.hpp"
 #include "ErrorHandling/FloatingPointExceptions.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
+#include "IO/DataImporter/ElementActions.hpp"
 #include "IO/Observer/Actions.hpp"
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
@@ -59,8 +61,8 @@ struct Metavariables {
   using temporal_id = LinearSolver::Tags::IterationId;
 
   // Parse numerical flux parameters from the input file to store in the cache.
-  using normal_dot_numerical_flux = OptionTags::NumericalFlux<
-      Poisson::FirstOrderInternalPenaltyFlux<Dim>>;
+  using normal_dot_numerical_flux =
+      OptionTags::NumericalFlux<Poisson::FirstOrderInternalPenaltyFlux<Dim>>;
 
   // Set up the domain creator from the input file.
   using domain_creator_tag = OptionTags::DomainCreator<Dim, Frame::Inertial>;
@@ -72,10 +74,19 @@ struct Metavariables {
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
       tmpl::list<Poisson::Actions::Observe, linear_solver>>;
 
-  // Specify all global synchronization points.
-  enum class Phase { Initialization, RegisterWithObserver, Solve, Exit };
+  using import_fields = tmpl::list<Poisson::Field>;
 
-  // Specify all parallel components that will execute actions at some point.
+  // Specify all global synchronization points.
+  enum class Phase {
+    Initialization,
+    RegisterWithObserver,
+    ImportData,
+    Solve,
+    Exit
+  };
+
+  // Specify all parallel components that will execute actions at some
+  // point.
   using component_list = tmpl::append<
       tmpl::list<Elliptic::DgElementArray<
           Metavariables,
@@ -88,6 +99,7 @@ struct Metavariables {
                   Phase, Phase::RegisterWithObserver,
                   tmpl::list<observers::Actions::RegisterWithObservers<
                                  Poisson::Actions::Observe>,
+                             importer::Actions::RegisterWithImporter,
                              Parallel::Actions::TerminatePhase>>,
 
               Parallel::PhaseActions<
@@ -106,12 +118,13 @@ struct Metavariables {
                              dg::Actions::ReceiveDataForFluxes<Metavariables>,
                              dg::Actions::ApplyFluxes,
                              typename linear_solver::perform_step>>>,
-
           typename Elliptic::dg::Actions::InitializeElement<
-              Dim>::AddOptionsToDataBox>>,
+              Dim>::AddOptionsToDataBox,
+          import_fields>>,
       typename linear_solver::component_list,
       tmpl::list<observers::Observer<Metavariables>,
-                 observers::ObserverWriter<Metavariables>>>;
+                 observers::ObserverWriter<Metavariables>,
+                 importer::DataFileReader<Metavariables>>>;
 
   // Specify the transitions between phases.
   static Phase determine_next_phase(
@@ -122,6 +135,8 @@ struct Metavariables {
       case Phase::Initialization:
         return Phase::RegisterWithObserver;
       case Phase::RegisterWithObserver:
+        return Phase::ImportData;
+      case Phase::ImportData:
         return Phase::Solve;
       case Phase::Solve:
         return Phase::Exit;

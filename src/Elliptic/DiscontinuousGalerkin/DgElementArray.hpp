@@ -7,15 +7,26 @@
 #include "Domain/ElementIndex.hpp"
 #include "Domain/InitialElementIds.hpp"
 #include "Domain/Tags.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
+#include "IO/DataImporter/DataFileReaderActions.hpp"
+#include "IO/DataImporter/Tags.hpp"
 #include "IO/Observer/ObservationId.hpp"
 #include "IO/Observer/TypeOfObservation.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Info.hpp"
 #include "Parallel/Invoke.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
+#include "ParallelAlgorithms/Actions/SetData.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace Elliptic {
+
+// This should be moved somewhere else
+struct InitialGuess {
+  using group = importer::OptionTags::Group;
+  static constexpr OptionString help = "Initial guess";
+};
+
 /*!
  * \brief The parallel component responsible for managing the DG elements that
  * compose the computational domain
@@ -41,7 +52,7 @@ namespace Elliptic {
  *   - All items required by the actions in `ActionList`
  */
 template <class Metavariables, class PhaseDepActionList,
-          class AddOptionsToDataBox>
+          class AddOptionsToDataBox, typename ImportFields>
 struct DgElementArray {
   static constexpr size_t volume_dim = Metavariables::system::volume_dim;
 
@@ -50,8 +61,13 @@ struct DgElementArray {
   using phase_dependent_action_list = PhaseDepActionList;
   using array_index = ElementIndex<volume_dim>;
 
-  using const_global_cache_tag_list =
-      Parallel::get_const_global_cache_tags_from_pdal<PhaseDepActionList>;
+  using read_element_data_action = importer::ThreadedActions::ReadElementData<
+      InitialGuess, ImportFields, ::Actions::SetData<ImportFields>,
+      DgElementArray>;
+
+  using const_global_cache_tag_list = tmpl::append<
+      Parallel::get_const_global_cache_tags_from_pdal<PhaseDepActionList>,
+      typename read_element_data_action::const_global_cache_tag_list>;
 
   using add_options_to_databox = AddOptionsToDataBox;
 
@@ -68,12 +84,19 @@ struct DgElementArray {
     auto& local_cache = *(global_cache.ckLocalBranch());
     Parallel::get_parallel_component<DgElementArray>(local_cache)
         .start_phase(next_phase);
+
+    if (next_phase == Metavariables::Phase::ImportData) {
+      Parallel::threaded_action<read_element_data_action>(
+          Parallel::get_parallel_component<
+              importer::DataFileReader<Metavariables>>(local_cache));
+    }
   }
 };
 
 template <class Metavariables, class PhaseDepActionList,
-          class AddOptionsToDataBox>
-void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox>::
+          class AddOptionsToDataBox, typename ImportFields>
+void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox,
+                    ImportFields>::
     initialize(Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
                const std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
                    domain_creator) noexcept {
