@@ -15,12 +15,16 @@
 #include "Domain/ElementIndex.hpp"
 #include "Domain/InitialElementIds.hpp"
 #include "ErrorHandling/Error.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
+#include "IO/DataImporter/DataFileReaderActions.hpp"
+#include "IO/DataImporter/Tags.hpp"
 #include "IO/Observer/ObservationId.hpp"
 #include "IO/Observer/TypeOfObservation.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Info.hpp"
 #include "Parallel/Invoke.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
+#include "ParallelAlgorithms/Actions/SetData.hpp"
 #include "Time/Tags.hpp"  // IWYU pragma: keep
 #include "Time/Time.hpp"
 #include "Utilities/TMPL.hpp"
@@ -36,8 +40,14 @@ struct get_action_list_from_phase_dep_action {
   using type = typename PhaseDepAction::action_list;
 };
 
+// This should be moved somewhere else
+struct NumericalInitialData {
+  using group = importer::OptionTags::Group;
+  static constexpr OptionString help = "Numerical initial data";
+};
+
 template <class Metavariables, class PhaseDepActionList,
-          class AddOptionsToDataBox>
+          class AddOptionsToDataBox, typename ImportFields>
 struct DgElementArray {
   static constexpr size_t volume_dim = Metavariables::system::volume_dim;
 
@@ -46,8 +56,12 @@ struct DgElementArray {
   using phase_dependent_action_list = PhaseDepActionList;
   using array_index = ElementIndex<volume_dim>;
 
-  using const_global_cache_tag_list =
-      Parallel::get_const_global_cache_tags_from_pdal<PhaseDepActionList>;
+  using read_element_data_action = importer::ThreadedActions::ReadElementData<
+      NumericalInitialData, ImportFields, ::Actions::SetData<ImportFields>,
+      DgElementArray>;
+  using const_global_cache_tag_list = tmpl::append<
+      Parallel::get_const_global_cache_tags_from_pdal<PhaseDepActionList>,
+      typename read_element_data_action::const_global_cache_tag_list>;
 
   using options = tmpl::flatten<tmpl::list<
       typename Metavariables::domain_creator_tag, OptionTags::InitialTime,
@@ -77,12 +91,19 @@ struct DgElementArray {
     auto& local_cache = *(global_cache.ckLocalBranch());
     Parallel::get_parallel_component<DgElementArray>(local_cache)
         .start_phase(next_phase);
+
+    if (next_phase == Metavariables::Phase::ImportData) {
+      Parallel::threaded_action<read_element_data_action>(
+          Parallel::get_parallel_component<
+              importer::DataFileReader<Metavariables>>(local_cache));
+    }
   }
 };
 
 template <class Metavariables, class PhaseDepActionList,
-          class AddOptionsToDataBox>
-void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox>::
+          class AddOptionsToDataBox, typename ImportFields>
+void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox,
+                    ImportFields>::
     initialize(Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
                std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
                    domain_creator,
@@ -92,8 +113,9 @@ void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox>::
 }
 
 template <class Metavariables, class PhaseDepActionList,
-          class AddOptionsToDataBox>
-void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox>::
+          class AddOptionsToDataBox, typename ImportFields>
+void DgElementArray<Metavariables, PhaseDepActionList, AddOptionsToDataBox,
+                    ImportFields>::
     initialize(Parallel::CProxy_ConstGlobalCache<Metavariables>& global_cache,
                const std::unique_ptr<DomainCreator<volume_dim, Frame::Inertial>>
                    domain_creator,
