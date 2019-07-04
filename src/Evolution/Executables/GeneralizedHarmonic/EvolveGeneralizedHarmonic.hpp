@@ -13,8 +13,8 @@
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"  // IWYU pragma: keep
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"  // IWYU pragma: keep
 #include "Evolution/DiscontinuousGalerkin/Filtering.hpp"
-#include "Evolution/DiscontinuousGalerkin/ObserveErrorNorms.hpp"
 #include "Evolution/DiscontinuousGalerkin/ObserveFields.hpp"
+#include "Evolution/DiscontinuousGalerkin/ObserveNorms.hpp"
 #include "Evolution/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"  // IWYU pragma: keep
 #include "Evolution/EventsAndTriggers/Event.hpp"
 #include "Evolution/EventsAndTriggers/EventsAndTriggers.hpp"  // IWYU pragma: keep
@@ -98,23 +98,20 @@ struct EvolutionMetavars {
   using boundary_condition_tag = analytic_solution_tag;
   using normal_dot_numerical_flux =
       OptionTags::NumericalFlux<GeneralizedHarmonic::UpwindFlux<volume_dim>>;
-  using events = tmpl::list<
-      dg::Events::Registrars::ObserveErrorNorms<
-          volume_dim, typename system::variables_tag::tags_list>,
-      dg::Events::Registrars::ObserveFields<
-          volume_dim,
-          tmpl::append<
-              typename system::variables_tag::tags_list,
-              tmpl::list<::Tags::PointwiseL2Norm<
-                             GeneralizedHarmonic::Tags::GaugeConstraint<
-                                 volume_dim, Inertial>>,
-                         ::Tags::PointwiseL2Norm<
-                             GeneralizedHarmonic::Tags::ThreeIndexConstraint<
-                                 volume_dim, Inertial>>,
-                         ::Tags::PointwiseL2Norm<
-                             GeneralizedHarmonic::Tags::FourIndexConstraint<
-                                 volume_dim, Inertial>>>>,
-          typename system::variables_tag::tags_list>>;
+
+  using constraint_tags = tmpl::list<
+      GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, Inertial>,
+      GeneralizedHarmonic::Tags::FConstraint<volume_dim, Inertial>,
+      GeneralizedHarmonic::Tags::TwoIndexConstraint<volume_dim, Inertial>,
+      GeneralizedHarmonic::Tags::ThreeIndexConstraint<volume_dim, Inertial>,
+      GeneralizedHarmonic::Tags::FourIndexConstraint<volume_dim, Inertial>,
+      GeneralizedHarmonic::Tags::ConstraintEnergy<volume_dim, Inertial>>;
+  using observation_events = tmpl::list<
+      dg::Events::Registrars::ObserveNorms<volume_dim, constraint_tags>>;
+  using events = tmpl::push_back<observation_events,
+                                 intrp::Events::Registrars::Interpolate<
+                                     volume_dim, interpolator_source_vars>>;
+
   using triggers = Triggers::time_triggers;
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
