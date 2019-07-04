@@ -15,13 +15,12 @@
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObservationId.hpp"
 #include "IO/Observer/ObserverComponent.hpp"  // IWYU pragma: keep
-#include "IO/Observer/ReductionActions.hpp"  // IWYU pragma: keep
+#include "IO/Observer/ReductionActions.hpp"   // IWYU pragma: keep
 #include "Options/Options.hpp"
 #include "Parallel/CharmPupable.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
 #include "Parallel/Reduction.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "Time/Time.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Functional.hpp"
@@ -41,20 +40,20 @@ struct Time;
 namespace dg {
 namespace Events {
 template <size_t VolumeDim, typename Tensors, typename EventRegistrars>
-class ObserveErrorNorms;
+class ObserveNorms;
 
 namespace Registrars {
 template <size_t VolumeDim, typename Tensors>
-struct ObserveErrorNorms {
+struct ObserveNorms {
   template <typename RegistrarList>
-  using f = Events::ObserveErrorNorms<VolumeDim, Tensors, RegistrarList>;
+  using f = Events::ObserveNorms<VolumeDim, Tensors, RegistrarList>;
 };
 }  // namespace Registrars
 
 template <size_t VolumeDim, typename Tensors,
           typename EventRegistrars =
-              tmpl::list<Registrars::ObserveErrorNorms<VolumeDim, Tensors>>>
-class ObserveErrorNorms;  // IWYU pragma: keep
+              tmpl::list<Registrars::ObserveNorms<VolumeDim, Tensors>>>
+class ObserveNorms;  // IWYU pragma: keep
 
 /*!
  * \ingroup DiscontinuousGalerkinGroup
@@ -66,7 +65,7 @@ class ObserveErrorNorms;  // IWYU pragma: keep
  * - `NumberOfPoints` = total number of points in the domain
  * - `Error(*)` = RMS errors in `Tensors` =
  *   \f$\operatorname{RMS}\left(\sqrt{\sum_{\text{independent components}}\left[
- *   \text{value} - \text{analytic solution}\right]^2}\right)\f$
+ *   \text{value}\right]^2}\right)\f$
  *   over all points
  *
  * \warning Currently, only one reduction observation event can be
@@ -74,7 +73,7 @@ class ObserveErrorNorms;  // IWYU pragma: keep
  * will produce unpredictable results.
  */
 template <size_t VolumeDim, typename... Tensors, typename EventRegistrars>
-class ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
+class ObserveNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
     : public Event<EventRegistrars> {
  private:
   using coordinates_tag = ::Tags::Coordinates<VolumeDim, Frame::Inertial>;
@@ -96,9 +95,9 @@ class ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
 
  public:
   /// \cond
-  explicit ObserveErrorNorms(CkMigrateMessage* /*unused*/) noexcept {}
+  explicit ObserveNorms(CkMigrateMessage* /*unused*/) noexcept {}
   using PUP::able::register_constructor;
-  WRAPPED_PUPable_decl_template(ObserveErrorNorms);  // NOLINT
+  WRAPPED_PUPable_decl_template(ObserveNorms);  // NOLINT
   /// \endcond
 
   using options = tmpl::list<>;
@@ -115,7 +114,7 @@ class ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
       "triggered at a given time.  Causing multiple events to run at once\n"
       "will produce unpredictable results.";
 
-  ObserveErrorNorms() = default;
+  ObserveNorms() = default;
 
   using observed_reduction_data_tags =
       observers::make_reduction_data_tags<tmpl::list<ReductionData>>;
@@ -130,17 +129,13 @@ class ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
                   Parallel::ConstGlobalCache<Metavariables>& cache,
                   const ArrayIndex& /*array_index*/,
                   const ParallelComponent* const /*meta*/) const noexcept {
-    const auto analytic_solution =
-        Parallel::get<OptionTags::AnalyticSolutionBase>(cache).variables(
-            inertial_coordinates, time.value(), tmpl::list<Tensors...>{});
-
     tuples::TaggedTuple<LocalSquareError<Tensors>...> local_square_errors;
-    const auto record_errors = [&analytic_solution, &local_square_errors](
+    const auto record_errors = [&local_square_errors](
         const auto tensor_tag_v, const auto& tensor) noexcept {
       using tensor_tag = tmpl::type_from<decltype(tensor_tag_v)>;
       double local_square_error = 0.0;
       for (size_t i = 0; i < tensor.size(); ++i) {
-        const auto error = tensor[i] - get<tensor_tag>(analytic_solution)[i];
+        const auto error = tensor[i];
         local_square_error += alg::accumulate(square(error), 0.0);
       }
       get<LocalSquareError<tensor_tag>>(local_square_errors) =
@@ -170,8 +165,8 @@ class ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>, EventRegistrars>
 
 /// \cond
 template <size_t VolumeDim, typename... Tensors, typename EventRegistrars>
-PUP::able::PUP_ID ObserveErrorNorms<VolumeDim, tmpl::list<Tensors...>,
-                                    EventRegistrars>::my_PUP_ID = 0;  // NOLINT
+PUP::able::PUP_ID ObserveNorms<VolumeDim, tmpl::list<Tensors...>,
+                               EventRegistrars>::my_PUP_ID = 0;  // NOLINT
 /// \endcond
 }  // namespace Events
 }  // namespace dg
