@@ -31,6 +31,7 @@
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeArray.hpp"
 #include "Utilities/TMPL.hpp"
+#include "Utilities/TmplDebugging.hpp"
 // IWYU pragma: no_forward_declare Tags::deriv
 // IWYU pragma: no_forward_declare Variables
 
@@ -574,4 +575,129 @@ SPECTRE_TEST_CASE("Unit.Numerical.LinearOperators.PartialDerivs.ComputeItems",
       }
     }
   }
+}
+
+namespace MyScalars {
+namespace Tags {
+struct Scalar1 : db::SimpleTag {
+  static std::string name() noexcept { return "Scalar1"; }
+  using type = Scalar<DataVector>;
+};
+
+struct Scalar1Compute : Scalar1, db::ComputeTag {
+  static std::string name() noexcept { return "Scalar1Compute"; }
+  static Scalar<DataVector> function(
+      const tnsr::I<DataVector, 3, Frame::Grid>& x) noexcept {
+    auto scalar = make_with_value<Scalar<DataVector>>(get<0>(x), 0.0);
+    get(scalar) = get<0>(x) + square(get<1>(x)) + cube(get<2>(x));
+    return scalar;
+  }
+  using argument_tags = tmpl::list<::Tags::MappedCoordinates<
+      MapTag<domain::CoordinateMap<
+          Frame::Logical, Frame::Grid,
+          domain::CoordinateMaps::ProductOf3Maps<
+              domain::CoordinateMaps::Affine, domain::CoordinateMaps::Affine,
+              domain::CoordinateMaps::Affine>>>,
+      ::Tags::LogicalCoordinates<3>>>;
+};
+
+struct GradScalar1 : db::SimpleTag {
+  static std::string name() noexcept { return "GradScalar1"; }
+  using type = tnsr::i<DataVector, 3, Frame::Grid>;
+};
+
+struct GradScalarCompute : GradScalar1, db::ComputeTag {
+  static std::string name() noexcept { return "Scalar1Compute"; }
+  static tnsr::i<DataVector, 3, Frame::Grid> function(
+      const tnsr::I<DataVector, 3, Frame::Grid>& x) noexcept {
+    auto grad =
+        make_with_value<tnsr::i<DataVector, 3, Frame::Grid>>(get<0>(x), 0.0);
+    get<0>(grad) = 1.0;
+    get<1>(grad) = 2.0 * get<1>(x);
+    get<2>(grad) = 3.0 * square(get<2>(x));
+    return grad;
+  }
+  using argument_tags = tmpl::list<::Tags::MappedCoordinates<
+      MapTag<domain::CoordinateMap<
+          Frame::Logical, Frame::Grid,
+          domain::CoordinateMaps::ProductOf3Maps<
+              domain::CoordinateMaps::Affine, domain::CoordinateMaps::Affine,
+              domain::CoordinateMaps::Affine>>>,
+      ::Tags::LogicalCoordinates<3>>>;
+};
+
+struct Scalar1Vars : db::SimpleTag {
+  static std::string name() noexcept { return "Scalar1Vars"; }
+  using type = Variables<tmpl::list<Scalar1>>;
+};
+
+struct Scalar1VarsCompute
+    : ::Tags::Variables<tmpl::list<MyScalars::Tags::Scalar1>>,
+      db::ComputeTag {
+  static std::string name() noexcept { return "Scalar1VarsCompute"; }
+  static ::Variables<tmpl::list<Scalar1>> function(
+      const tnsr::I<DataVector, 3, Frame::Grid>& x) noexcept {
+    auto scalar = make_with_value<Scalar<DataVector>>(get<0>(x), 0.0);
+    get(scalar) = get<0>(x) + square(get<1>(x)) + cube(get<2>(x));
+
+    //    const size_t num_grid_points = get<0>(x).size();
+    //    Variables<tmpl::list<MyScalars::Tags::Scalar1>> vars{num_grid_points};
+    //    get<MyScalars::Tags::Scalar1>(vars) = scalar;
+    tuples::TaggedTuple<Scalar1> tuple(scalar);
+    return variables_from_tagged_tuple(tuple);
+  }
+  using argument_tags = tmpl::list<::Tags::MappedCoordinates<
+      MapTag<domain::CoordinateMap<
+          Frame::Logical, Frame::Grid,
+          domain::CoordinateMaps::ProductOf3Maps<
+              domain::CoordinateMaps::Affine, domain::CoordinateMaps::Affine,
+              domain::CoordinateMaps::Affine>>>,
+      ::Tags::LogicalCoordinates<3>>>;
+};
+}  // namespace Tags
+}  // namespace MyScalars
+
+SPECTRE_TEST_CASE("Unit.Numerical.LinearOperators.PartialDerivs.ComputeItems2",
+                  "[NumericalAlgorithms][LinearOperators][Unit]") {
+  // Map from logical to grid coordinates
+  const auto& map = domain::make_coordinate_map<Frame::Logical, Frame::Grid>(
+      Affine3D{Affine{-1.0, 1.0, -0.3, 0.7}, Affine{-1.0, 1.0, 0.3, 0.55},
+               Affine{-1.0, 1.0, 2.3, 2.8}});
+
+  // Tags for map and inverse jacobian
+  using map_tag = MapTag<std::decay_t<decltype(map)>>;
+  using inv_jac_tag =
+      Tags::InverseJacobian<map_tag, Tags::LogicalCoordinates<3>>;
+
+  // Create a mesh
+  const auto& extents_array = std::array<size_t, 3>{{4, 5, 6}};
+  const Mesh<3> mesh{extents_array, Spectral::Basis::Legendre,
+                     Spectral::Quadrature::GaussLobatto};
+  const size_t num_grid_points = mesh.number_of_grid_points();
+
+  auto box = db::create<
+      db::AddSimpleTags<Tags::Mesh<3>, map_tag>,
+      db::AddComputeTags<
+          Tags::LogicalCoordinates<3>, inv_jac_tag,
+          Tags::MappedCoordinates<map_tag, Tags::LogicalCoordinates<3>>,
+          // MyScalars::Tags::Scalar1Compute,
+          MyScalars::Tags::Scalar1VarsCompute,
+          MyScalars::Tags::GradScalarCompute,
+          ::Tags::DerivCompute<
+              ::Tags::Variables<tmpl::list<MyScalars::Tags::Scalar1>>,
+              inv_jac_tag>>>(mesh, map);
+
+  const auto& deriv_expected = db::get<MyScalars::Tags::GradScalar1>(box);
+  const auto& deriv = db::get<
+      Tags::deriv<MyScalars::Tags::Scalar1, tmpl::size_t<3>, Frame::Grid>>(box);
+
+  Approx local_approx = Approx::custom().epsilon(1e-11).scale(1.);
+  CHECK_ITERABLE_CUSTOM_APPROX(deriv, deriv_expected, local_approx);
+
+  const auto& scalar1 = db::get<MyScalars::Tags::Scalar1>(box);
+  const auto& scalar1_vars =
+      db::get<Tags::Variables<tmpl::list<MyScalars::Tags::Scalar1>>>(box);
+  CHECK_ITERABLE_APPROX(scalar1, get<MyScalars::Tags::Scalar1>(scalar1_vars));
+
+  // TypeDisplayer<decltype(box)> stuff;
 }
