@@ -54,20 +54,20 @@ struct DampedHarmonicHCompute : Tags::GaugeH<SpatialDim, Frame>,
       ::gr::Tags::Shift<SpatialDim, Frame, DataVector>,
       ::gr::Tags::SqrtDetSpatialMetric<DataVector>,
       ::gr::Tags::SpacetimeMetric<SpatialDim, Frame, DataVector>, ::Tags::Time,
-      OptionTags::GaugeHRollOnStartTime, OptionTags::GaugeHRollOnTimeWindow,
+      Tags::GaugeHRollOnStartTime, Tags::GaugeHRollOnTimeWindow,
       ::Tags::Coordinates<SpatialDim, Frame>,
-      OptionTags::GaugeHSpatialWeightDecayWidth<Frame>>;
+      Tags::GaugeHSpatialWeightDecayWidth<Frame>>;
 
-  static typename db::item_type<Tags::GaugeH<SpatialDim, Frame>> function(
-      const typename db::item_type<Tags::InitialGaugeH<SpatialDim, Frame>>&
-          gauge_h_init,
-      const Scalar<DataVector>& lapse,
-      const tnsr::I<DataVector, SpatialDim, Frame>& shift,
-      const Scalar<DataVector>& sqrt_det_spatial_metric,
-      const tnsr::aa<DataVector, SpatialDim, Frame>& spacetime_metric,
-      const Time& time, const double& t_start, const double& sigma_t,
-      const tnsr::I<DataVector, SpatialDim, Frame>& coords,
-      const double& sigma_r) noexcept;
+  static constexpr typename db::item_type<Tags::GaugeH<SpatialDim, Frame>>
+  function(const typename db::item_type<Tags::InitialGaugeH<SpatialDim, Frame>>&
+               gauge_h_init,
+           const Scalar<DataVector>& lapse,
+           const tnsr::I<DataVector, SpatialDim, Frame>& shift,
+           const Scalar<DataVector>& sqrt_det_spatial_metric,
+           const tnsr::aa<DataVector, SpatialDim, Frame>& spacetime_metric,
+           const Time& time, const double& t_start, const double& sigma_t,
+           const tnsr::I<DataVector, SpatialDim, Frame>& coords,
+           const double& sigma_r) noexcept;
 };
 
 /*!
@@ -164,28 +164,30 @@ struct SpacetimeDerivDampedHarmonicHCompute
       ::gr::Tags::InverseSpatialMetric<SpatialDim, Frame, DataVector>,
       ::gr::Tags::SpacetimeMetric<SpatialDim, Frame, DataVector>,
       Tags::Pi<SpatialDim, Frame>, Tags::Phi<SpatialDim, Frame>, ::Tags::Time,
-      OptionTags::GaugeHRollOnStartTime, OptionTags::GaugeHRollOnTimeWindow,
+      Tags::GaugeHRollOnStartTime, Tags::GaugeHRollOnTimeWindow,
       ::Tags::Coordinates<SpatialDim, Frame>,
-      OptionTags::GaugeHSpatialWeightDecayWidth<Frame>>;
+      Tags::GaugeHSpatialWeightDecayWidth<Frame>>;
 
-  static typename db::item_type<Tags::SpacetimeDerivGaugeH<SpatialDim, Frame>>
-  function(
-      const typename db::item_type<Tags::InitialGaugeH<SpatialDim, Frame>>&
-          gauge_h_init,
-      const typename db::item_type<
-          Tags::SpacetimeDerivInitialGaugeH<SpatialDim, Frame>>& dgauge_h_init,
-      const Scalar<DataVector>& lapse,
-      const tnsr::I<DataVector, SpatialDim, Frame>& shift,
-      const tnsr::a<DataVector, SpatialDim, Frame>&
-          spacetime_unit_normal_one_form,
-      const Scalar<DataVector>& sqrt_det_spatial_metric,
-      const tnsr::II<DataVector, SpatialDim, Frame>& inverse_spatial_metric,
-      const tnsr::aa<DataVector, SpatialDim, Frame>& spacetime_metric,
-      const tnsr::aa<DataVector, SpatialDim, Frame>& pi,
-      const tnsr::iaa<DataVector, SpatialDim, Frame>& phi, const Time& time,
-      const double& t_start, const double& sigma_t,
-      const tnsr::I<DataVector, SpatialDim, Frame>& coords,
-      const double& sigma_r) noexcept;
+  static constexpr
+      typename db::item_type<Tags::SpacetimeDerivGaugeH<SpatialDim, Frame>>
+      function(
+          const typename db::item_type<Tags::InitialGaugeH<SpatialDim, Frame>>&
+              gauge_h_init,
+          const typename db::item_type<
+              Tags::SpacetimeDerivInitialGaugeH<SpatialDim, Frame>>&
+              dgauge_h_init,
+          const Scalar<DataVector>& lapse,
+          const tnsr::I<DataVector, SpatialDim, Frame>& shift,
+          const tnsr::a<DataVector, SpatialDim, Frame>&
+              spacetime_unit_normal_one_form,
+          const Scalar<DataVector>& sqrt_det_spatial_metric,
+          const tnsr::II<DataVector, SpatialDim, Frame>& inverse_spatial_metric,
+          const tnsr::aa<DataVector, SpatialDim, Frame>& spacetime_metric,
+          const tnsr::aa<DataVector, SpatialDim, Frame>& pi,
+          const tnsr::iaa<DataVector, SpatialDim, Frame>& phi, const Time& time,
+          const double& t_start, const double& sigma_t,
+          const tnsr::I<DataVector, SpatialDim, Frame>& coords,
+          const double& sigma_r) noexcept;
 };
 
 /*!
