@@ -22,6 +22,7 @@
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/Limiter.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonic.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/Divergence.tpp"
@@ -51,23 +52,14 @@ struct InitializeConstraintsTags {
   using simple_tags = db::AddSimpleTags<>;
   using compute_tags = db::AddComputeTags<
       GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, Inertial>,
-      GeneralizedHarmonic::Tags::FConstraintCompute<Dim, Inertial>,
-      GeneralizedHarmonic::Tags::TwoIndexConstraintCompute<Dim, Inertial>,
       GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, Inertial>,
-      GeneralizedHarmonic::Tags::ConstraintEnergyCompute<Dim, Inertial>,
       // following tags added to observe constraints
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::GaugeConstraint<Dim, Inertial>>,
       ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::FConstraint<Dim, Inertial>>,
-      ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::TwoIndexConstraint<Dim, Inertial>>,
-      ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim, Inertial>>,
       ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, Inertial>>,
-      ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::ConstraintEnergy<Dim, Inertial>>>;
+          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, Inertial>>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
@@ -93,14 +85,7 @@ struct InitializeGHAnd3Plus1VariablesTags {
   using system = GeneralizedHarmonic::System<Dim>;
   using variables_tag = typename system::variables_tag;
 
-  // `extras_tag` can be used with `Tags::DerivCompute` to get spatial
-  // derivatives of quantities that are otherwise not available within
-  // a `Variables<>` container.
-  using extras_tag = ::Tags::Variables<
-      tmpl::list<GeneralizedHarmonic::Tags::GaugeH<Dim, Frame::Inertial>>>;
-
-  using simple_tags = db::AddSimpleTags<
-      extras_tag, ::Tags::dt<GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>>>;
+  using simple_tags = db::AddSimpleTags<>;
   using compute_tags = db::AddComputeTags<
       gr::Tags::SpatialMetricCompute<Dim, Inertial, DataVector>,
       gr::Tags::DetAndInverseSpatialMetricCompute<Dim, Inertial, DataVector>,
@@ -143,67 +128,100 @@ struct InitializeGHAnd3Plus1VariablesTags {
                     const ArrayIndex& /*array_index*/,
                     const ActionList /*meta*/,
                     const ParallelComponent* const /*meta*/) noexcept {
-    // First add 3+1 quantities to the box
-    auto _box =
-        db::create_from<db::RemoveTags<>, db::AddSimpleTags<>, compute_tags>(
-            std::move(box));
+    return std::make_tuple(
+        Initialization::merge_into_databox<InitializeGHAnd3Plus1VariablesTags,
+                                           simple_tags, compute_tags>(
+            std::move(box)));
+  }
+};
 
-    // Then compute gauge related quantities
-    const size_t num_grid_points =
-        db::get<::Tags::Mesh<Dim>>(_box).number_of_grid_points();
+template <size_t Dim>
+struct InitializeGaugeTags {
+  using initialization_option_tags = tmpl::list<>;
 
-    // fetch lapse, shift, spatial metric and their derivs through compute tags
-    const auto& lapse = get<gr::Tags::Lapse<DataVector>>(_box);
-    const auto& dt_lapse = get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(_box);
+  using Inertial = Frame::Inertial;
+  using system = GeneralizedHarmonic::System<Dim>;
+  using variables_tag = typename system::variables_tag;
+
+  using simple_tags = db::AddSimpleTags<
+      GeneralizedHarmonic::Tags::InitialGaugeH<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, Inertial>>;
+  using compute_tags = db::AddComputeTags<
+      GeneralizedHarmonic::DampedHarmonicHCompute<Dim, Inertial>,
+      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, Inertial>>;
+
+  template <typename DbTagsList, typename... InboxTags, typename Metavariables,
+            typename ArrayIndex, typename ActionList,
+            typename ParallelComponent>
+  static auto apply(db::DataBox<DbTagsList>& box,
+                    const tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
+                    const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
+                    const ArrayIndex& /*array_index*/,
+                    const ActionList /*meta*/,
+                    const ParallelComponent* const /*meta*/) noexcept {
+    // compute initial-gauge related quantities
+    const auto mesh = db::get<::Tags::Mesh<Dim>>(box);
+    const size_t num_grid_points = mesh.number_of_grid_points();
+    const auto& lapse = get<gr::Tags::Lapse<DataVector>>(box);
+    const auto& dt_lapse = get<::Tags::dt<gr::Tags::Lapse<DataVector>>>(box);
     const auto& deriv_lapse =
         get<::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<Dim>,
-                          Inertial>>(_box);
-    const auto& shift = get<gr::Tags::Shift<Dim, Inertial, DataVector>>(_box);
+                          Inertial>>(box);
+    const auto& shift = get<gr::Tags::Shift<Dim, Inertial, DataVector>>(box);
     const auto& dt_shift =
-        get<::Tags::dt<gr::Tags::Shift<Dim, Inertial, DataVector>>>(_box);
+        get<::Tags::dt<gr::Tags::Shift<Dim, Inertial, DataVector>>>(box);
     const auto& deriv_shift =
         get<::Tags::deriv<gr::Tags::Shift<Dim, Inertial, DataVector>,
-                          tmpl::size_t<Dim>, Inertial>>(_box);
+                          tmpl::size_t<Dim>, Inertial>>(box);
     const auto& spatial_metric =
-        get<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>(_box);
+        get<gr::Tags::SpatialMetric<Dim, Inertial, DataVector>>(box);
     const auto& trace_extrinsic_curvature =
-        get<gr::Tags::TraceExtrinsicCurvature<DataVector>>(_box);
+        get<gr::Tags::TraceExtrinsicCurvature<DataVector>>(box);
     const auto& trace_christoffel_last_indices = get<
         gr::Tags::TraceSpatialChristoffelFirstKind<Dim, Inertial, DataVector>>(
-        _box);
+        box);
 
-    // call compute item for the gauge source function
-    using ExtraVars = db::item_type<extras_tag>;
-    ExtraVars extra_vars{num_grid_points};
-    get<GeneralizedHarmonic::Tags::GaugeH<Dim, Inertial>>(extra_vars) =
+    // call compute item for the initial gauge source function
+    const auto initial_gauge_h =
         GeneralizedHarmonic::Tags::GaugeHImplicitFrom3p1QuantitiesCompute<
             Dim, Inertial>::function(lapse, dt_lapse, deriv_lapse, shift,
                                      dt_shift, deriv_shift, spatial_metric,
                                      trace_extrinsic_curvature,
                                      trace_christoffel_last_indices);
-
-    // set time derivatives of GaugeH = 0
-    const auto& dt_gauge_source =
+    // set time derivatives of InitialGaugeH = 0
+    const auto dt_initial_gauge_source =
         make_with_value<tnsr::a<DataVector, Dim, Inertial>>(lapse, 0.);
+
+    // compute spatial derivatives of InitialGaugeH
+    using extras_tag = ::Tags::Variables<tmpl::list<
+        GeneralizedHarmonic::Tags::InitialGaugeH<Dim, Frame::Inertial>>>;
+    using ExtraVars = db::item_type<extras_tag>;
+    ExtraVars extra_vars{num_grid_points};
+    get<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, Inertial>>(extra_vars) =
+        initial_gauge_h;
+    const auto inverse_jacobian = db::get<
+        ::Tags::InverseJacobian<::Tags::ElementMap<Dim, Inertial>,
+                                ::Tags::Coordinates<Dim, Frame::Logical>>>(box);
+    const auto d_initial_gauge_source = get<
+        ::Tags::deriv<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, Inertial>,
+                      tmpl::size_t<Dim>, Inertial>>(
+        partial_derivatives<typename db::item_type<extras_tag>::tags_list>(
+            extra_vars, mesh, inverse_jacobian));
+
+    // compute spacetime derivatives of InitialGaugeH
+    const auto initial_d4_gauge_h =
+        GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<
+            Dim, Inertial>::function(dt_initial_gauge_source,
+                                     d_initial_gauge_source);
 
     // Finally, insert gauge related quantities to the box
     return std::make_tuple(
-        Initialization::merge_into_databox<
-            InitializeGHAnd3Plus1VariablesTags,
-            // Because DerivCompute<GaugeH> operates on GaugeH wrapped in a
-            // Variables container, we inserted GaugeH that way into the box
-            // (through `extras_tag`), instead of adding `GaugeHCompute`
-            // item here.
-            simple_tags,
-            db::AddComputeTags<
-                ::Tags::DerivCompute<
-                    extras_tag, ::Tags::InverseJacobian<
-                                    ::Tags::ElementMap<Dim, Inertial>,
-                                    ::Tags::Coordinates<Dim, Frame::Logical>>>,
-                GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<
-                    Dim, Inertial>>>(std::move(_box), std::move(extra_vars),
-                                     std::move(dt_gauge_source)));
+        Initialization::merge_into_databox<InitializeGaugeTags, simple_tags,
+                                           compute_tags>(
+            std::move(box), std::move(initial_gauge_h),
+            std::move(initial_d4_gauge_h)));
   }
 };
+
 }  // namespace Actions
 }  // namespace GeneralizedHarmonic

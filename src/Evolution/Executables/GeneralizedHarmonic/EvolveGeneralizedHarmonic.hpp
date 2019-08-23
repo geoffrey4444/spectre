@@ -35,7 +35,6 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/ComputeNonconservativeBoundaryFluxes.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/FluxCommunication.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Actions/ImposeBoundaryConditions.hpp"  // IWYU pragma: keep
-#include "NumericalAlgorithms/DiscontinuousGalerkin/NumericalFluxes/LocalLaxFriedrichs.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "Options/Options.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
@@ -95,43 +94,36 @@ struct EvolutionMetavars {
   using analytic_solution_tag = OptionTags::AnalyticSolution<
       GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>>;
   using boundary_condition_tag = analytic_solution_tag;
-  using normal_dot_numerical_flux = OptionTags::NumericalFlux<
-      // dg::NumericalFluxes::LocalLaxFriedrichs<system>>;
-      GeneralizedHarmonic::UpwindFlux<dim>>;
+  using normal_dot_numerical_flux =
+      OptionTags::NumericalFlux<GeneralizedHarmonic::UpwindFlux<dim>>;
   using events = tmpl::list<
       dg::Events::Registrars::ObserveErrorNorms<
           dim, typename system::variables_tag::tags_list>,
       dg::Events::Registrars::ObserveFields<
           dim,
-          tmpl::append<
-              typename system::variables_tag::tags_list,
-              tmpl::list<
-                  ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
-                                              GaugeConstraint<dim, Inertial>>,
-                  ::Tags::PointwiseL2Norm<
-                      GeneralizedHarmonic::Tags::FConstraint<dim, Inertial>>,
-                  ::Tags::PointwiseL2Norm<
-                      GeneralizedHarmonic::Tags::TwoIndexConstraint<dim,
-                                                                    Inertial>>,
-                  ::Tags::PointwiseL2Norm<
-                      GeneralizedHarmonic::Tags::ThreeIndexConstraint<
-                          dim, Inertial>>,
-                  ::Tags::PointwiseL2Norm<
-                      GeneralizedHarmonic::Tags::FourIndexConstraint<dim,
-                                                                     Inertial>>,
-                  ::Tags::PointwiseL2Norm<
-                      GeneralizedHarmonic::Tags::ConstraintEnergy<dim,
-                                                                  Inertial>>>>,
+          tmpl::append<typename system::variables_tag::tags_list,
+                       tmpl::list<::Tags::PointwiseL2Norm<
+                                      GeneralizedHarmonic::Tags::
+                                          GaugeConstraint<dim, Inertial>>,
+                                  ::Tags::PointwiseL2Norm<
+                                      GeneralizedHarmonic::Tags::
+                                          ThreeIndexConstraint<dim, Inertial>>,
+                                  ::Tags::PointwiseL2Norm<
+                                      GeneralizedHarmonic::Tags::
+                                          FourIndexConstraint<dim, Inertial>>>>,
           typename system::variables_tag::tags_list>>;
   using triggers = Triggers::time_triggers;
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
-  using const_global_cache_tag_list =
-      tmpl::list<analytic_solution_tag,
-                 OptionTags::TypedTimeStepper<tmpl::conditional_t<
-                     local_time_stepping, LtsTimeStepper, TimeStepper>>,
-                 OptionTags::EventsAndTriggers<events, triggers>>;
+  using const_global_cache_tag_list = tmpl::list<
+      analytic_solution_tag,
+      OptionTags::TypedTimeStepper<tmpl::conditional_t<
+          local_time_stepping, LtsTimeStepper, TimeStepper>>,
+      GeneralizedHarmonic::OptionTags::GaugeRollOnStart,
+      GeneralizedHarmonic::OptionTags::GaugeRollOnWindow,
+      GeneralizedHarmonic::OptionTags::GaugeSpatialDecayWidth<Inertial>,
+      OptionTags::EventsAndTriggers<events, triggers>>;
   using domain_creator_tag = OptionTags::DomainCreator<dim, Inertial>;
 
   using step_choosers = tmpl::list<StepChoosers::Registrars::Cfl<dim, Inertial>,
@@ -203,6 +195,7 @@ struct EvolutionMetavars {
               GeneralizedHarmonic::CharacteristicFieldsCompute<dim, Inertial>,
               GeneralizedHarmonic::CharacteristicSpeedsCompute<dim, Inertial>>>,
       Initialization::Actions::Evolution<system>,
+      GeneralizedHarmonic::Actions::InitializeGaugeTags<dim>,
       GeneralizedHarmonic::Actions::InitializeConstraintsTags<dim>,
       dg::Actions::InitializeMortars<EvolutionMetavars, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
