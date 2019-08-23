@@ -23,6 +23,12 @@ AnalyticSolution:
     Spin: [0.0, 0.0, 0.4]
     Center: [0.0, 0.0, 0.0]
 
+EvolutionSystem:
+  GeneralizedHarmonic:
+    GaugeRollOnStart: 100000.0
+    GaugeRollOnWindow: 100.0
+    GaugeDecayWidth: 50.0
+
 NumericalFlux:
   UpwindFlux:
 
