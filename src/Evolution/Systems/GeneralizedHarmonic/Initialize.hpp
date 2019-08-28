@@ -52,14 +52,24 @@ struct InitializeConstraintsTags {
   using simple_tags = db::AddSimpleTags<>;
   using compute_tags = db::AddComputeTags<
       GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::FConstraintCompute<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::TwoIndexConstraintCompute<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, Inertial>,
       GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::ConstraintEnergyCompute<Dim, Inertial>,
       // following tags added to observe constraints
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::GaugeConstraint<Dim, Inertial>>,
       ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::FConstraint<Dim, Inertial>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::TwoIndexConstraint<Dim, Inertial>>,
+      ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim, Inertial>>,
       ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, Inertial>>>;
+          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, Inertial>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::ConstraintEnergy<Dim, Inertial>>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
@@ -148,7 +158,8 @@ struct InitializeGaugeTags {
       GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, Inertial>>;
   using compute_tags = db::AddComputeTags<
       GeneralizedHarmonic::DampedHarmonicHCompute<Dim, Inertial>,
-      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, Inertial>>;
+      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, Inertial>,
+      GeneralizedHarmonic::Tags::SpatialDerivGaugeHCompute<Dim, Inertial>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
