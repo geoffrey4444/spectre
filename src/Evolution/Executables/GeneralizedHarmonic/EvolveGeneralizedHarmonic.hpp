@@ -185,6 +185,7 @@ struct EvolutionMetavars {
               gr::Tags::ShiftCompute<volume_dim, Inertial, DataVector>,
               gr::Tags::LapseCompute<volume_dim, Inertial, DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
+              typename system::variables_tag,
               gr::Tags::SpatialMetricCompute<volume_dim, Inertial, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, Inertial,
                                                           DataVector>,
@@ -212,7 +213,8 @@ struct EvolutionMetavars {
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                Inertial>,
               GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
-                                                               Inertial>>>,
+                                                               Inertial>>,
+          false>,
       Initialization::Actions::Evolution<EvolutionMetavars>,
       GeneralizedHarmonic::Actions::InitializeGaugeTags<volume_dim>,
       GeneralizedHarmonic::Actions::InitializeConstraintsTags<volume_dim>,

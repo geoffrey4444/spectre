@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -93,7 +94,8 @@ template <
     typename SliceTagsToFace = Initialization::slice_tags_to_face<>,
     typename SliceTagsToExterior = Initialization::slice_tags_to_exterior<>,
     typename FaceComputeTags = Initialization::face_compute_tags<>,
-    typename ExteriorComputeTags = Initialization::exterior_compute_tags<>>
+    typename ExteriorComputeTags = Initialization::exterior_compute_tags<>,
+    bool AddFluxBoundaryConditionComputeTags = true>
 struct InitializeInterfaces {
  private:
   static constexpr size_t dim = System::volume_dim;
@@ -158,24 +160,38 @@ struct InitializeInterfaces {
             typename ParallelComponent>
   static auto apply(db::DataBox<DbTagsList>& box,
                     const tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
-                    const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
+                    const Parallel::ConstGlobalCache<Metavariables>& cache,
                     const ArrayIndex& /*array_index*/, ActionList /*meta*/,
                     const ParallelComponent* const /*meta*/) noexcept {
+    return apply_impl(
+        box,
+        std::integral_constant<bool, AddFluxBoundaryConditionComputeTags>{},
+        cache);
+  }
+
+ private:
+  template <typename DbTagsList, typename Metavariables>
+  static auto apply_impl(
+      db::DataBox<DbTagsList>& box,
+      std::integral_constant<bool, true> /* meta */,
+      const Parallel::ConstGlobalCache<Metavariables>& /*cache*/) noexcept {
     using system = typename Metavariables::system;
     using vars_tag = typename system::variables_tag;
     using exterior_vars_tag =
         ::Tags::Interface<::Tags::BoundaryDirectionsExterior<dim>, vars_tag>;
 
-    using simple_tags = db::AddSimpleTags<exterior_vars_tag>;
+    using simple_tags = db::AddSimpleTags<
+        ::Tags::Interface<::Tags::BoundaryDirectionsExterior<dim>,
+                          typename System::variables_tag>>;
     using compute_tags =
         tmpl::append<face_tags<::Tags::InternalDirections<dim>>,
                      face_tags<::Tags::BoundaryDirectionsInterior<dim>>,
                      exterior_face_tags>;
-
     // Initialize the variables on the exterior (ghost) boundary faces.
     // These are stored in a simple tag and updated manually to impose boundary
     // conditions.
     db::item_type<exterior_vars_tag> exterior_boundary_vars{};
+
     const auto& mesh = db::get<::Tags::Mesh<dim>>(box);
     for (const auto& direction :
          db::get<::Tags::Element<dim>>(box).external_boundaries()) {
@@ -187,6 +203,22 @@ struct InitializeInterfaces {
         ::Initialization::merge_into_databox<InitializeInterfaces, simple_tags,
                                              compute_tags>(
             std::move(box), std::move(exterior_boundary_vars)));
+  }
+
+  template <typename DbTagsList, typename Metavariables>
+  static auto apply_impl(
+      db::DataBox<DbTagsList>& box,
+      std::integral_constant<bool, false> /* meta */,
+      const Parallel::ConstGlobalCache<Metavariables>& /*cache*/) noexcept {
+    using simple_tags = db::AddSimpleTags<>;
+    using compute_tags =
+        tmpl::append<face_tags<::Tags::InternalDirections<dim>>,
+                     face_tags<::Tags::BoundaryDirectionsInterior<dim>>,
+                     exterior_face_tags>;
+
+    return std::make_tuple(
+        ::Initialization::merge_into_databox<InitializeInterfaces, simple_tags,
+                                             compute_tags>(std::move(box)));
   }
 };
 }  // namespace Actions
