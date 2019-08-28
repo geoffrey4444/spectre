@@ -185,6 +185,7 @@ struct EvolutionMetavars {
               gr::Tags::ShiftCompute<volume_dim, frame, DataVector>,
               gr::Tags::LapseCompute<volume_dim, frame, DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
+              typename system::variables_tag,
               gr::Tags::SpatialMetricCompute<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
