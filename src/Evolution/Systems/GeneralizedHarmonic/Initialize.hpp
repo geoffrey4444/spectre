@@ -49,14 +49,25 @@ struct InitializeConstraintsTags {
   using simple_tags = db::AddSimpleTags<>;
   using compute_tags = db::AddComputeTags<
       GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::FConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::TwoIndexConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, frame>,
       GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::ConstraintEnergyCompute<Dim, frame>,
+
       // following tags added to observe constraints
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::GaugeConstraint<Dim, frame>>,
       ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::TwoIndexConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim, frame>>,
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, frame>>>;
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::FConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::ConstraintEnergy<Dim, frame>>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
@@ -139,7 +150,8 @@ struct InitializeGaugeTags {
       GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, frame>>;
   using compute_tags = db::AddComputeTags<
       GeneralizedHarmonic::DampedHarmonicHCompute<Dim, frame>,
-      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>>;
+      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::SpatialDerivGaugeHCompute<Dim, frame>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,

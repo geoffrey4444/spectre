@@ -148,6 +148,8 @@ struct EvolutionMetavars {
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           Tags::BoundaryDirectionsInterior<volume_dim>>,
       // dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
+      GeneralizedHarmonic::Actions::
+          ImposeConstraintPreservingBoundaryConditions<EvolutionMetavars>,
       dg::Actions::ReceiveDataForFluxes<EvolutionMetavars>,
       tmpl::conditional_t<local_time_stepping, tmpl::list<>,
                           dg::Actions::ApplyFluxes>,
