@@ -108,9 +108,7 @@ struct EvolutionMetavars {
       GeneralizedHarmonic::Tags::ConstraintEnergy<volume_dim, Inertial>>;
   using observation_events = tmpl::list<
       dg::Events::Registrars::ObserveNorms<volume_dim, constraint_tags>>;
-  using events = tmpl::push_back<observation_events,
-                                 intrp::Events::Registrars::Interpolate<
-                                     volume_dim, interpolator_source_vars>>;
+  using events = observation_events;
 
   using triggers = Triggers::time_triggers;
 
