@@ -283,6 +283,8 @@ struct EvolutionMetavars {
         return is_numerical_initial_data_v<initial_data> ? Phase::ImportData
                                                          : Phase::Evolve;
         return Phase::Evolve;
+      case Phase::ImportData:
+        return Phase::Evolve;
       case Phase::Evolve:
         return Phase::Exit;
       case Phase::Exit:

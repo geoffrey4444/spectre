@@ -98,6 +98,8 @@ struct Metavariables {
       "file. The output can be used to compute initial data externally, for "
       "instance."};
 
+  using initial_data = tmpl::list<>;
+
   enum class Phase { Initialization, RegisterWithObserver, Export, Exit };
 
   using const_global_cache_tag_list = tmpl::list<>;
