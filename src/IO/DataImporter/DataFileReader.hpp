@@ -34,6 +34,7 @@ struct DataFileReader {
   using options = tmpl::list<>;
   using add_options_to_databox = Parallel::AddNoOptionsToDataBox;
   using metavariables = Metavariables;
+  using initialization_tags = tmpl::list<>;
   using phase_dependent_action_list = tmpl::list<Parallel::PhaseActions<
       typename Metavariables::Phase, Metavariables::Phase::Initialization,
       tmpl::list<detail::InitializeDataFileReader>>>;
