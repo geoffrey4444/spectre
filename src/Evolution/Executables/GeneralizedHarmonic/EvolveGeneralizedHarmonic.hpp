@@ -16,11 +16,15 @@
 #include "Evolution/Initialization/DiscontinuousGalerkin.hpp"
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
+#include "Evolution/NumericalInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Initialize.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
-#include "IO/Observer/Actions.hpp"
+#include "IO/DataImporter/DataFileReader.hpp"
+#include "IO/DataImporter/ElementActions.hpp"
+#include "IO/Observer/Actions.hpp"  // IWYU pragma: keep
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
 #include "IO/Observer/RegisterObservers.hpp"
@@ -92,9 +96,18 @@ struct EvolutionMetavars {
   using system = GeneralizedHarmonic::System<volume_dim>;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
-  using initial_data_tag = Tags::AnalyticSolution<
-      GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>>;
+
+  using analytic_solution =
+      GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>;
+  using analytic_solution_tag = Tags::AnalyticSolution<analytic_solution>;
+  using initial_data_tag = Tags::AnalyticSolution<analytic_solution>;
   using boundary_condition_tag = initial_data_tag;
+
+  // The type of initial data for the evolution. Set to `analytic_solution` for
+  // starting from an analytic solution, or `NumericalInitialData` to read
+  // data from the disk.
+  using initial_data = NumericalInitialData<system>;
+
   using normal_dot_numerical_flux =
       Tags::NumericalFlux<GeneralizedHarmonic::UpwindFlux<volume_dim>>;
 
@@ -165,6 +178,7 @@ struct EvolutionMetavars {
     Initialization,
     InitializeTimeStepperHistory,
     RegisterWithObserver,
+    ImportData,
     Evolve,
     Exit
   };
@@ -221,9 +235,12 @@ struct EvolutionMetavars {
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       Initialization::Actions::RemoveOptionsAndTerminatePhase>;
 
-  using component_list = tmpl::list<
+  using component_list = tmpl::flatten<tmpl::list<
       observers::Observer<EvolutionMetavars>,
       observers::ObserverWriter<EvolutionMetavars>,
+      tmpl::conditional_t<is_numerical_initial_data_v<initial_data>,
+                          importer::DataFileReader<EvolutionMetavars>,
+                          tmpl::list<>>,
       DgElementArray<
           EvolutionMetavars,
           tmpl::list<
@@ -239,6 +256,10 @@ struct EvolutionMetavars {
                   tmpl::list<observers::Actions::RegisterWithObservers<
                                  observers::RegisterObservers<
                                      Tags::Time, element_observation_type>>,
+                            tmpl::conditional_t<
+                                     is_numerical_initial_data_v<initial_data>,
+                                     importer::Actions::RegisterWithImporter,
+                                     tmpl::list<>>,
                              Parallel::Actions::TerminatePhase>>,
 
               Parallel::PhaseActions<
@@ -262,6 +283,9 @@ struct EvolutionMetavars {
       case Phase::InitializeTimeStepperHistory:
         return Phase::RegisterWithObserver;
       case Phase::RegisterWithObserver:
+        return is_numerical_initial_data_v<initial_data> ? Phase::ImportData
+                                                         : Phase::Evolve;
+      case Phase::ImportData:
         return Phase::Evolve;
       case Phase::Evolve:
         return Phase::Exit;
