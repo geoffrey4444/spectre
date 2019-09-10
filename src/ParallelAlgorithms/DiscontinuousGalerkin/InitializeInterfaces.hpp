@@ -214,5 +214,6 @@ struct InitializeInterfaces {
             InitializeInterfaces_detail::InitExteriorVarsImpl<
                 AddExteriorVariables, Metavariables>::apply(std::move(box))));
   }
+};
 }  // namespace Actions
 }  // namespace dg

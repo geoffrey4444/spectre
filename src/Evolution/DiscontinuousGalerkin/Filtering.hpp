@@ -169,6 +169,13 @@ class ExponentialFilter<FilterIndex, tmpl::list<TagsToFilter...>> {
   ExponentialFilter(double alpha, unsigned half_power,
                     bool disable_for_debugging) noexcept;
 
+  using option_tags = options;
+  static ExponentialFilter create_from_options(
+      const double& alpha, const unsigned& half_power,
+      const bool& disable_for_debugging) noexcept {
+    return ExponentialFilter(alpha, half_power, disable_for_debugging);
+  }
+
   // Action part of the class
   template <typename DbTags, typename... InboxTags, typename ArrayIndex,
             typename ActionList, typename ParallelComponent,
