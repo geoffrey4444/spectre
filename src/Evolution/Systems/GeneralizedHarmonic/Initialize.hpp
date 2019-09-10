@@ -63,7 +63,7 @@ struct InitializeConstraintsTags {
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim, frame>>,
       ::Tags::PointwiseL2NormCompute<
-          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, frame>>>;
+          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, frame>>,
       ::Tags::PointwiseL2NormCompute<
           GeneralizedHarmonic::Tags::FConstraint<Dim, frame>>,
       ::Tags::PointwiseL2NormCompute<
