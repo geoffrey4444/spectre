@@ -47,6 +47,24 @@ template <size_t Dim>
 struct InitializeConstraintsTags {
   using frame = Frame::Inertial;
 
+  using simple_tags = db::AddSimpleTags<>;
+  using compute_tags = db::AddComputeTags<
+      GeneralizedHarmonic::Tags::TwoIndexConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::GaugeConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::FConstraintCompute<Dim, frame>,
+      // following tags added to observe constraints
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::GaugeConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::TwoIndexConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::ThreeIndexConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, frame>>,
+      ::Tags::PointwiseL2NormCompute<
+          GeneralizedHarmonic::Tags::FConstraint<Dim, frame>>>;
+
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
             typename ParallelComponent>
@@ -131,6 +149,18 @@ struct InitializeGHAnd3Plus1VariablesTags {
 template <size_t Dim>
 struct InitializeGaugeTags {
   using frame = Frame::Inertial;
+
+  using system = GeneralizedHarmonic::System<Dim>;
+  using variables_tag = typename system::variables_tag;
+
+  using simple_tags = db::AddSimpleTags<
+      GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>,
+      GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, frame>>;
+  using compute_tags = db::AddComputeTags<
+      GeneralizedHarmonic::DampedHarmonicHCompute<Dim, frame>,
+      GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>,
+      GeneralizedHarmonic::Tags::DerivGaugeHFromSpacetimeDerivGaugeHCompute<
+          Dim, frame>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
