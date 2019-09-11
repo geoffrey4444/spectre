@@ -61,7 +61,7 @@ struct InitializeConstraints {
         GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, frame>,
         GeneralizedHarmonic::Tags::FourIndexConstraintCompute<Dim, frame>,
         GeneralizedHarmonic::Tags::ConstraintEnergyCompute<Dim, frame>,
-        // following tags added to observe constraint
+        // following tags added to observe constraints
         ::Tags::PointwiseL2NormCompute<
             GeneralizedHarmonic::Tags::GaugeConstraint<Dim, frame>>,
         ::Tags::PointwiseL2NormCompute<
@@ -206,7 +206,9 @@ struct InitializeGauge {
     // Add gauge tags
     using compute_tags = db::AddComputeTags<
         GeneralizedHarmonic::DampedHarmonicHCompute<Dim, frame>,
-        GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>>;
+        GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>,
+        GeneralizedHarmonic::Tags::DerivGaugeHFromSpacetimeDerivGaugeHCompute<
+            Dim, frame>>;
 
     // Finally, insert gauge related quantities to the box
     return std::make_tuple(
