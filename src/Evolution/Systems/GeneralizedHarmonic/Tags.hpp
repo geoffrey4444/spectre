@@ -67,7 +67,7 @@ struct ConstraintGamma2 : db::SimpleTag {
 struct GaugeHRollOnStartTime : db::SimpleTag {
   using type = double;
   static std::string name() noexcept { return "GaugeHRollOnStartTime"; }
-  using option_tags = tmpl::list<OptionTags::GaugeRollOnStart>;
+  using option_tags = tmpl::list<OptionTags::GaugeHRollOnStart>;
   static double create_from_options(
       const double gauge_roll_on_start_time) noexcept {
     return gauge_roll_on_start_time;
@@ -85,7 +85,7 @@ struct GaugeHRollOnStartTime : db::SimpleTag {
 struct GaugeHRollOnTimeWindow : db::SimpleTag {
   using type = double;
   static std::string name() noexcept { return "GaugeHRollOnTimeWindow"; }
-  using option_tags = tmpl::list<OptionTags::GaugeRollOnWindow>;
+  using option_tags = tmpl::list<OptionTags::GaugeHRollOnWindow>;
   static double create_from_options(
       const double gauge_roll_on_window) noexcept {
     return gauge_roll_on_window;
@@ -108,7 +108,7 @@ template <typename Frame>
 struct GaugeHSpatialWeightDecayWidth : db::SimpleTag {
   using type = double;
   static std::string name() noexcept { return "GaugeHSpatialWeightDecayWidth"; }
-  using option_tags = tmpl::list<OptionTags::GaugeSpatialDecayWidth<Frame>>;
+  using option_tags = tmpl::list<OptionTags::GaugeHSpatialDecayWidth<Frame>>;
   static double create_from_options(
       const double gauge_spatial_decay_width) noexcept {
     return gauge_spatial_decay_width;
@@ -275,12 +275,23 @@ struct ConstraintEnergy : db::SimpleTag {
 namespace OptionTags {
 /*!
  * \ingroup OptionGroupsGroup
- * Groups option tags related to the ValenciaDivClean evolution system.
+ * Groups option tags related to the GeneralizedHarmonic evolution system.
  */
-struct GeneralizedHarmonicGroup {
+struct Group {
   static std::string name() noexcept { return "GeneralizedHarmonic"; }
-  static constexpr OptionString help{"Options for the evolution system"};
+  static constexpr OptionString help{"Options for the GH evolution system"};
   using group = ::OptionTags::EvolutionSystemGroup;
+};
+
+/*!
+ * \ingroup OptionGroupsGroup
+ * Gauge-related option tags for the GeneralizedHarmonic evolution system.
+ */
+struct GaugeGroup {
+  static std::string name() noexcept { return "Gauge"; }
+  static constexpr OptionString help{
+      "Gauge-specific options for the GH evolution system"};
+  using group = GeneralizedHarmonic::OptionTags::Group;
 };
 /*!
  * \ingroup OptionTagsGroup
@@ -291,11 +302,12 @@ struct GeneralizedHarmonicGroup {
  * *rolled-on* to) at the beginning of an evolution. This parameter sets
  * the coordinate time at which roll-on begins.
  */
-struct GaugeRollOnStart {
+struct GaugeHRollOnStart {
   using type = double;
+  static std::string name() noexcept { return "RollOnStartTime"; }
   static constexpr OptionString help{
       "Simulation time to start rolling-on evolution gauge"};
-  using group = GeneralizedHarmonicGroup;
+  using group = GaugeGroup;
 };
 
 /*!
@@ -307,11 +319,12 @@ struct GaugeRollOnStart {
  * *rolled-on* to) at the beginning of an evolution. This parameter sets
  * the width of the coordinate time window during which roll-on happens.
  */
-struct GaugeRollOnWindow {
+struct GaugeHRollOnWindow {
   using type = double;
+  static std::string name() noexcept { return "RollOnTimeWindow"; }
   static constexpr OptionString help{
       "Duration of gauge roll-on in simulation time"};
-  using group = GeneralizedHarmonicGroup;
+  using group = GaugeGroup;
 };
 
 /*!
@@ -328,12 +341,12 @@ struct GaugeRollOnWindow {
  * \f$\sigma_r\f$. The parameter this tag tags is \f$ \sigma_r \f$.
  */
 template <typename Frame>
-struct GaugeSpatialDecayWidth {
+struct GaugeHSpatialDecayWidth {
   using type = double;
-  static std::string name() noexcept { return "GaugeDecayWidth"; }
+  static std::string name() noexcept { return "SpatialDecayWidth"; }
   static constexpr OptionString help{
       "Spatial width of weighting factor in evolution gauge"};
-  using group = GeneralizedHarmonicGroup;
+  using group = GaugeGroup;
 };
 }  // namespace OptionTags
 }  // namespace GeneralizedHarmonic

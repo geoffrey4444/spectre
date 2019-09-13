@@ -29,9 +29,10 @@ AnalyticSolution:
 
 EvolutionSystem:
   GeneralizedHarmonic:
-    GaugeRollOnStart: 100000.0
-    GaugeRollOnWindow: 100.0
-    GaugeDecayWidth: 50.0
+    Gauge:
+      RollOnStartTime: 100000.0
+      RollOnTimeWindow: 100.0
+      SpatialDecayWidth: 50.0
 
 NumericalFlux:
   UpwindFlux:

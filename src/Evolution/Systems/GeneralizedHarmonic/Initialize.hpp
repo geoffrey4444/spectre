@@ -44,7 +44,7 @@
 namespace GeneralizedHarmonic {
 namespace Actions {
 template <size_t Dim>
-struct InitializeConstraintsTags {
+struct InitializeConstraints {
   using frame = Frame::Inertial;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
@@ -68,14 +68,14 @@ struct InitializeConstraintsTags {
             GeneralizedHarmonic::Tags::FourIndexConstraint<Dim, frame>>>;
 
     return std::make_tuple(
-        Initialization::merge_into_databox<InitializeConstraintsTags,
+        Initialization::merge_into_databox<InitializeConstraints,
                                            db::AddSimpleTags<>, compute_tags>(
             std::move(box)));
   }
 };
 
 template <size_t Dim>
-struct InitializeGHAnd3Plus1VariablesTags {
+struct InitializeGhAnd3Plus1Variables {
   using frame = Frame::Inertial;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
@@ -120,14 +120,14 @@ struct InitializeGHAnd3Plus1VariablesTags {
         GeneralizedHarmonic::Tags::ConstraintGamma2Compute<Dim, frame>>;
 
     return std::make_tuple(
-        Initialization::merge_into_databox<InitializeGHAnd3Plus1VariablesTags,
+        Initialization::merge_into_databox<InitializeGhAnd3Plus1Variables,
                                            db::AddSimpleTags<>, compute_tags>(
             std::move(box)));
   }
 };
 
 template <size_t Dim>
-struct InitializeGaugeTags {
+struct InitializeGauge {
   using frame = Frame::Inertial;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
@@ -161,7 +161,7 @@ struct InitializeGaugeTags {
         get<gr::Tags::TraceSpatialChristoffelFirstKind<Dim, frame, DataVector>>(
             box);
 
-    // call compute item for the initial gauge source function
+    // compute the initial gauge source function
     const auto initial_gauge_h = GeneralizedHarmonic::gauge_source<Dim, frame>(
         lapse, dt_lapse, deriv_lapse, shift, dt_shift, deriv_shift,
         spatial_metric, trace_extrinsic_curvature,
@@ -173,40 +173,43 @@ struct InitializeGaugeTags {
         make_with_value<tnsr::a<DataVector, Dim, frame>>(lapse, 0.);
 
     // compute spatial derivatives of InitialGaugeH
+    // The `partial_derivatives` function does not support single Tensor input,
+    // and so we must store the tensor in a Variables first.
     using InitialGaugeHVars = ::Variables<
         tmpl::list<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>>>;
     InitialGaugeHVars initial_gauge_h_vars{num_grid_points};
 
     get<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>>(
         initial_gauge_h_vars) = initial_gauge_h;
-    const auto inverse_jacobian = db::get<
+    const auto& inverse_jacobian = db::get<
         ::Tags::InverseJacobian<::Tags::ElementMap<Dim, frame>,
                                 ::Tags::Coordinates<Dim, Frame::Logical>>>(box);
     const auto d_initial_gauge_source =
         get<::Tags::deriv<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>,
                           tmpl::size_t<Dim>, frame>>(
             partial_derivatives<typename InitialGaugeHVars::tags_list>(
-                initial_gauge_h_vars, mesh, inverse_jacobian));
+                std::move(initial_gauge_h_vars), mesh, inverse_jacobian));
 
     // compute spacetime derivatives of InitialGaugeH
     const auto initial_d4_gauge_h =
         GeneralizedHarmonic::Tags::SpacetimeDerivGaugeHCompute<
-            Dim, frame>::function(dt_initial_gauge_source,
-                                  d_initial_gauge_source);
-    // Add all gauge tags
-    using simple_tags = db::AddSimpleTags<
-        GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>,
-        GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim, frame>>;
+            Dim, frame>::function(std::move(dt_initial_gauge_source),
+                                  std::move(d_initial_gauge_source));
+    // Add gauge tags
     using compute_tags = db::AddComputeTags<
         GeneralizedHarmonic::DampedHarmonicHCompute<Dim, frame>,
         GeneralizedHarmonic::SpacetimeDerivDampedHarmonicHCompute<Dim, frame>>;
 
     // Finally, insert gauge related quantities to the box
     return std::make_tuple(
-        Initialization::merge_into_databox<InitializeGaugeTags, simple_tags,
-                                           compute_tags>(
-            std::move(box), std::move(initial_gauge_h),
-            std::move(initial_d4_gauge_h)));
+        Initialization::merge_into_databox<
+            InitializeGauge,
+            db::AddSimpleTags<
+                GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>,
+                GeneralizedHarmonic::Tags::SpacetimeDerivInitialGaugeH<Dim,
+                                                                       frame>>,
+            compute_tags>(std::move(box), std::move(initial_gauge_h),
+                          std::move(initial_d4_gauge_h)));
   }
 };
 

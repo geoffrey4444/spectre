@@ -86,7 +86,6 @@ class CProxy_ConstGlobalCache;
 /// \endcond
 
 struct EvolutionMetavars {
-  // Customization/"input options" to simulation
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
@@ -118,10 +117,12 @@ struct EvolutionMetavars {
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
-  using const_global_cache_tag_list = tmpl::list<
-      initial_data_tag,
-      Tags::TimeStepper<tmpl::conditional_t<local_time_stepping, LtsTimeStepper,
-                                            TimeStepper>>,
+  using const_global_cache_tags = tmpl::list<
+      initial_data_tag, Tags::TimeStepper<TimeStepper>,
+      // When using local timestepping, replace the previous tag with the
+      // following two lines.
+      // Tags::TimeStepper<tmpl::conditional_t<local_time_stepping,
+      //                                       LtsTimeStepper, TimeStepper>>,
       GeneralizedHarmonic::Tags::GaugeHRollOnStartTime,
       GeneralizedHarmonic::Tags::GaugeHRollOnTimeWindow,
       GeneralizedHarmonic::Tags::GaugeHSpatialWeightDecayWidth<frame>,
@@ -147,13 +148,18 @@ struct EvolutionMetavars {
           Tags::BoundaryDirectionsInterior<volume_dim>>,
       dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
       dg::Actions::ReceiveDataForFluxes<EvolutionMetavars>,
-      tmpl::conditional_t<local_time_stepping, tmpl::list<>,
-                          dg::Actions::ApplyFluxes>,
+      dg::Actions::ApplyFluxes,
+      // When using local timestepping, replace the previous action with the
+      // following two lines.
+      // tmpl::conditional_t<local_time_stepping, tmpl::list<>,
+      //                                          dg::Actions::ApplyFluxes>,
       Actions::RecordTimeStepperData>>;
   using update_variables = tmpl::flatten<tmpl::list<
-      tmpl::conditional_t<local_time_stepping,
-                          dg::Actions::ApplyBoundaryFluxesLocalTimeStepping,
-                          tmpl::list<>>,
+      // When using local timestepping, add the
+      // following two lines.
+      // tmpl::conditional_t<local_time_stepping,
+      //                     dg::Actions::ApplyBoundaryFluxesLocalTimeStepping,
+      //                     tmpl::list<>>,
       Actions::UpdateU>>;
 
   enum class Phase {
@@ -167,23 +173,22 @@ struct EvolutionMetavars {
   using initialization_actions = tmpl::list<
       dg::Actions::InitializeDomain<volume_dim>,
       Initialization::Actions::NonconservativeSystem,
-      GeneralizedHarmonic::Actions::InitializeGHAnd3Plus1VariablesTags<
-          volume_dim>,
+      GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
       dg::Actions::InitializeInterfaces<
           system,
           dg::Initialization::slice_tags_to_face<
               typename system::variables_tag,
-              gr::Tags::SpatialMetricCompute<volume_dim, frame, DataVector>,
+              gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
-              gr::Tags::ShiftCompute<volume_dim, frame, DataVector>,
-              gr::Tags::LapseCompute<volume_dim, frame, DataVector>>,
+              gr::Tags::Shift<volume_dim, frame, DataVector>,
+              gr::Tags::Lapse<DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
-              gr::Tags::SpatialMetricCompute<volume_dim, frame, DataVector>,
+              gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
-              gr::Tags::ShiftCompute<volume_dim, frame, DataVector>,
-              gr::Tags::LapseCompute<volume_dim, frame, DataVector>>,
+              gr::Tags::Shift<volume_dim, frame, DataVector>,
+              gr::Tags::Lapse<DataVector>>,
           dg::Initialization::face_compute_tags<
               ::Tags::BoundaryCoordinates<volume_dim, frame>,
               GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
@@ -208,8 +213,8 @@ struct EvolutionMetavars {
               GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
                                                                frame>>>,
       Initialization::Actions::Evolution<EvolutionMetavars>,
-      GeneralizedHarmonic::Actions::InitializeGaugeTags<volume_dim>,
-      GeneralizedHarmonic::Actions::InitializeConstraintsTags<volume_dim>,
+      GeneralizedHarmonic::Actions::InitializeGauge<volume_dim>,
+      GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeMortars<EvolutionMetavars, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       Initialization::Actions::Minmod<volume_dim>,
@@ -237,9 +242,10 @@ struct EvolutionMetavars {
                   Phase, Phase::Evolve,
                   tmpl::flatten<tmpl::list<
                       Actions::RunEventsAndTriggers,
-                      tmpl::conditional_t<
-                          local_time_stepping,
-                          Actions::ChangeStepSize<step_choosers>, tmpl::list<>>,
+                      // When using local timestepping, add the
+                      // following two lines.
+                      // tmpl::conditional_t<local_time_stepping,
+                      //  Actions::ChangeStepSize<step_choosers>, tmpl::list<>>,
                       compute_rhs, update_variables, Actions::AdvanceTime>>>>>>;
 
   static constexpr OptionString help{

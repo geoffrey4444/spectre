@@ -64,10 +64,11 @@ struct ConstraintEnergy;
 
 /// \brief Input option tags for the generalized harmonic evolution system
 namespace OptionTags {
-struct GeneralizedHarmonicGroup;
-struct GaugeRollOnStart;
-struct GaugeRollOnWindow;
+struct Group;
+struct GaugeGroup;
+struct GaugeHRollOnStart;
+struct GaugeHRollOnWindow;
 template <typename Frame>
-struct GaugeSpatialDecayWidth;
+struct GaugeHSpatialDecayWidth;
 }  // namespace OptionTags
 }  // namespace GeneralizedHarmonic

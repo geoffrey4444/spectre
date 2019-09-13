@@ -147,25 +147,26 @@ using Affine3D = domain::CoordinateMaps::ProductOf3Maps<Affine, Affine, Affine>;
 template <typename Frame>
 void test_options() noexcept {
   Options<tmpl::list<
-      GeneralizedHarmonic::OptionTags::GaugeRollOnStart,
-      GeneralizedHarmonic::OptionTags::GaugeRollOnWindow,
-      GeneralizedHarmonic::OptionTags::GaugeSpatialDecayWidth<Frame>>>
+      GeneralizedHarmonic::OptionTags::GaugeHRollOnStart,
+      GeneralizedHarmonic::OptionTags::GaugeHRollOnWindow,
+      GeneralizedHarmonic::OptionTags::GaugeHSpatialDecayWidth<Frame>>>
       opts("");
   opts.parse(
       "EvolutionSystem:\n"
       "  GeneralizedHarmonic:\n"
-      "    GaugeRollOnStart : 0.\n"
-      "    GaugeRollOnWindow : 100.\n"
-      "    GaugeDecayWidth : 50.\n");
+      "    Gauge:\n"
+      "      RollOnStartTime : 0.\n"
+      "      RollOnTimeWindow : 100.\n"
+      "      SpatialDecayWidth : 50.\n");
   CHECK(
-      opts.template get<GeneralizedHarmonic::OptionTags::GaugeRollOnStart>() ==
+      opts.template get<GeneralizedHarmonic::OptionTags::GaugeHRollOnStart>() ==
       0.);
-  CHECK(
-      opts.template get<GeneralizedHarmonic::OptionTags::GaugeRollOnWindow>() ==
-      100.);
   CHECK(opts.template get<
-            GeneralizedHarmonic::OptionTags::GaugeSpatialDecayWidth<Frame>>() ==
-        50.);
+            GeneralizedHarmonic::OptionTags::GaugeHRollOnWindow>() == 100.);
+  CHECK(
+      opts.template get<
+          GeneralizedHarmonic::OptionTags::GaugeHSpatialDecayWidth<Frame>>() ==
+      50.);
 }
 
 template <size_t SpatialDim, typename Frame, typename DataType>
@@ -2975,14 +2976,6 @@ void test_damped_harmonic_compute_tags(const size_t grid_size_each_dimension,
 
   // Verify that locally computed H_a matches the same obtained through its
   // ComputeTag from databox
-  CHECK(db::get<gr::Tags::Shift<3, Frame::Inertial, DataVector>>(box) == shift);
-  CHECK(db::get<::Tags::Time>(box) == t);
-  CHECK(db::get<GeneralizedHarmonic::Tags::GaugeHRollOnStartTime>(box) ==
-        t_start_S);
-  CHECK(db::get<GeneralizedHarmonic::Tags::GaugeHRollOnTimeWindow>(box) ==
-        sigma_t_S);
-  CHECK(db::get<GeneralizedHarmonic::Tags::GaugeHSpatialWeightDecayWidth<
-            Frame::Inertial>>(box) == r_max);
   CHECK(db::get<GeneralizedHarmonic::Tags::GaugeH<3, Frame::Inertial>>(box) ==
         gauge_h_expected);
   CHECK(
