@@ -16,9 +16,9 @@
 
 namespace sr {
 template <size_t SpatialDim, typename Frame>
-tnsr::aa<double, SpatialDim, Frame> lorentz_boost_matrix(
+tnsr::Ab<double, SpatialDim, Frame> lorentz_boost_matrix(
     const tnsr::I<double, SpatialDim, Frame>& velocity) noexcept {
-  auto boost_matrix = make_with_value<tnsr::aa<double, SpatialDim, Frame>>(
+  auto boost_matrix = make_with_value<tnsr::Ab<double, SpatialDim, Frame>>(
       get<0>(velocity), std::numeric_limits<double>::signaling_NaN());
   lorentz_boost_matrix<SpatialDim, Frame>(&boost_matrix, velocity);
   return boost_matrix;
@@ -26,7 +26,7 @@ tnsr::aa<double, SpatialDim, Frame> lorentz_boost_matrix(
 
 template <size_t SpatialDim, typename Frame>
 void lorentz_boost_matrix(
-    gsl::not_null<tnsr::aa<double, SpatialDim, Frame>*> boost_matrix,
+    gsl::not_null<tnsr::Ab<double, SpatialDim, Frame>*> boost_matrix,
     const tnsr::I<double, SpatialDim, Frame>& velocity) noexcept {
   const double velocity_squared{get(dot_product(velocity, velocity))};
   const double lorentz_factor{1.0 / sqrt(1.0 - velocity_squared)};
@@ -77,10 +77,9 @@ void lorentz_boost_matrix(
 
   get<0, 0>(*boost_matrix) = lorentz_factor;
   for (size_t i = 0; i < SpatialDim; ++i) {
-    // boost_matrix is symmetric, so no need to set component (i + 1, 0)
     (*boost_matrix).get(0, i + 1) = velocity.get(i) * lorentz_factor;
-    // boost_matrix is symmetric, so no need to set j < i components
-    for (size_t j = i; j < SpatialDim; ++j) {
+    (*boost_matrix).get(i + 1, 0) = velocity.get(i) * lorentz_factor;
+    for (size_t j = 0; j < SpatialDim; ++j) {
       (*boost_matrix).get(i + 1, j + 1) =
           velocity.get(i) * velocity.get(j) * kinetic_energy_per_v_squared;
     }
@@ -95,10 +94,10 @@ void lorentz_boost_matrix(
 #define FRAME(data) BOOST_PP_TUPLE_ELEM(1, data)
 
 #define INSTANTIATE(_, data)                                                  \
-  template tnsr::aa<double, DIM(data), FRAME(data)> sr::lorentz_boost_matrix( \
+  template tnsr::Ab<double, DIM(data), FRAME(data)> sr::lorentz_boost_matrix( \
       const tnsr::I<double, DIM(data), FRAME(data)>& velocity) noexcept;      \
   template void sr::lorentz_boost_matrix(                                     \
-      gsl::not_null<tnsr::aa<double, DIM(data), FRAME(data)>*> boost_matrix,  \
+      gsl::not_null<tnsr::Ab<double, DIM(data), FRAME(data)>*> boost_matrix,  \
       const tnsr::I<double, DIM(data), FRAME(data)>& velocity) noexcept;
 
 GENERATE_INSTANTIATIONS(INSTANTIATE, (1, 2, 3), (Frame::Grid, Frame::Inertial))

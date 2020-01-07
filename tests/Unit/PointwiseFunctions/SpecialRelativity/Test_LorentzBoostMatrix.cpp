@@ -15,7 +15,7 @@
 namespace {
 template <size_t SpatialDim, typename Frame>
 void test_lorentz_boost_matrix_random(const double& used_for_size) noexcept {
-  tnsr::aa<double, SpatialDim, Frame> (*f)(
+  tnsr::Ab<double, SpatialDim, Frame> (*f)(
       const tnsr::I<double, SpatialDim, Frame>&) =
       &sr::lorentz_boost_matrix<SpatialDim, Frame>;
   // The boost matrix is actually singular if the boost velocity is unity,
@@ -38,8 +38,8 @@ void test_lorentz_boost_matrix_analytic(
   const auto boost_matrix_zero = sr::lorentz_boost_matrix(velocity_zero);
 
   // Do not use DataStructures/Tensor/Identity.hpp, because identity returns
-  // tnsr::Ab, whereas the boost matrix is returned as tnsr::aa.
-  auto identity_matrix = make_with_value<tnsr::aa<double, SpatialDim, Frame>>(
+  // a tensor with frame `frame::NoFrame`, instead of `Frame`.
+  auto identity_matrix = make_with_value<tnsr::Ab<double, SpatialDim, Frame>>(
       velocity_squared, 0.0);
   for (size_t i = 0; i < SpatialDim + 1; ++i) {
     identity_matrix.get(i, i) = 1.0;
@@ -59,10 +59,10 @@ void test_lorentz_boost_matrix_analytic(
   }
   const auto boost_matrix = sr::lorentz_boost_matrix(velocity);
   const auto boost_matrix_minus = sr::lorentz_boost_matrix(minus_velocity);
-  auto inverse_check = make_with_value<tnsr::aa<double, SpatialDim, Frame>>(
+  auto inverse_check = make_with_value<tnsr::Ab<double, SpatialDim, Frame>>(
       velocity_squared, 0.0);
   for (size_t i = 0; i < SpatialDim + 1; ++i) {
-    for (size_t j = i; j < SpatialDim + 1; ++j) {
+    for (size_t j = 0; j < SpatialDim + 1; ++j) {
       for (size_t k = 0; k < SpatialDim + 1; ++k) {
         inverse_check.get(i, j) +=
             boost_matrix.get(i, k) * boost_matrix_minus.get(k, j);

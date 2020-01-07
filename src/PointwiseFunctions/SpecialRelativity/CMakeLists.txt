@@ -4,8 +4,8 @@
 set(LIBRARY SpecialRelativity)
 
 set(LIBRARY_SOURCES
-    LorentzBoostMatrix.cpp
-    )
+  LorentzBoostMatrix.cpp
+  )
 
 add_spectre_library(${LIBRARY} ${LIBRARY_SOURCES})
 
