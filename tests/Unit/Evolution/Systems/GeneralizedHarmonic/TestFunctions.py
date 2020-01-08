@@ -521,7 +521,8 @@ def f_constraint_term_25_of_25(spacetime_normal_one_form,
                            inverse_spacetime_metric)
 
 
-def f_constraint(gauge_function, d_gauge_function, spacetime_normal_one_form,
+def f_constraint_base(gauge_function, d_gauge_function,
+                 spacetime_normal_one_form,
                  spacetime_normal_vector, inverse_spatial_metric,
                  inverse_spacetime_metric, pi, phi, d_pi, d_phi, gamma2,
                  three_index_constraint):
@@ -600,6 +601,32 @@ def f_constraint(gauge_function, d_gauge_function, spacetime_normal_one_form,
                                              gauge_function, phi,
                                              inverse_spacetime_metric)
     return constraint
+
+
+def f_constraint(gauge_function, d_gauge_function, spacetime_normal_one_form,
+                 spacetime_normal_vector, inverse_spatial_metric,
+                 inverse_spacetime_metric, pi, phi, d_pi, d_phi, gamma2,
+                 three_index_constraint):
+    con = f_constraint_base(gauge_function, d_gauge_function,
+                            spacetime_normal_one_form,
+                            spacetime_normal_vector, inverse_spatial_metric,
+                            inverse_spacetime_metric, pi, phi, d_pi, d_phi,
+                            gamma2,
+                            three_index_constraint)
+    eps = 1.0e-15
+    con_eps = f_constraint_base(gauge_function + eps,
+                                d_gauge_function + eps,
+                                spacetime_normal_one_form + eps,
+                                spacetime_normal_vector + eps,
+                                inverse_spatial_metric + eps,
+                                inverse_spacetime_metric + eps,
+                                pi + eps, phi + eps, d_pi + eps,
+                                d_phi + eps, gamma2 + eps,
+                                three_index_constraint + eps)
+    #print("con: "+str(con))
+    #print("con_eps: "+str(con_eps))
+    print("con diff: "+str(abs(con-con_eps)))
+    return con
 
 # End test functions for F constraint
 
