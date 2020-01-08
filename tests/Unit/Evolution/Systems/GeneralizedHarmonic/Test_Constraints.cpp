@@ -400,9 +400,8 @@ void test_f_constraint_random(const DataType& used_for_size) noexcept {
           const Scalar<DataType>&,
           const tnsr::iaa<DataType, SpatialDim, Frame>&)>(
           &GeneralizedHarmonic::f_constraint<SpatialDim, Frame, DataType>),
-      "TestFunctions", "f_constraint", {{{-10.0, 10.0}}}, used_for_size,
-      1.0e-7);  // Loosen tolerance to avoid occasional failures of this test
-                // (suspected accumulated roundoff error)
+      "TestFunctions", "f_constraint", {{{-1.0, 1.0}}}, used_for_size);
+  // (suspected accumulated roundoff error)
 }
 
 // Test the return-by-reference F constraint
