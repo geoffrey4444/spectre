@@ -37,43 +37,14 @@ void lorentz_boost_matrix(
   //
   // kinetic_energy_per_v_squared = (lorentz_factor-1.0)/velocity^2
   //
-  // We would like to avoid large numerical errors (or even FPEs) when
-  // the velocity is zero or close to zero. The idea is to use a truncated
-  // Taylor series, expanding in v, for velocities close enough to zero
-  // that the truncation error in the series is less than roundoff error
-  // of the full expression.
+  // This is algebraically equivalent to
   //
-  // Let kinetic_energy_per_v_squared = d, velocity = v. Then, series expanding
-  // about small v gives
+  // kinetic_energy_per_v_squared = lorentz_factor / ((1 + sqrt(1-velocity^2))),
   //
-  // d = [1/\sqrt(1-v^2) - 1] / v^2 ~ 1/2 + 3/8 v^2 + 5/16 v^4 + O(v^6)
-  //
-  // If you truncate the series as 1/2 + 3/8 v^2, the small-velocity
-  // error is approximately
-  //
-  // eps_{small velocity} ~ 5/16 v^4
-  //
-  // Compare this to roundoff error in evaluating d directly. Let v->v+dv,
-  // where dv represents roundoff error of v. Then
-  //
-  // eps_{roundoff} ~ (d with v->v+dv) - d
-  //
-  // Plotting both errors shows that these errors are comparable
-  // (i.e., eps_{roundoff} ~ eps_{small velocity}) for
-  //
-  // v^2 ~ 10^-5.
-  //
-  // For v^2 >~ 10^{-5}, there is more error from the small-velocity
-  // approximation than from roundoff. For v^2 <~ 10^{-5}, there is more
-  // error from roundoff than from the small-velocity approximation.
-  //
-  // So, if v^2 < 10^{-5}, use d ~ 1/2 + (3/8) v^2. Otherwise, evaluate
-  // the exact expression.
+  // a form that avoids division by zero as v->0.
 
-  double kinetic_energy_per_v_squared{0.5 + 0.375 * velocity_squared};
-  if (velocity_squared > 1.0e-5) {
-    kinetic_energy_per_v_squared = (lorentz_factor - 1.0) / velocity_squared;
-  }
+  double kinetic_energy_per_v_squared{lorentz_factor /
+                                      (1 + sqrt(1.0 - velocity_squared))};
 
   get<0, 0>(*boost_matrix) = lorentz_factor;
   for (size_t i = 0; i < SpatialDim; ++i) {
