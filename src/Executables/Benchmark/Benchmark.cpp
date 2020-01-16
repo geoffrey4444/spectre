@@ -20,6 +20,7 @@
 #include "Domain/Mesh.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.tpp"
 #include "NumericalAlgorithms/Spectral/Spectral.hpp"
+#include "PointwiseFunctions/GeneralRelativity/WeylElectric.hpp"
 #include "PointwiseFunctions/MathFunctions/PowX.hpp"
 
 // Charm looks for this function but since we build without a main function or
@@ -66,44 +67,169 @@ namespace {
 }  // namespace
 
 namespace {
-// In this anonymous namespace is an example of microbenchmarking the
-// all_gradient routine for the GH system
-
-template <size_t Dim>
-struct Kappa : db::SimpleTag {
-  using type = tnsr::abb<DataVector, Dim, Frame::Grid>;
-  static std::string name() noexcept { return "Kappa"; }
-};
-template <size_t Dim>
-struct Psi : db::SimpleTag {
-  using type = tnsr::aa<DataVector, Dim, Frame::Grid>;
-  static std::string name() noexcept { return "Psi"; }
-};
-
-// clang-tidy: don't pass be non-const reference
-void bench_all_gradient(benchmark::State& state) {  // NOLINT
-  constexpr const size_t pts_1d = 4;
-  constexpr const size_t Dim = 3;
-  const Mesh<Dim> mesh{pts_1d, Spectral::Basis::Legendre,
-                       Spectral::Quadrature::GaussLobatto};
-  CoordinateMaps::Affine map1d(-1.0, 1.0, -1.0, 1.0);
-  using Map3d = CoordinateMaps::ProductOf3Maps<CoordinateMaps::Affine,
-                                               CoordinateMaps::Affine,
-                                               CoordinateMaps::Affine>;
-  CoordinateMap<Frame::Logical, Frame::Grid, Map3d> map(
-      Map3d{map1d, map1d, map1d});
-
-  using VarTags = tmpl::list<Kappa<Dim>, Psi<Dim>>;
-  const InverseJacobian<DataVector, Dim, Frame::Logical, Frame::Grid> inv_jac =
-      map.inv_jacobian(logical_coordinates(mesh));
-  const auto grid_coords = map(logical_coordinates(mesh));
-  Variables<VarTags> vars(mesh.number_of_grid_points(), 0.0);
-
-  while (state.KeepRunning()) {
-    benchmark::DoNotOptimize(partial_derivatives<VarTags>(vars, mesh, inv_jac));
+template <size_t SpatialDim, typename Frame, typename DataType>
+void weyl_electric_scalar_1(
+    const gsl::not_null<Scalar<DataType>*> weyl_electric_scalar_part,
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  *weyl_electric_scalar_part =
+      make_with_value<Scalar<DataType>>(get<0, 0>(inverse_spatial_metric), 0.0);
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    for (size_t j = 0; j < SpatialDim; ++j) {
+      for (size_t k = 0; k < SpatialDim; ++k) {
+        for (size_t l = 0; l < SpatialDim; ++l) {
+          get(*weyl_electric_scalar_part) += weyl_electric.get(i, j) *
+                                             weyl_electric.get(k, l) *
+                                             inverse_spatial_metric.get(i, k) *
+                                             inverse_spatial_metric.get(j, l);
+        }
+      }
+    }
   }
 }
-BENCHMARK(bench_all_gradient);  // NOLINT
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+Scalar<DataType> weyl_electric_scalar_1(
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  Scalar<DataType> weyl_electric_scalar_part{};
+  weyl_electric_scalar_1<SpatialDim>(make_not_null(&weyl_electric_scalar_part),
+                                     weyl_electric, inverse_spatial_metric);
+  return weyl_electric_scalar_part;
+}
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+void weyl_electric_scalar_impl(
+    const gsl::not_null<Scalar<DataType>*> weyl_electric_scalar_part,
+    const gsl::not_null<tnsr::ii<DataType, SpatialDim, Frame>*>
+        weyl_electric_up_down,
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    for (size_t j = 0; j < SpatialDim; ++j) {
+      for (size_t k = j; k < SpatialDim; ++k) {
+        weyl_electric_up_down->get(j, k) +=
+            weyl_electric.get(i, j) * inverse_spatial_metric.get(i, k);
+      }
+    }
+  }
+  for (size_t j = 0; j < SpatialDim; ++j) {
+    for (size_t k = 0; k < SpatialDim; ++k) {
+      if (UNLIKELY(j == 0 and k == 0)) {
+        get(*weyl_electric_scalar_part) =
+            weyl_electric_up_down->get(j, k) * weyl_electric_up_down->get(j, k);
+      } else {
+        get(*weyl_electric_scalar_part) +=
+            weyl_electric_up_down->get(j, k) * weyl_electric_up_down->get(j, k);
+      }
+    }
+  }
+}
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+void weyl_electric_scalar_2(
+    const gsl::not_null<Scalar<DataType>*> weyl_electric_scalar_part,
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  *weyl_electric_scalar_part =
+      make_with_value<Scalar<DataType>>(get<0, 0>(inverse_spatial_metric), 0.0);
+
+  Variables<tmpl::list<Tags::Tempii<0, 3>>> temp{
+      get<0, 0>(inverse_spatial_metric).size(), 0.0};
+  auto& weyl_electric_up_down = get<Tags::Tempii<0, 3>>(temp);
+
+  weyl_electric_scalar_impl(weyl_electric_scalar_part,
+                            make_not_null(&weyl_electric_up_down),
+                            weyl_electric, inverse_spatial_metric);
+}
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+Scalar<DataType> weyl_electric_scalar_2(
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  Scalar<DataType> weyl_electric_scalar_part{};
+  weyl_electric_scalar_2<SpatialDim>(make_not_null(&weyl_electric_scalar_part),
+                                     weyl_electric, inverse_spatial_metric);
+  return weyl_electric_scalar_part;
+}
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+void weyl_electric_scalar_3(
+    const gsl::not_null<Scalar<DataType>*> weyl_electric_scalar_part,
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  *weyl_electric_scalar_part =
+      make_with_value<Scalar<DataType>>(get<0, 0>(inverse_spatial_metric), 0.0);
+
+  tnsr::ii<DataVector, 3> weyl_electric_up_down{
+      get<0, 0>(inverse_spatial_metric).size(), 0.0};
+
+  weyl_electric_scalar_impl(weyl_electric_scalar_part,
+                            make_not_null(&weyl_electric_up_down),
+                            weyl_electric, inverse_spatial_metric);
+}
+
+template <size_t SpatialDim, typename Frame, typename DataType>
+Scalar<DataType> weyl_electric_scalar_3(
+    const tnsr::ii<DataType, SpatialDim, Frame>& weyl_electric,
+    const tnsr::II<DataType, SpatialDim, Frame>&
+        inverse_spatial_metric) noexcept {
+  Scalar<DataType> weyl_electric_scalar_part{};
+  weyl_electric_scalar_3<SpatialDim>(make_not_null(&weyl_electric_scalar_part),
+                                     weyl_electric, inverse_spatial_metric);
+  return weyl_electric_scalar_part;
+}
+
+// clang-tidy: don't pass be non-const reference
+void bench_1(benchmark::State& state) {  // NOLINT
+
+  constexpr size_t num_points = 1000;
+  const tnsr::ii<DataVector, 3, Frame::Inertial> weyl_electric{num_points, 1.0};
+  const tnsr::II<DataVector, 3, Frame::Inertial> inverse_spatial_metric{
+      num_points, 0.4};
+
+  while (state.KeepRunning()) {
+    benchmark::DoNotOptimize(
+        weyl_electric_scalar_1(weyl_electric, inverse_spatial_metric));
+  }
+}
+BENCHMARK(bench_1);  // NOLINT
+
+// clang-tidy: don't pass be non-const reference
+void bench_2(benchmark::State& state) {  // NOLINT
+
+  constexpr size_t num_points = 1000;
+  const tnsr::ii<DataVector, 3, Frame::Inertial> weyl_electric{num_points, 1.0};
+  const tnsr::II<DataVector, 3, Frame::Inertial> inverse_spatial_metric{
+      num_points, 0.4};
+
+  while (state.KeepRunning()) {
+    benchmark::DoNotOptimize(
+        weyl_electric_scalar_2(weyl_electric, inverse_spatial_metric));
+  }
+}
+BENCHMARK(bench_2);  // NOLINT
+
+// clang-tidy: don't pass be non-const reference
+void bench_3(benchmark::State& state) {  // NOLINT
+
+  constexpr size_t num_points = 1000;
+  const tnsr::ii<DataVector, 3, Frame::Inertial> weyl_electric{num_points, 1.0};
+  const tnsr::II<DataVector, 3, Frame::Inertial> inverse_spatial_metric{
+      num_points, 0.4};
+
+  while (state.KeepRunning()) {
+    benchmark::DoNotOptimize(
+        weyl_electric_scalar_3(weyl_electric, inverse_spatial_metric));
+  }
+}
+BENCHMARK(bench_3);  // NOLINT
 }  // namespace
 
 BENCHMARK_MAIN();

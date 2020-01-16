@@ -20,6 +20,8 @@ if("${GOOGLE_BENCHMARK_FOUND}" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     benchmark
     Domain
     CoordinateMaps
+    GeneralRelativity
+    Informer
     Spectral
     ${SPECTRE_LIBRARIES}
     )
