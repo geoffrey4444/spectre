@@ -33,6 +33,9 @@ struct System {
                  Tags::Pi<Dim, Frame::Inertial>,
                  Tags::Phi<Dim, Frame::Inertial>>;
 
+  // List of fields necessary to import when specifying initial data
+  using initial_data_fields_tag = db::get_variables_tags_list<variables_tag>;
+
   using normal_dot_fluxes = ComputeNormalDotFluxes<Dim>;
   using char_speeds_tag = CharacteristicSpeedsCompute<Dim, Frame::Inertial>;
   using compute_largest_characteristic_speed =
