@@ -31,16 +31,17 @@ spectre_unload_modules() {
     module unload jemalloc-4.5.0-gcc-7.3.0-wlf2m7r
     module unload libxsmm-1.10-gcc-7.3.0-sjh5yzv
     module unload yaml-cpp-develop-gcc-7.3.0-qcfbbll
-    module unload boost-1.68.0-gcc-7.3.0-vgl6ofr
+    module unload boost-1.68.0-gcc-7.3.0-o4yvvh5
     module unload hdf5-1.10.4-gcc-7.3.0-ytt4j54
     module unload openblas-0.3.4-gcc-7.3.0-tt2coe7
-    module unload python/3.7.0
+    module unload python/2.7.15
     module unload charm
 }
 
 spectre_load_modules() {
+    module purge
     module load ohpc
-    module load python/3.7.0
+    module load python/2.7.15
     module load gnu7/7.3.0
     module load openmpi/1.10.7
     module load prun/1.2
@@ -55,7 +56,7 @@ spectre_load_modules() {
     module load jemalloc-4.5.0-gcc-7.3.0-wlf2m7r
     module load libxsmm-1.10-gcc-7.3.0-sjh5yzv
     module load yaml-cpp-develop-gcc-7.3.0-qcfbbll
-    module load boost-1.68.0-gcc-7.3.0-vgl6ofr
+    module load boost-1.68.0-gcc-7.3.0-o4yvvh5
     module load hdf5-1.10.4-gcc-7.3.0-ytt4j54
     module load openblas-0.3.4-gcc-7.3.0-tt2coe7
     module load charm
@@ -69,5 +70,6 @@ spectre_run_cmake() {
     spectre_load_modules
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
+          -D BUILD_PYTHON_BINDINGS=ON \
           $SPECTRE_HOME
 }
