@@ -19,6 +19,7 @@
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
 #include "Evolution/Systems/ScalarWave/Equations.hpp"  // IWYU pragma: keep // for UpwindFlux
+#include "Evolution/Systems/ScalarWave/Initialize.hpp"
 #include "Evolution/Systems/ScalarWave/System.hpp"
 #include "IO/Observer/Actions.hpp"            // IWYU pragma: keep
 #include "IO/Observer/Helpers.hpp"            // IWYU pragma: keep
@@ -194,14 +195,17 @@ struct EvolutionMetavars {
 
   using initialization_actions = tmpl::list<
       Initialization::Actions::TimeAndTimeStep<EvolutionMetavars>,
-      evolution::dg::Initialization::Domain<system::volume_dim>,
+      evolution::dg::Initialization::Domain<volume_dim>,
       Initialization::Actions::NonconservativeSystem,
       Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
+      ScalarWave::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeInterfaces<
           system,
           dg::Initialization::slice_tags_to_face<
-              typename system::variables_tag>,
-          dg::Initialization::slice_tags_to_exterior<>,
+              typename system::variables_tag,
+              ScalarWave::Tags::ConstraintGamma2>,
+          dg::Initialization::slice_tags_to_exterior<
+              ScalarWave::Tags::ConstraintGamma2>,
           dg::Initialization::face_compute_tags<>,
           dg::Initialization::exterior_compute_tags<>, true, true>,
       Initialization::Actions::AddComputeTags<
@@ -234,8 +238,7 @@ struct EvolutionMetavars {
               Parallel::PhaseActions<
                   Phase, Phase::Evolve,
                   tmpl::list<
-                      Actions::RunEventsAndTriggers,
-                      Actions::ChangeSlabSize,
+                      Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
                       tmpl::conditional_t<
                           local_time_stepping,
                           Actions::ChangeStepSize<step_choosers>, tmpl::list<>>,
