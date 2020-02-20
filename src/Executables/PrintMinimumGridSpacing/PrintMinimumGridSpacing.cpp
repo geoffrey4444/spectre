@@ -5,6 +5,7 @@
 #include <iomanip>
 
 #include "Domain/InitialElementIds.hpp"
+#include "Domain/LogicalCoordinates.hpp"
 #include "Domain/MinimumGridSpacing.hpp"
 #include "NumericalAlgorithms/Spectral/Spectral.hpp"
 #include "Parallel/Printf.hpp"
@@ -41,12 +42,11 @@ class DimensionOption {
 
 template <size_t Dim>
 void compute_and_print_minimum_grid_spacing(std::string input_file) {
-  Options<tmpl::list<Dimension, OptionTags::DomainCreator<Dim, frame>>> options(
-      "");
+  Options<tmpl::list<Dimension, OptionTags::DomainCreator<Dim>>> options("");
   options.parse_file(input_file);
 
   const auto domain_creator =
-      options.template get<OptionTags::DomainCreator<Dim, frame>>();
+      options.template get<OptionTags::DomainCreator<Dim>>();
   auto domain = domain_creator->create_domain();
   double min_grid_spacing = std::numeric_limits<double>::max();
   for (const auto& block : domain.blocks()) {
@@ -55,8 +55,8 @@ void compute_and_print_minimum_grid_spacing(std::string input_file) {
     const std::vector<ElementId<Dim>> element_ids =
         initial_element_ids(block.id(), initial_ref_levs);
     for (const auto& element_id : element_ids) {
-      ElementMap<Dim, frame> map(element_id,
-                                 block.coordinate_map().get_clone());
+      ElementMap<Dim, Frame::Inertial> map(element_id,
+                                           block.coordinate_map().get_clone());
       Mesh<Dim> mesh(domain_creator->initial_extents()[block.id()],
                      Spectral::Basis::Legendre,
                      Spectral::Quadrature::GaussLobatto);
@@ -76,14 +76,14 @@ std::string custom_help_msg() {
       "choose appropriate time steps.";
 
   std::ostringstream ss;
-  ss << "\n==== Description of expected options:\n" << help_text
-     << "\n\nOptions:\n"
+  ss << "\n==== Description of expected options:\n"
+     << help_text << "\n\nOptions:\n"
      << "  " << std::setw(max_label_size + 2) << std::left << "Dimension"
      << "Value\n"
      << "  " << std::setw(max_label_size + 2) << std::left << ""
      << "The dimensions of the desired domain (1, 2, or 3).\n\n"
      << "  " << std::setw(max_label_size + 2) << std::left << "DomainCreator"
-     << "DomainCreator<Dim, Frame::Inertial>\n"
+     << "DomainCreator<Dim>\n"
      << "  " << std::setw(max_label_size + 2) << std::left << ""
      << "The domain to create initially.\n"
      << "  " << std::setw(max_label_size + 2) << std::left << ""
