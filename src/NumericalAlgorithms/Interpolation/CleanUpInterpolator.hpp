@@ -8,6 +8,7 @@
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "Domain/Tags.hpp" // IWYU pragma: keep
+#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/TMPL.hpp"
@@ -65,6 +66,7 @@ struct CleanUpInterpolator {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/,
       const typename Metavariables::temporal_id::type& temporal_id) noexcept {
+    Parallel::printf("CleanUpInterpolator::apply() called\n");
     // Signal that this InterpolationTarget is done at this time.
     db::mutate<Tags::InterpolatedVarsHolders<Metavariables>>(
         make_not_null(&box),
@@ -94,6 +96,7 @@ struct CleanUpInterpolator {
     // We don't need any more volume data for this temporal_id,
     // so remove it.
     if (this_temporal_id_is_done) {
+      Parallel::printf("CleanUpInterpolator::apply(): done, erasing data\n");
       db::mutate<Tags::VolumeVarsInfo<Metavariables>>(
           make_not_null(&box), [&temporal_id](
                                    const gsl::not_null<db::item_type<

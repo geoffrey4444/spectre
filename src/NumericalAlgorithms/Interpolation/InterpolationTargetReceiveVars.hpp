@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <strstream>
+#include <iostream>
+
 #include <cstddef>
 #include <memory>
 #include <unordered_set>
@@ -13,6 +16,7 @@
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/TMPL.hpp"
@@ -154,6 +158,17 @@ void callback_and_cleanup(
   const bool done_with_temporal_id =
       apply_callback<InterpolationTargetTag>(box, cache, temporal_id);
 
+  std::ostrstream out;
+  out << "callback_and_cleanup on "
+      << pretty_type::get_name<InterpolationTargetTag>()
+      << "\n"
+      << ": temporal_id: "
+      << temporal_id << "\n"
+      << "done_with_temporal_id: " << done_with_temporal_id
+      << "\n\n";
+  Parallel::printf(out.str());
+
+
   if (not done_with_temporal_id) {
     return;
   }
@@ -212,7 +227,7 @@ namespace Actions {
 /// - Calls `InterpolationTargetTag::post_interpolation_callback`
 /// - Tells `Interpolator`s that the interpolation is complete
 ///  (by calling
-///  `Actions::CleanUpInterpolator<InterpolationTargetTag>`)
+///  `Actions::CleanUpInterpolatorss<InterpolationTargetTag>`)
 /// - Removes the first `temporal_id` from `Tags::TemporalIds<Metavariables>`
 /// - If there are more `temporal_id`s, begins interpolation at the next
 ///  `temporal_id` (by calling `InterpolationTargetTag::compute_target_points`)
