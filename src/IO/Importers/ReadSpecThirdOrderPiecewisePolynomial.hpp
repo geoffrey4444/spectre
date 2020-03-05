@@ -96,7 +96,9 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
     for (const auto& spec_and_spectre_names : dataset_name_map) {
       const std::string& spec_name = std::get<0>(spec_and_spectre_names);
       const std::string& spectre_name = std::get<1>(spec_and_spectre_names);
-      const h5::Dat& dat_file = file.get<h5::Dat>("/" + spec_name);
+      // clang-tidy: use auto when initializing with a template cast to avoid
+      // duplicating the type name
+      const h5::Dat& dat_file = file.get<h5::Dat>("/" + spec_name); // NOLINT
       const Matrix& dat_data = dat_file.get_data();
 
       // Check that the data in the file uses deriv order 3
