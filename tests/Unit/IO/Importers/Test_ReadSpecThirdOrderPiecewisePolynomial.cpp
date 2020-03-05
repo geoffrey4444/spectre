@@ -36,8 +36,6 @@
 #include "tests/Unit/ActionTesting.hpp"
 
 namespace {
-constexpr size_t dim = 2;
-
 template <typename Metavariables>
 struct component {
   using metavariables = Metavariables;
