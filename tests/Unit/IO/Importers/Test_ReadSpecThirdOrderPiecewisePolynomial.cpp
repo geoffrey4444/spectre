@@ -83,7 +83,7 @@ void test_options() noexcept {
 }
 }  // namespace
 
-SPECTRE_TEST_CASE("Unit.Evolution.ReadSpecThirdOrderPiecewisePolynomial",
+SPECTRE_TEST_CASE("Unit.IO.ReadSpecThirdOrderPiecewisePolynomial",
                   "[Unit][Evolution][Actions]") {
   domain::FunctionsOfTime::register_derived_with_charm();
 
@@ -201,7 +201,7 @@ SPECTRE_TEST_CASE("Unit.Evolution.ReadSpecThirdOrderPiecewisePolynomial",
 
 // [[OutputRegex, Non-monotonic time found]]
 SPECTRE_TEST_CASE(
-    "Unit.Evolution.ReadSpecThirdOrderPiecewisePolynomialNonmonotonic",
+    "Unit.IO.ReadSpecThirdOrderPiecewisePolynomialNonmonotonic",
     "[Unit][Evolution][Actions]") {
   ERROR_TEST();
   domain::FunctionsOfTime::register_derived_with_charm();
