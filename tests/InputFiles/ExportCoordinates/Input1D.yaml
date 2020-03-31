@@ -6,13 +6,29 @@
 # ExpectedOutput:
 #   ExportCoordinates1DVolume0.h5
 
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: 0.01
+  TimeStepper:
+    AdamsBashforthN:
+      Order: 1
+
 DomainCreator:
-  Interval:
-    LowerBound: [0]
-    UpperBound: [1]
-    IsPeriodicIn: [false]
-    InitialRefinement: [1]
-    InitialGridPoints: [3]
+    Interval:
+      LowerBound: [-0.5]
+      UpperBound: [0.5]
+      IsPeriodicIn: [false]
+      InitialRefinement: [2]
+      InitialGridPoints: [5]
+      TimeDependence:
+        UniformTranslation:
+          InitialTime: 0.0
+          Velocity: [0.5]
+          FunctionOfTimeNames: ["TranslationX"]
+
+EventsAndTriggers:
+  ? PastTime: 1.0
+  : - Completion
 
 Observers:
   VolumeFileName: "ExportCoordinates1DVolume"
