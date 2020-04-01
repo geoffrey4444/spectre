@@ -32,6 +32,8 @@ class CubicScale;
 template <size_t MeshDim>
 class None;
 template <size_t MeshDim>
+class UniformRotationAboutZAxis;
+template <size_t MeshDim>
 class UniformTranslation;
 }  // namespace time_dependence
 }  // namespace creators
@@ -52,6 +54,7 @@ namespace time_dependence {
 template <size_t MeshDim>
 struct TimeDependence {
   using creatable_classes = tmpl::list<CubicScale<MeshDim>, None<MeshDim>,
+                                       UniformRotationAboutZAxis<MeshDim>,
                                        UniformTranslation<MeshDim>>;
 
   TimeDependence() = default;
@@ -90,4 +93,5 @@ TimeDependence<MeshDim>::~TimeDependence() = default;
 
 #include "Domain/Creators/TimeDependence/CubicScale.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
+#include "Domain/Creators/TimeDependence/UniformRotationAboutZAxis.hpp"
 #include "Domain/Creators/TimeDependence/UniformTranslation.hpp"
