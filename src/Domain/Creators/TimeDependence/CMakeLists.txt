@@ -5,6 +5,7 @@ set(LIBRARY DomainTimeDependence)
 
 set(LIBRARY_SOURCES
   CubicScale.cpp
+  CubicScaleAndUniformRotationAboutZAxis.cpp
   None.cpp
   RegisterDerivedWithCharm.cpp
   UniformRotationAboutZAxis.cpp

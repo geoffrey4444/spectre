@@ -53,9 +53,10 @@ namespace time_dependence {
 /// communicate to the code that the domain is time-independent.
 template <size_t MeshDim>
 struct TimeDependence {
-  using creatable_classes = tmpl::list<CubicScale<MeshDim>, None<MeshDim>,
-                                       UniformRotationAboutZAxis<MeshDim>,
-                                       UniformTranslation<MeshDim>>;
+  using creatable_classes = tmpl::list<
+      CubicScale<MeshDim>, None<MeshDim>, UniformRotationAboutZAxis<MeshDim>,
+      UniformTranslation<MeshDim>,
+      Composition<CubicScale<MeshDim>, UniformRotationAboutZAxis<MeshDim>>>;
 
   TimeDependence() = default;
   virtual ~TimeDependence() = 0;
