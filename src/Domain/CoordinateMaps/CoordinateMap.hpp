@@ -23,6 +23,7 @@
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Parallel/CharmPupable.hpp"
 #include "Parallel/PupStlCpp11.hpp"
+#include "Utilities/TypeTraits/IsA.hpp"
 #include "Utilities/TMPL.hpp"
 
 /// \cond
@@ -444,7 +445,8 @@ class CoordinateMap
   }
 
   template <typename NewMap, typename LocalSourceFrame,
-            typename LocalTargetFrame, typename... LocalMaps, size_t... Is>
+            typename LocalTargetFrame, typename... LocalMaps, size_t... Is,
+      Requires<not tt::is_a_v<CoordinateMap, std::decay_t<NewMap>>> = nullptr>
   friend CoordinateMap<LocalSourceFrame, LocalTargetFrame, LocalMaps..., NewMap>
   // NOLINTNEXTLINE(readability-redundant-declaration,-warnings-as-errors)
   push_back_impl(

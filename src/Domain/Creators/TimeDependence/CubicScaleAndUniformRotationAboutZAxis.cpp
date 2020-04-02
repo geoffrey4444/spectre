@@ -1,16 +1,20 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
-
-#include "Domain/Creators/TimeDependence/Composition.hpp"
-#include "Domain/Creators/TimeDependence/CubicScale.hpp"
-#include "Domain/Creators/TimeDependence/UniformRotationAboutZAxis.hpp"
+#include "CubicScaleAndUniformRotationAboutZAxis.hpp"
+#include "Domain/Creators/TimeDependence/Composition.tpp"
 
 namespace domain {
 namespace creators {
 namespace time_dependence {
-  template class Composition<CubicScale<1>, UniformRotationAboutZAxis<1>>;
-  template class Composition<CubicScale<2>, UniformRotationAboutZAxis<2>>;
-  template class Composition<CubicScale<3>, UniformRotationAboutZAxis<3>>;
+template class Composition<
+    TimeDependenceCompositionTag<CubicScale<1>>,
+    TimeDependenceCompositionTag<UniformRotationAboutZAxis<1>>>;
+template class Composition<
+    TimeDependenceCompositionTag<CubicScale<2>>,
+    TimeDependenceCompositionTag<UniformRotationAboutZAxis<2>>>;
+template class Composition<
+    TimeDependenceCompositionTag<CubicScale<3>>,
+    TimeDependenceCompositionTag<UniformRotationAboutZAxis<3>>>;
 }  // namespace time_dependence
 }  // namespace creators
 }  // namespace domain

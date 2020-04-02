@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Domain/Creators/TimeDependence/Composition.hpp"
 #include "Utilities/TMPL.hpp"
 
 /// \cond
@@ -56,7 +57,9 @@ struct TimeDependence {
   using creatable_classes = tmpl::list<
       CubicScale<MeshDim>, None<MeshDim>, UniformRotationAboutZAxis<MeshDim>,
       UniformTranslation<MeshDim>,
-      Composition<CubicScale<MeshDim>, UniformRotationAboutZAxis<MeshDim>>>;
+      Composition<
+          TimeDependenceCompositionTag<CubicScale<MeshDim>>,
+          TimeDependenceCompositionTag<UniformRotationAboutZAxis<MeshDim>>>>;
 
   TimeDependence() = default;
   virtual ~TimeDependence() = 0;
@@ -93,6 +96,7 @@ TimeDependence<MeshDim>::~TimeDependence() = default;
 }  // namespace domain
 
 #include "Domain/Creators/TimeDependence/CubicScale.hpp"
+#include "Domain/Creators/TimeDependence/CubicScaleAndUniformRotationAboutZAxis.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
 #include "Domain/Creators/TimeDependence/UniformRotationAboutZAxis.hpp"
 #include "Domain/Creators/TimeDependence/UniformTranslation.hpp"

@@ -577,7 +577,8 @@ auto make_vector_coordinate_map_base(std::vector<Map> maps,
 }
 
 template <typename NewMap, typename SourceFrame, typename TargetFrame,
-          typename... Maps, size_t... Is>
+          typename... Maps, size_t... Is,
+      Requires<not tt::is_a_v<CoordinateMap, std::decay_t<NewMap>>> = nullptr>
 CoordinateMap<SourceFrame, TargetFrame, Maps..., NewMap> push_back_impl(
     CoordinateMap<SourceFrame, TargetFrame, Maps...>&& old_map, NewMap new_map,
     std::index_sequence<Is...> /*meta*/) noexcept {

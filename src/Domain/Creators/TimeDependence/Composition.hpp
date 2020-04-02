@@ -13,7 +13,6 @@
 
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/Creators/TimeDependence/GenerateCoordinateMap.hpp"
-#include "Domain/Creators/TimeDependence/TimeDependence.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Options/Options.hpp"
 #include "Utilities/PrettyType.hpp"
@@ -22,6 +21,11 @@
 namespace domain {
 namespace creators {
 namespace time_dependence {
+/// \cond
+template <size_t MeshDim>
+struct TimeDependence;
+/// \endcond
+
 /*!
  * \brief A tag used by the `Composition` class to generate a TimeDependence
  * that is a composition of existing `TimeDependences`.
@@ -65,12 +69,14 @@ class Composition final
  private:
   using CoordMap = detail::generate_coordinate_map_t<tmpl::flatten<
       tmpl::list<typename TimeDependenceCompTag0::time_dependence::
-                     MapForComposition::maps_list,
+                     MapForComposition,
                  typename TimeDependenceCompTags::time_dependence::
-                     MapForComposition::maps_list...>>>;
+                     MapForComposition...>>>;
 
  public:
+  static constexpr OptionString help = {"A composition of TimeDependences"};
   static constexpr size_t mesh_dim = TimeDependenceCompTag0::mesh_dim;
+  using maps_list = tmpl::list<CoordMap>;
 
   static_assert(
       tmpl::all<

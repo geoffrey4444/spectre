@@ -21,6 +21,8 @@
 namespace domain {
 namespace creators {
 namespace time_dependence {
+  template <class...>
+  struct td;
 namespace detail {
 template <typename... MapsSoFar>
 auto combine_coord_maps(
@@ -35,7 +37,7 @@ auto combine_coord_maps(
     CoordinateMap<Frame::Grid, Frame::Inertial, NextMaps...> next_map,
     RestMaps... rest_maps) noexcept {
   return combine_coord_maps(
-      domain::push_back(std::move(coord_map_so_far), std::move(next_map)),
+      domain::push_back(std::move(coord_map_so_far), next_map),
       std::move(rest_maps)...);
 }
 
@@ -85,18 +87,36 @@ template <typename TimeDependenceCompTag0, typename... TimeDependenceCompTags>
 Composition<TimeDependenceCompTag0, TimeDependenceCompTags...>::Composition(
     tmpl::type_from<TimeDependenceCompTag0> first_time_dep,
     tmpl::type_from<TimeDependenceCompTags>... rest_time_dep) noexcept
-    : coord_map_(detail::combine_coord_maps(
+    : 
+    /*coord_map_(detail::combine_coord_maps(
           dynamic_cast<typename TimeDependenceCompTag0::time_dependence&>(
               *first_time_dep)
               .map_for_composition(),
           dynamic_cast<typename TimeDependenceCompTags::time_dependence&>(
               *rest_time_dep)
-              .map_for_composition()...)),
+              .map_for_composition()...)),*/
       functions_of_time_(detail::combine_functions_of_time(
           {db::tag_name<TimeDependenceCompTag0>(),
            db::tag_name<TimeDependenceCompTags>()...},
           std::move(first_time_dep->functions_of_time()),
-          std::move(rest_time_dep->functions_of_time())...)) {}
+          std::move(rest_time_dep->functions_of_time())...)) {
+            //coord_map_(
+              auto blah = detail::combine_coord_maps(
+          dynamic_cast<typename TimeDependenceCompTag0::time_dependence&>(
+              *first_time_dep)
+              .map_for_composition(),
+          dynamic_cast<typename TimeDependenceCompTags::time_dependence&>(
+              *rest_time_dep)
+              .map_for_composition()...);
+
+              auto blah2 = domain::push_back(dynamic_cast<typename TimeDependenceCompTag0::time_dependence&>(
+              *first_time_dep)
+              .map_for_composition(),
+          dynamic_cast<typename TimeDependenceCompTags::time_dependence&>(
+              *rest_time_dep)
+              .map_for_composition()...);
+              td<decltype(blah2)> aoeu;
+          }
 
 template <typename TimeDependenceCompTag0, typename... TimeDependenceCompTags>
 Composition<TimeDependenceCompTag0, TimeDependenceCompTags...>::Composition(

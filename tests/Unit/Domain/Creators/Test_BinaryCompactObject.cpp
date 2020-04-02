@@ -14,9 +14,9 @@
 #include "Domain/BlockNeighbor.hpp"               // IWYU pragma: keep
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.tpp"
-#include "Domain/CoordinateMaps/ProductMapsTimeDep.hpp"
-#include "Domain/CoordinateMaps/ProductMapsTimeDep.tpp"
-#include "Domain/CoordinateMaps/Translation.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/TimeDependent/Translation.hpp"
 #include "Domain/Creators/BinaryCompactObject.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
@@ -29,10 +29,9 @@
 #include "Helpers/Domain/DomainTestHelpers.hpp"
 
 namespace {
-using Translation = domain::CoordMapsTimeDependent::Translation;
-using Translation3D =
-    domain::CoordMapsTimeDependent::ProductOf3Maps<Translation, Translation,
-                                                   Translation>;
+using Translation = domain::CoordinateMaps::TimeDependent::Translation;
+using Translation3D = domain::CoordinateMaps::TimeDependent::ProductOf3Maps<
+    Translation, Translation, Translation>;
 
 template <typename... FuncsOfTime>
 void test_binary_compact_object_construction(
