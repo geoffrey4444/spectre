@@ -76,16 +76,19 @@ struct CharacteristicSpeedsCompute : Tags::CharacteristicSpeeds<Dim, Frame>,
                                      db::ComputeTag {
   using base = Tags::CharacteristicSpeeds<Dim, Frame>;
   using type = typename base::type;
+  using return_type = typename Tags::CharacteristicSpeeds<Dim, Frame>::type;
   using argument_tags = tmpl::list<
       Tags::ConstraintGamma1, gr::Tags::Lapse<DataVector>,
       gr::Tags::Shift<Dim, Frame, DataVector>,
       ::Tags::Normalized<domain::Tags::UnnormalizedFaceNormal<Dim, Frame>>>;
 
-  static typename Tags::CharacteristicSpeeds<Dim, Frame>::type function(
+  static void constexpr function(
+      const gsl::not_null<return_type*> char_speeds,
       const Scalar<DataVector>& gamma_1, const Scalar<DataVector>& lapse,
       const tnsr::I<DataVector, Dim, Frame>& shift,
       const tnsr::i<DataVector, Dim, Frame>& unit_normal_one_form) noexcept {
-    return characteristic_speeds(gamma_1, lapse, shift, unit_normal_one_form);
+    characteristic_speeds(char_speeds, gamma_1, lapse, shift,
+                          unit_normal_one_form);
   };
 };
 // @}

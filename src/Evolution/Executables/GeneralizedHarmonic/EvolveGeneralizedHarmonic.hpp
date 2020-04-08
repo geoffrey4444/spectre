@@ -10,12 +10,16 @@
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Tag.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
+#include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
+#include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
+#include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "ErrorHandling/Error.hpp"
 #include "ErrorHandling/FloatingPointExceptions.hpp"
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"
 #include "Evolution/ComputeTags.hpp"
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"
+#include "Evolution/Initialization/DgDomain.hpp"
 #include "Evolution/Initialization/DiscontinuousGalerkin.hpp"
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
@@ -183,7 +187,7 @@ struct EvolutionMetavars {
 
   using initialization_actions = tmpl::list<
       Initialization::Actions::TimeAndTimeStep<EvolutionMetavars>,
-      dg::Actions::InitializeDomain<volume_dim>,
+      evolution::dg::Initialization::Domain<volume_dim>,
       Initialization::Actions::NonconservativeSystem,
       Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
@@ -195,15 +199,17 @@ struct EvolutionMetavars {
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
               gr::Tags::Shift<volume_dim, frame, DataVector>,
-              gr::Tags::Lapse<DataVector>>,
+              gr::Tags::Lapse<DataVector>,
+              domain::Tags::MeshVelocity<3, Frame::Inertial>>,
           dg::Initialization::slice_tags_to_exterior<
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
               gr::Tags::Shift<volume_dim, frame, DataVector>,
-              gr::Tags::Lapse<DataVector>>,
+              gr::Tags::Lapse<DataVector>,
+              domain::Tags::MeshVelocity<3, Frame::Inertial>>,
           dg::Initialization::face_compute_tags<
-              domain::Tags::BoundaryCoordinates<volume_dim>,
+              domain::Tags::BoundaryCoordinates<volume_dim, true>,
               GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
                                                                  frame>,
               GeneralizedHarmonic::Tags::ConstraintGamma1Compute<volume_dim,
@@ -212,8 +218,10 @@ struct EvolutionMetavars {
                                                                  frame>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>,
-              GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
-                                                               frame>>,
+              domain::Tags::CharSpeedCompute<
+                  GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
+                                                                   frame>,
+                  volume_dim>>,
           dg::Initialization::exterior_compute_tags<
               GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
                                                                  frame>,
@@ -223,8 +231,11 @@ struct EvolutionMetavars {
                                                                  frame>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>,
-              GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
-                                                               frame>>>,
+              domain::Tags::CharSpeedCompute<
+                  GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
+                                                                   frame>,
+                  volume_dim>>,
+          true, true>,
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               volume_dim, initial_data_tag, analytic_solution_fields>>>,
@@ -293,6 +304,8 @@ struct EvolutionMetavars {
 static const std::vector<void (*)()> charm_init_node_funcs{
     &setup_error_handling,
     &domain::creators::register_derived_with_charm,
+    &domain::creators::time_dependence::register_derived_with_charm,
+    &domain::FunctionsOfTime::register_derived_with_charm,
     &Parallel::register_derived_classes_with_charm<
         Event<metavariables::events>>,
     &Parallel::register_derived_classes_with_charm<

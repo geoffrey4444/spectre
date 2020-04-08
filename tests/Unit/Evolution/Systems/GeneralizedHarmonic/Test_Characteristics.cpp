@@ -56,14 +56,25 @@
 // IWYU pragma: no_forward_declare Variables
 
 namespace {
+template <size_t Dim, typename Frame>
+std::array<DataVector, 4> char_speeds(
+    const Scalar<DataVector>& gamma_1, const Scalar<DataVector>& lapse,
+    const tnsr::I<DataVector, Dim, Frame>& shift,
+    const tnsr::i<DataVector, Dim, Frame>& normal) noexcept {
+  std::array<DataVector, 4> char_speeds{{{0.0}, {0.0}, {0.0}, {0.0}}};
+  const gsl::not_null<std::array<DataVector, 4>*> char_speeds_pointer =
+      &(char_speeds);
+  GeneralizedHarmonic::CharacteristicSpeedsCompute<Dim, Frame>::function(
+      char_speeds_pointer, gamma_1, lapse, shift, normal);
+  return *(char_speeds_pointer);
+}
+
 template <size_t Index, size_t Dim, typename Frame>
 Scalar<DataVector> speed_with_index(
     const Scalar<DataVector>& gamma_1, const Scalar<DataVector>& lapse,
     const tnsr::I<DataVector, Dim, Frame>& shift,
-    const tnsr::i<DataVector, Dim, Frame>& normal) {
-  return Scalar<DataVector>{
-      GeneralizedHarmonic::CharacteristicSpeedsCompute<Dim, Frame>::function(
-          gamma_1, lapse, shift, normal)[Index]};
+    const tnsr::i<DataVector, Dim, Frame>& normal) noexcept {
+  return Scalar<DataVector>{char_speeds(gamma_1, lapse, shift, normal)[Index]};
 }
 
 template <size_t Dim, typename Frame>
@@ -142,9 +153,7 @@ void test_characteristic_speeds_analytic(
 
   // Check that locally computed fields match returned ones
   const auto char_speeds_from_func =
-      GeneralizedHarmonic::CharacteristicSpeedsCompute<
-          spatial_dim, Frame::Inertial>::function(gamma_1, lapse, shift,
-                                                  unit_normal_one_form);
+      char_speeds(gamma_1, lapse, shift, unit_normal_one_form);
   const auto& upsi_speed_from_func = char_speeds_from_func[0];
   const auto& uzero_speed_from_func = char_speeds_from_func[1];
   const auto& uplus_speed_from_func = char_speeds_from_func[2];
