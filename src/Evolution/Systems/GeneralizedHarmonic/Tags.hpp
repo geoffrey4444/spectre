@@ -192,6 +192,20 @@ template <size_t Dim, typename Frame>
 struct UMinus : db::SimpleTag {
   using type = tnsr::aa<DataVector, Dim, Frame>;
 };
+// Tags for storing char speeds in a Variables, even though they normally
+// are stored together in a std::array<DataVector>
+struct CharSpeedUPsi : db::SimpleTag {
+  using type = Scalar<DataVector>;
+};
+struct CharSpeedUZero : db::SimpleTag {
+  using type = Scalar<DataVector>;
+};
+struct CharSpeedUPlus : db::SimpleTag {
+  using type = Scalar<DataVector>;
+};
+struct CharSpeedUMinus : db::SimpleTag {
+  using type = Scalar<DataVector>;
+};
 // @}
 
 template <size_t Dim, typename Frame>
