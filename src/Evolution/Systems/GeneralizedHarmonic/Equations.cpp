@@ -4,6 +4,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 
 #include <array>
+#include <boost/optional.hpp>
 
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataVector.hpp"
@@ -132,7 +133,9 @@ void ComputeDuDt<Dim>::apply(
     const tnsr::abb<DataVector, Dim>& christoffel_first_kind,
     const tnsr::Abb<DataVector, Dim>& christoffel_second_kind,
     const tnsr::A<DataVector, Dim>& normal_spacetime_vector,
-    const tnsr::a<DataVector, Dim>& normal_spacetime_one_form) {
+    const tnsr::a<DataVector, Dim>& normal_spacetime_one_form,
+    const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        mesh_velocity) {
   const size_t n_pts = shift.begin()->size();
 
   const DataVector gamma12 = gamma1.get() * gamma2.get();
@@ -345,6 +348,33 @@ void ComputeDuDt<Dim>::apply(
       }
     }
   }
+
+  // If grid velocity is defined, add v^i \partial_i u to du/dt
+  if (mesh_velocity) {
+    for (size_t mu = 0; mu < Dim + 1; ++mu) {
+      for (size_t nu = mu; nu < Dim + 1; ++nu) {
+        for (size_t j = 0; j < Dim; ++j) {
+          dt_spacetime_metric->get(mu, nu) +=
+              static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                  *mesh_velocity)
+                  .get(j) *
+              d_spacetime_metric.get(j, mu, nu);
+          dt_pi->get(mu, nu) +=
+              static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                  *mesh_velocity)
+                  .get(j) *
+              d_pi.get(j, mu, nu);
+          for (size_t i = 0; i < Dim; ++i) {
+            dt_phi->get(i, mu, nu) +=
+                static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                    *mesh_velocity)
+                    .get(j) *
+                d_phi.get(j, i, mu, nu);
+          }
+        }
+      }
+    }
+  }
 }
 
 template <size_t Dim>
@@ -358,7 +388,9 @@ void ComputeNormalDotFluxes<Dim>::apply(
     const Scalar<DataVector>& gamma1, const Scalar<DataVector>& gamma2,
     const Scalar<DataVector>& lapse, const tnsr::I<DataVector, Dim>& shift,
     const tnsr::II<DataVector, Dim>& inverse_spatial_metric,
-    const tnsr::i<DataVector, Dim>& unit_normal) noexcept {
+    const tnsr::i<DataVector, Dim>& unit_normal,
+    const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        mesh_velocity) noexcept {
   const auto shift_dot_normal = get(dot_product(shift, unit_normal));
 
   auto normal_dot_phi = make_with_value<tnsr::aa<DataVector, Dim>>(gamma1, 0.);
@@ -401,6 +433,33 @@ void ComputeNormalDotFluxes<Dim>::apply(
       }
     }
   }
+
+  // If mesh velocity is defined, then subtract v^i n_i u from u_normal_dot_flux
+  if (mesh_velocity) {
+    for (size_t mu = 0; mu < Dim + 1; ++mu) {
+      for (size_t nu = mu; nu < Dim + 1; ++nu) {
+        for (size_t j = 0; j < Dim; ++j) {
+          spacetime_metric_normal_dot_flux->get(mu, nu) +=
+              static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                  *mesh_velocity)
+                  .get(j) *
+              unit_normal.get(j) * spacetime_metric.get(mu, nu);
+          pi_normal_dot_flux->get(mu, nu) +=
+              static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                  *mesh_velocity)
+                  .get(j) *
+              unit_normal.get(j) * pi.get(mu, nu);
+          for (size_t i = 0; i < Dim; ++i) {
+            phi_normal_dot_flux->get(i, mu, nu) +=
+                static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                    *mesh_velocity)
+                    .get(j) *
+                unit_normal.get(j) * phi.get(i, mu, nu);
+          }
+        }
+      }
+    }
+  }
 }
 
 template <size_t Dim>
@@ -413,8 +472,9 @@ void UpwindFlux<Dim>::package_data(
     const tnsr::I<DataVector, Dim, Frame::Inertial>& shift,
     const tnsr::II<DataVector, Dim, Frame::Inertial>& inverse_spatial_metric,
     const Scalar<DataVector>& gamma1, const Scalar<DataVector>& gamma2,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
-    const noexcept {
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal,
+    const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        mesh_velocity) const noexcept {
   get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>(
       *packaged_data) = spacetime_metric;
   get<Tags::Pi<Dim, Frame::Inertial>>(*packaged_data) = pi;
@@ -429,6 +489,8 @@ void UpwindFlux<Dim>::package_data(
   get<::Tags::Normalized<
       domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>(
       *packaged_data) = interface_unit_normal;
+  get<domain::Tags::MeshVelocity<3, Frame::Inertial>>(*packaged_data) =
+      mesh_velocity;
 }
 
 template <size_t Dim>
@@ -448,6 +510,8 @@ void UpwindFlux<Dim>::operator()(
         inverse_spatial_metric_int,
     const Scalar<DataVector>& gamma1_int, const Scalar<DataVector>& gamma2_int,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_int,
+    const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        mesh_velocity_int,
     const tnsr::aa<DataVector, Dim, Frame::Inertial>& spacetime_metric_ext,
     const tnsr::aa<DataVector, Dim, Frame::Inertial>& pi_ext,
     const tnsr::iaa<DataVector, Dim, Frame::Inertial>& phi_ext,
@@ -457,8 +521,9 @@ void UpwindFlux<Dim>::operator()(
         inverse_spatial_metric_ext,
     const Scalar<DataVector>& gamma1_ext, const Scalar<DataVector>& gamma2_ext,
     const tnsr::i<DataVector, Dim,
-                  Frame::Inertial>& /*interface_unit_normal_ext*/) const
-    noexcept {
+                  Frame::Inertial>& /*interface_unit_normal_ext*/,
+    const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+    /*mesh_velocity_ext*/) const noexcept {
   const Scalar<DataVector> gamma1_avg{0.5 *
                                       (get(gamma1_int) + get(gamma1_ext))};
   const Scalar<DataVector> gamma2_avg{0.5 *
@@ -474,6 +539,24 @@ void UpwindFlux<Dim>::operator()(
       phi_ext, interface_unit_normal_int);
   const auto char_speeds_ext = characteristic_speeds(
       gamma1_avg, lapse_ext, shift_ext, interface_unit_normal_int);
+
+  // If mesh velocity is defined, subtract v^i n_i from char speeds
+  if (mesh_velocity_int) {
+    for (size_t i = 0; i < Dim; ++i) {
+      for (size_t a = 0; a < 4; ++a) {
+        gsl::at(char_speeds_int, a) -=
+            static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                *mesh_velocity_int)
+                .get(i) *
+            interface_unit_normal_int.get(i);
+        gsl::at(char_speeds_ext, a) -=
+            static_cast<tnsr::I<DataVector, Dim, Frame::Inertial>>(
+                *mesh_velocity_int)
+                .get(i) *
+            interface_unit_normal_int.get(i);
+      }
+    }
+  }
 
   const auto weighted_char_fields =
       GeneralizedHarmonic_detail::weight_char_fields<Dim>(

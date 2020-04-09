@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <array>
+#include <boost/optional.hpp>
 #include <cstddef>
 #include <random>
 
@@ -82,12 +83,15 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.DuDt",
   const auto normal_vector = create_tensor_with_random_values<
       tnsr::A<DataVector, dim, Frame::Inertial>>(n_pts, make_not_null(&gen));
 
+  const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      mesh_velocity{};
+
   GeneralizedHarmonic::ComputeDuDt<dim>::apply(
       make_not_null(&dt_psi), make_not_null(&dt_pi), make_not_null(&dt_phi),
       psi, pi, phi, d_psi, d_pi, d_phi, gamma0, gamma1, gamma2, gauge_function,
       spacetime_deriv_gauge_function, lapse, shift, upper_spatial_metric,
       upper_psi, trace_christoffel_first_kind, christoffel_first_kind,
-      christoffel_second_kind, normal_vector, normal_one_form);
+      christoffel_second_kind, normal_vector, normal_one_form, mesh_velocity);
 
   CHECK(dt_psi.get(0, 0)[0] == approx(-488.874963261792004));
   CHECK(dt_psi.get(0, 0)[1] == approx(-81.510619345029468));

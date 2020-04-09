@@ -6,12 +6,14 @@
 
 #pragma once
 
+#include <boost/optional.hpp>
 #include <cstddef>
 
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"  // IWYU pragma: keep
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/FaceNormal.hpp"
+#include "Domain/TagsTimeDependent.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"  // IWYU pragma: keep
 #include "Options/Options.hpp"
@@ -76,7 +78,8 @@ struct ComputeDuDt {
       gr::Tags::SpacetimeChristoffelFirstKind<Dim>,
       gr::Tags::SpacetimeChristoffelSecondKind<Dim>,
       gr::Tags::SpacetimeNormalVector<Dim>,
-      gr::Tags::SpacetimeNormalOneForm<Dim>>;
+      gr::Tags::SpacetimeNormalOneForm<Dim>,
+      domain::Tags::MeshVelocity<3, Frame::Inertial>>;
 
   static void apply(
       gsl::not_null<tnsr::aa<DataVector, Dim>*> dt_spacetime_metric,
@@ -99,7 +102,9 @@ struct ComputeDuDt {
       const tnsr::abb<DataVector, Dim>& christoffel_first_kind,
       const tnsr::Abb<DataVector, Dim>& christoffel_second_kind,
       const tnsr::A<DataVector, Dim>& normal_spacetime_vector,
-      const tnsr::a<DataVector, Dim>& normal_spacetime_one_form);
+      const tnsr::a<DataVector, Dim>& normal_spacetime_one_form,
+      const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          mesh_velocity);
 };
 
 /*!
@@ -135,7 +140,8 @@ struct ComputeNormalDotFluxes {
       Tags::ConstraintGamma1, Tags::ConstraintGamma2, gr::Tags::Lapse<>,
       gr::Tags::Shift<Dim>, gr::Tags::InverseSpatialMetric<Dim>,
       ::Tags::Normalized<
-          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>,
+      domain::Tags::MeshVelocity<3, Frame::Inertial>>;
 
   static void apply(
       gsl::not_null<tnsr::aa<DataVector, Dim>*>
@@ -148,7 +154,9 @@ struct ComputeNormalDotFluxes {
       const Scalar<DataVector>& gamma2, const Scalar<DataVector>& lapse,
       const tnsr::I<DataVector, Dim>& shift,
       const tnsr::II<DataVector, Dim>& inverse_spatial_metric,
-      const tnsr::i<DataVector, Dim>& unit_normal) noexcept;
+      const tnsr::i<DataVector, Dim>& unit_normal,
+      const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          mesh_velocity) noexcept;
 };
 
 /*!
@@ -229,7 +237,8 @@ struct UpwindFlux {
       gr::Tags::InverseSpatialMetric<Dim, Frame::Inertial, DataVector>,
       Tags::ConstraintGamma1, Tags::ConstraintGamma2,
       ::Tags::Normalized<
-          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>,
+      domain::Tags::MeshVelocity<3, Frame::Inertial>>;
 
   // These tags on the interface of the element are passed to
   // `package_data` to provide the data needed to compute the numerical fluxes.
@@ -241,7 +250,8 @@ struct UpwindFlux {
       gr::Tags::InverseSpatialMetric<Dim, Frame::Inertial, DataVector>,
       Tags::ConstraintGamma1, Tags::ConstraintGamma2,
       ::Tags::Normalized<
-          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>,
+      domain::Tags::MeshVelocity<3, Frame::Inertial>>;
 
   // pseudo-interface: used internally by Algorithm infrastructure, not
   // user-level code
@@ -256,8 +266,9 @@ struct UpwindFlux {
       const tnsr::I<DataVector, Dim, Frame::Inertial>& shift,
       const tnsr::II<DataVector, Dim, Frame::Inertial>& inverse_spatial_metric,
       const Scalar<DataVector>& gamma1, const Scalar<DataVector>& gamma2,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
-      const noexcept;
+      const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal,
+      const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          mesh_velocity) const noexcept;
 
   // pseudo-interface: used internally by Algorithm infrastructure, not
   // user-level code
@@ -283,6 +294,8 @@ struct UpwindFlux {
       const Scalar<DataVector>& gamma2_int,
       const tnsr::i<DataVector, Dim, Frame::Inertial>&
           interface_unit_normal_int,
+      const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          mesh_velocity_int,
       const tnsr::aa<DataVector, Dim, Frame::Inertial>& spacetime_metric_ext,
       const tnsr::aa<DataVector, Dim, Frame::Inertial>& pi_ext,
       const tnsr::iaa<DataVector, Dim, Frame::Inertial>& phi_ext,
@@ -293,6 +306,8 @@ struct UpwindFlux {
       const Scalar<DataVector>& gamma1_ext,
       const Scalar<DataVector>& gamma2_ext,
       const tnsr::i<DataVector, Dim, Frame::Inertial>&
-          interface_unit_normal_ext) const noexcept;
+          interface_unit_normal_ext,
+      const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          mesh_velocity_ext) const noexcept;
 };
 }  // namespace GeneralizedHarmonic

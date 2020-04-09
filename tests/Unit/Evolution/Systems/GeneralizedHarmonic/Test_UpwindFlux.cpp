@@ -190,21 +190,24 @@ void test_upwind_flux_random() noexcept {
   CHECK(weighted_char_fields_five == 5.0 * char_fields_int);
 
   INFO("test consistency of the generalized-harmonic upwind flux")
+  const boost::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      mesh_velocity_int{};
+
   auto packaged_data_int = make_with_value<Variables<
       typename GeneralizedHarmonic::UpwindFlux<spatial_dim>::package_tags>>(
       used_for_size, std::numeric_limits<double>::signaling_NaN());
-  flux_computer.package_data(make_not_null(&packaged_data_int),
-                             spacetime_metric_int, pi_int, phi_int, lapse_int,
-                             shift_int, inverse_spatial_metric_int, gamma_1,
-                             gamma_2, unit_normal_one_form_int);
+  flux_computer.package_data(
+      make_not_null(&packaged_data_int), spacetime_metric_int, pi_int, phi_int,
+      lapse_int, shift_int, inverse_spatial_metric_int, gamma_1, gamma_2,
+      unit_normal_one_form_int, mesh_velocity_int);
 
   auto packaged_data_int_opposite_normal = make_with_value<Variables<
       typename GeneralizedHarmonic::UpwindFlux<spatial_dim>::package_tags>>(
       used_for_size, std::numeric_limits<double>::signaling_NaN());
-  flux_computer.package_data(make_not_null(&packaged_data_int_opposite_normal),
-                             spacetime_metric_int, pi_int, phi_int, lapse_int,
-                             shift_int, inverse_spatial_metric_int, gamma_1,
-                             gamma_2, minus_unit_normal_one_form_int);
+  flux_computer.package_data(
+      make_not_null(&packaged_data_int_opposite_normal), spacetime_metric_int,
+      pi_int, phi_int, lapse_int, shift_int, inverse_spatial_metric_int,
+      gamma_1, gamma_2, minus_unit_normal_one_form_int, mesh_velocity_int);
 
   // Check that if the same fields are given for the interior and exterior
   // (except that the normal vector gets multiplied by -1.0) that the
@@ -244,7 +247,7 @@ void test_upwind_flux_random() noexcept {
       make_not_null(&psi_normal_dot_flux), make_not_null(&pi_normal_dot_flux),
       make_not_null(&phi_normal_dot_flux), spacetime_metric_int, pi_int,
       phi_int, gamma_1, gamma_2, lapse_int, shift_int,
-      inverse_spatial_metric_int, unit_normal_one_form_int);
+      inverse_spatial_metric_int, unit_normal_one_form_int, mesh_velocity_int);
 
   CHECK_ITERABLE_APPROX(psi_normal_dot_numerical_flux, psi_normal_dot_flux);
   CHECK_ITERABLE_APPROX(pi_normal_dot_numerical_flux, pi_normal_dot_flux);
