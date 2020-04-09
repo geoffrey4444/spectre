@@ -4,6 +4,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 
 #include <array>
+#include <limits>
 
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataVector.hpp"
@@ -108,6 +109,23 @@ weight_char_fields(
           char_speed_u_minus_ext);
 
   return weighted_char_fields;
+}
+
+// Characteristic field weighting for upwind multipenalty numerical flux
+// Weights a characteristic field by its characteristic speed (if negative),
+// otherwise weights by zero.
+template <typename FieldTag>
+db::const_item_type<FieldTag> weight_char_field_upwind_multipenalty(
+    const db::const_item_type<FieldTag>& char_field,
+    const Scalar<DataVector>& char_speed) noexcept {
+  db::const_item_type<FieldTag> weighted_char_field = char_field;
+  auto weighted_char_field_it = weighted_char_field.begin();
+  for (auto it = char_field.begin(); it != char_field.end();
+       ++it, ++weighted_char_field_it) {
+    *weighted_char_field_it *=
+        get(char_speed) * step_function(-get(char_speed));
+  }
+  return weighted_char_field;
 }
 }  // namespace GeneralizedHarmonic_detail
 
@@ -505,6 +523,142 @@ void UpwindFlux<Dim>::operator()(
   *phi_normal_dot_numerical_flux =
       get<Tags::Phi<Dim, Frame::Inertial>>(weighted_evolved_fields);
 }
+
+template <size_t Dim>
+void UpwindMultipenaltyFlux<Dim>::package_data(
+    const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+        packaged_u_psi,
+    const gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>&
+        packaged_u_zero,
+    const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+        packaged_u_plus,
+    const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+        packaged_u_minus,
+    const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_psi,
+    const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_zero,
+    const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_plus,
+    const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_minus,
+    const gsl::not_null<Scalar<DataVector>*>& packaged_gamma2,
+    const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>&
+        packaged_interface_unit_normal,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus,
+    const std::array<DataVector, 4>& char_speeds,
+    const Scalar<DataVector>& gamma2,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
+    const noexcept {
+  // Char speeds are usually stored in a std::array<DataVector>, but here they
+  // must be stored in a Variables, each as an individual Scalar<DataVector>
+  Scalar<DataVector> char_speed_u_zero{char_speeds[0]};
+  Scalar<DataVector> char_speed_u_psi{char_speeds[1]};
+  Scalar<DataVector> char_speed_u_plus{char_speeds[2]};
+  Scalar<DataVector> char_speed_u_minus{char_speeds[3]};
+
+  *packaged_u_psi = u_psi;
+  *packaged_u_zero = u_zero;
+  *packaged_u_plus = u_plus;
+  *packaged_u_minus = u_minus;
+  *packaged_char_speed_u_psi = char_speed_u_psi;
+  *packaged_char_speed_u_zero = char_speed_u_zero;
+  *packaged_char_speed_u_plus = char_speed_u_plus;
+  *packaged_char_speed_u_minus = char_speed_u_minus;
+  *packaged_gamma2 = gamma2;
+  *packaged_interface_unit_normal = interface_unit_normal;
+}
+
+template <size_t Dim>
+void UpwindMultipenaltyFlux<Dim>::operator()(
+    gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+        spacetime_metric_normal_dot_numerical_flux,
+    gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+        pi_normal_dot_numerical_flux,
+    gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>
+        phi_normal_dot_numerical_flux,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi_int,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero_int,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus_int,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus_int,
+    const Scalar<DataVector>& char_speed_u_psi_int,
+    const Scalar<DataVector>& char_speed_u_zero_int,
+    const Scalar<DataVector>& char_speed_u_plus_int,
+    const Scalar<DataVector>& char_speed_u_minus_int,
+    const Scalar<DataVector>& gamma2_int,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_int,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi_ext,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero_ext,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus_ext,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus_ext,
+    const Scalar<DataVector>& char_speed_u_psi_ext,
+    const Scalar<DataVector>& char_speed_u_zero_ext,
+    const Scalar<DataVector>& char_speed_u_plus_ext,
+    const Scalar<DataVector>& char_speed_u_minus_ext,
+    const Scalar<DataVector>& gamma2_ext,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal_ext)
+    const noexcept {
+  const auto weighted_evolved_fields_int =
+      evolved_fields_from_characteristic_fields(
+          gamma2_int,
+          GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+              Tags::UPsi<Dim, Frame::Inertial>>(u_psi_int,
+                                                char_speed_u_psi_int),
+          GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+              Tags::UZero<Dim, Frame::Inertial>>(u_zero_int,
+                                                 char_speed_u_zero_int),
+          GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+              Tags::UPlus<Dim, Frame::Inertial>>(u_plus_int,
+                                                 char_speed_u_plus_int),
+          GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+              Tags::UMinus<Dim, Frame::Inertial>>(u_minus_int,
+                                                  char_speed_u_minus_int),
+          interface_unit_normal_int);
+
+  // In the exterior, the normal points in the opposite direction, but
+  // the formula we are implementing assumes they point in the same direction.
+  // Accounting for this amounts to i) swapping the characteristic
+  // fields \f$v^+ \leftrightarrow v^-\f$ while also swapping their
+  // characteristic speeds, and then ii) switching the sign of the
+  // characteristic speeds, and then iii) flipping the sign of the
+  // exterior normal vector used to go from characteristic to evolved variables.
+  Scalar<DataVector> minus_char_speed_u_psi_ext = char_speed_u_psi_ext;
+  Scalar<DataVector> minus_char_speed_u_zero_ext = char_speed_u_zero_ext;
+  Scalar<DataVector> minus_char_speed_u_plus_ext = char_speed_u_plus_ext;
+  Scalar<DataVector> minus_char_speed_u_minus_ext = char_speed_u_minus_ext;
+  get(minus_char_speed_u_psi_ext) *= -1.0;
+  get(minus_char_speed_u_zero_ext) *= -1.0;
+  get(minus_char_speed_u_plus_ext) *= -1.0;
+  get(minus_char_speed_u_minus_ext) *= -1.0;
+
+  tnsr::i<DataVector, Dim, Frame::Inertial> minus_interface_unit_normal_ext =
+      interface_unit_normal_ext;
+  for (size_t i = 0; i < Dim; ++i) {
+    minus_interface_unit_normal_ext.get(i) *= -1.0;
+  }
+  auto numerical_flux = evolved_fields_from_characteristic_fields(
+      gamma2_ext,
+      GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+          Tags::UPsi<Dim, Frame::Inertial>>(u_psi_ext,
+                                            minus_char_speed_u_psi_ext),
+      GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+          Tags::UZero<Dim, Frame::Inertial>>(u_zero_ext,
+                                             minus_char_speed_u_zero_ext),
+      GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+          Tags::UMinus<Dim, Frame::Inertial>>(u_minus_ext,
+                                              minus_char_speed_u_minus_ext),
+      GeneralizedHarmonic_detail::weight_char_field_upwind_multipenalty<
+          Tags::UPlus<Dim, Frame::Inertial>>(u_plus_ext,
+                                             minus_char_speed_u_plus_ext),
+      minus_interface_unit_normal_ext);
+  numerical_flux -= weighted_evolved_fields_int;
+
+  *spacetime_metric_normal_dot_numerical_flux =
+      get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial>>(numerical_flux);
+  *pi_normal_dot_numerical_flux =
+      get<Tags::Pi<Dim, Frame::Inertial>>(numerical_flux);
+  *phi_normal_dot_numerical_flux =
+      get<Tags::Phi<Dim, Frame::Inertial>>(numerical_flux);
+}
 /// \endcond
 }  // namespace GeneralizedHarmonic
 
@@ -538,6 +692,7 @@ using variables_tags =
   template struct GeneralizedHarmonic::ComputeDuDt<DIM(data)>;               \
   template struct GeneralizedHarmonic::ComputeNormalDotFluxes<DIM(data)>;    \
   template struct GeneralizedHarmonic::UpwindFlux<DIM(data)>;                \
+  template struct GeneralizedHarmonic::UpwindMultipenaltyFlux<DIM(data)>;    \
   template Variables<                                                        \
       db::wrap_tags_in<::Tags::deriv, derivative_tags<DIM(data)>,            \
                        tmpl::size_t<DIM(data)>, derivative_frame>>           \

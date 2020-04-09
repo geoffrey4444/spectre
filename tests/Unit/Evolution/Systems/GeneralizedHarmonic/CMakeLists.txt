@@ -12,6 +12,7 @@ set(LIBRARY_SOURCES
   Test_Fluxes.cpp
   Test_Tags.cpp
   Test_UpwindFlux.cpp
+  Test_UpwindMultipenaltyFlux.cpp
   )
 
 add_test_library(

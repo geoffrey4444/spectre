@@ -291,4 +291,128 @@ struct UpwindFlux : tt::ConformsTo<dg::protocols::NumericalFlux> {
       const tnsr::i<DataVector, Dim, Frame::Inertial>&
           interface_unit_normal_ext) const noexcept;
 };
+
+/*!
+ * \ingroup NumericalFluxesGroup
+ * \brief Computes the generalized-harmonic upwind multipenalty flux
+ *
+ * The upwind multipenalty flux is
+ * \f{eqnarray}{
+ * D = S^{\rm ext} \Lambda^{\rm neg,ext} v^{\rm ext}
+ *   - S^{\rm int} \Lambda^{\rm neg,int} v^{\rm int},
+ * \f}
+ * where \f$v\f$ is a vector of the characteristic variables, \f$S\f$
+ * maps the characteristic variables into the evolved variables,
+ * and \f$\Lambda^{\rm neg}\f$ is a diagonal matrix whose diagonal entries are
+ * either the characteristic speed for the corresponding characteristic variable
+ * (if that speed is negative) or zero. Quantities with a superscript ``int''
+ * are computed using quantites from the element interior, while quantities
+ * with a superscript ``ext'' are computed using quantities from the exterior,
+ * neighboring element.
+ *
+ * Note, however, that the above equation assumes that the unit normals
+ * for the interior and exterior point in the same direction. In spectre,
+ * the normals on either side of the interface point in opposite directions.
+ * Therefore, when computing the exterior term, one needs to first flip
+ * the sign of the normal. This is equivalent to i) swapping the characteristic
+ * fields \f$v^+ \leftrightarrow v^-\f$ while also swapping their
+ * characteristic speeds, and then ii) switching the sign of the characteristic
+ * speeds, and then iii) switch the sign of the unit normal when evaluating
+ * \f$S^{\rm ext}\f$.
+ */
+template <size_t Dim>
+struct UpwindMultipenaltyFlux : tt::ConformsTo<dg::protocols::NumericalFlux> {
+ public:
+  using options = tmpl::list<>;
+  static constexpr OptionString help = {
+      "Computes the generalized harmonic upwind multipenalty flux."};
+
+  // clang-tidy: non-const reference
+  void pup(PUP::er& /*p*/) noexcept {}  // NOLINT
+
+  using variables_tags =
+      tmpl::list<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>,
+                 Tags::Pi<Dim>, Tags::Phi<Dim>>;
+
+  // This is the data needed to compute the numerical flux.
+  // `dg::SendBoundaryFluxes` calls `package_data` to store these tags in a
+  // Variables. Local and remote values of this data are then combined in the
+  // `()` operator.
+  using package_field_tags = tmpl::list<
+      Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
+      Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
+      Tags::CharSpeedUPsi, Tags::CharSpeedUZero, Tags::CharSpeedUPlus,
+      Tags::CharSpeedUMinus, Tags::ConstraintGamma2,
+      ::Tags::Normalized<
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+  using package_extra_tags = tmpl::list<>;
+
+  // These tags on the interface of the element are passed to
+  // `package_data` to provide the data needed to compute the numerical fluxes.
+  using argument_tags = tmpl::list<
+      Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
+      Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
+      Tags::CharacteristicSpeeds<Dim, Frame::Inertial>, Tags::ConstraintGamma2,
+      ::Tags::Normalized<
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+  void package_data(
+      const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+          packaged_u_psi,
+      const gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>&
+          packaged_u_zero,
+      const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+          packaged_u_plus,
+      const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>&
+          packaged_u_minus,
+      const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_psi,
+      const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_zero,
+      const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_plus,
+      const gsl::not_null<Scalar<DataVector>*>& packaged_char_speed_u_minus,
+      const gsl::not_null<Scalar<DataVector>*>& packaged_gamma2,
+      const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>&
+          packaged_interface_unit_normal,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi,
+      const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus,
+      const std::array<DataVector, 4>& char_speeds,
+      const Scalar<DataVector>& gamma2,
+      const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
+      const noexcept;
+
+  // pseudo-interface: used internally by Algorithm infrastructure, not
+  // user-level code
+  // The arguments are first the system::variables_tag::tags_list wrapped in
+  // Tags::NormalDotNumericalFlux as not-null pointers to write the results
+  // into, then the package_tags on the interior side of the mortar followed by
+  // the package_tags on the exterior side.
+  void operator()(gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+                      spacetime_metric_normal_dot_numerical_flux,
+                  gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+                      pi_normal_dot_numerical_flux,
+                  gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>
+                      phi_normal_dot_numerical_flux,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi_int,
+                  const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero_int,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus_int,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus_int,
+                  const Scalar<DataVector>& char_speed_u_psi_int,
+                  const Scalar<DataVector>& char_speed_u_zero_int,
+                  const Scalar<DataVector>& char_speed_u_plus_int,
+                  const Scalar<DataVector>& char_speed_u_minus_int,
+                  const Scalar<DataVector>& gamma2_int,
+                  const tnsr::i<DataVector, Dim, Frame::Inertial>&
+                      interface_unit_normal_int,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi_ext,
+                  const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero_ext,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus_ext,
+                  const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus_ext,
+                  const Scalar<DataVector>& char_speed_u_psi_ext,
+                  const Scalar<DataVector>& char_speed_u_zero_ext,
+                  const Scalar<DataVector>& char_speed_u_plus_ext,
+                  const Scalar<DataVector>& char_speed_u_minus_ext,
+                  const Scalar<DataVector>& gamma2_ext,
+                  const tnsr::i<DataVector, Dim, Frame::Inertial>&
+                      interface_unit_normal_ext) const noexcept;
+};
 }  // namespace GeneralizedHarmonic
