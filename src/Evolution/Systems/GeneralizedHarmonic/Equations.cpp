@@ -422,6 +422,24 @@ void ComputeNormalDotFluxes<Dim>::apply(
 }
 
 template <size_t Dim>
+void ZeroNormalDotFluxes<Dim>::apply(
+    const gsl::not_null<tnsr::aa<DataVector, Dim>*>
+        spacetime_metric_normal_dot_flux,
+    const gsl::not_null<tnsr::aa<DataVector, Dim>*> pi_normal_dot_flux,
+    const gsl::not_null<tnsr::iaa<DataVector, Dim>*>
+        phi_normal_dot_flux) noexcept {
+  for (size_t mu = 0; mu < Dim + 1; ++mu) {
+    for (size_t nu = mu; nu < Dim + 1; ++nu) {
+      spacetime_metric_normal_dot_flux->get(mu, nu) = 0.0;
+      pi_normal_dot_flux->get(mu, nu) = 0.0;
+      for (size_t i = 0; i < Dim; ++i) {
+        phi_normal_dot_flux->get(i, mu, nu) = 0.0;
+      }
+    }
+  }
+}
+
+template <size_t Dim>
 void UpwindFlux<Dim>::package_data(
     const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
         packaged_spacetime_metric,
@@ -691,6 +709,7 @@ using variables_tags =
 #define INSTANTIATE(_, data)                                                 \
   template struct GeneralizedHarmonic::ComputeDuDt<DIM(data)>;               \
   template struct GeneralizedHarmonic::ComputeNormalDotFluxes<DIM(data)>;    \
+  template struct GeneralizedHarmonic::ZeroNormalDotFluxes<DIM(data)>;       \
   template struct GeneralizedHarmonic::UpwindFlux<DIM(data)>;                \
   template struct GeneralizedHarmonic::UpwindMultipenaltyFlux<DIM(data)>;    \
   template Variables<                                                        \

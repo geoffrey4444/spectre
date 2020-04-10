@@ -154,6 +154,29 @@ struct ComputeNormalDotFluxes {
 };
 
 /*!
+ * \brief Returns zero for the fluxes of the Generalized Harmonic formulation of
+ * Einstein's equations.
+ *
+ * \details Spectre currently assumes that the numerical flux for
+ * nonconserative systems does not include some terms that must instead be
+ * computed separately omits some flux terms that are instead
+ * provided by the struct specified by `normal_dot_fluxes` in the `System`.
+ * For GH numerical fluxes that do include all terms, such as
+ * `UpwindMultipenaltyFlux`, set `normal_dot_fluxes = ZeroNormalDotFluxes<Dim>`.
+ */
+template <size_t Dim>
+struct ZeroNormalDotFluxes {
+ public:
+  using argument_tags = tmpl::list<>;
+
+  static void apply(
+      gsl::not_null<tnsr::aa<DataVector, Dim>*>
+          spacetime_metric_normal_dot_flux,
+      gsl::not_null<tnsr::aa<DataVector, Dim>*> pi_normal_dot_flux,
+      gsl::not_null<tnsr::iaa<DataVector, Dim>*> phi_normal_dot_flux) noexcept;
+};
+
+/*!
  * \ingroup NumericalFluxesGroup
  * \brief Computes the generalized-harmonic upwind flux
  *
