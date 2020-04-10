@@ -63,6 +63,7 @@ void characteristic_speeds(
     const tnsr::i<DataVector, Dim, Frame::Inertial>&
         unit_normal_one_form) noexcept;
 
+namespace Tags {
 template <size_t Dim>
 struct CharacteristicSpeedsCompute : Tags::CharacteristicSpeeds<Dim>,
                                      db::ComputeTag {
@@ -77,6 +78,7 @@ struct CharacteristicSpeedsCompute : Tags::CharacteristicSpeeds<Dim>,
     characteristic_speeds(char_speeds, unit_normal_one_form);
   }
 };
+}  // namespace Tags
 // @}
 
 // @{
@@ -147,6 +149,7 @@ void characteristic_fields(
     const tnsr::i<DataVector, Dim, Frame::Inertial>&
         unit_normal_one_form) noexcept;
 
+namespace Tags {
 template <size_t Dim>
 struct CharacteristicFieldsCompute : Tags::CharacteristicFields<Dim>,
                                      db::ComputeTag {
@@ -167,6 +170,7 @@ struct CharacteristicFieldsCompute : Tags::CharacteristicFields<Dim>,
                           unit_normal_one_form);
   };
 };
+}  // namespace Tags
 // @}
 
 // @{
@@ -195,6 +199,7 @@ void evolved_fields_from_characteristic_fields(
     const tnsr::i<DataVector, Dim, Frame::Inertial>&
         unit_normal_one_form) noexcept;
 
+namespace Tags {
 template <size_t Dim>
 struct EvolvedFieldsFromCharacteristicFieldsCompute
     : Tags::EvolvedFieldsFromCharacteristicFields<Dim>,
@@ -219,5 +224,6 @@ struct EvolvedFieldsFromCharacteristicFieldsCompute
                                               unit_normal_one_form);
   };
 };
+}  // namespace Tags
 // @}
 }  // namespace ScalarWave
