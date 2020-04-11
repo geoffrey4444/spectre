@@ -154,6 +154,42 @@ struct ComputeNormalDotFluxes {
 };
 
 /*!
+ * \brief Compute the fluxes of the Generalized Harmonic formulation of
+ * Einstein's equations directly from the characteristic fields and speeds.
+ *
+ * \details
+ * The fluxes for each variable are obtained by computing \f$S \Lambda v\f$,
+ * where \f$S\f$ is the matrix transforming from characteristic to physical
+ * variables, \f$\Lambda\f$ is a diagonal matrix whose entries are the
+ * characteristic speeds corresponding to each characteristic field, and
+ * \f$v\f$ are the characteristic fields.
+ */
+template <size_t Dim>
+struct ComputeNormalDotFluxesFromCharFields {
+ public:
+  using argument_tags = tmpl::list<
+      Tags::UPsi<Dim, Frame::Inertial>, Tags::UZero<Dim, Frame::Inertial>,
+      Tags::UPlus<Dim, Frame::Inertial>, Tags::UMinus<Dim, Frame::Inertial>,
+      Tags::CharacteristicSpeeds<Dim, Frame::Inertial>, Tags::ConstraintGamma2,
+      ::Tags::Normalized<
+          domain::Tags::UnnormalizedFaceNormal<Dim, Frame::Inertial>>>;
+
+  static void apply(
+      gsl::not_null<tnsr::aa<DataVector, Dim>*>
+          spacetime_metric_normal_dot_flux,
+      gsl::not_null<tnsr::aa<DataVector, Dim>*> pi_normal_dot_flux,
+      gsl::not_null<tnsr::iaa<DataVector, Dim>*> phi_normal_dot_flux,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi,
+      const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus,
+      const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus,
+      const std::array<DataVector, 4>& char_speeds,
+      const Scalar<DataVector>& gamma2,
+      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+          interface_unit_normal) noexcept;
+};
+
+/*!
  * \ingroup NumericalFluxesGroup
  * \brief Computes the generalized-harmonic upwind flux
  *

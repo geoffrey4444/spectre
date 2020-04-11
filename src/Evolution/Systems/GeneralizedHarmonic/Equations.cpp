@@ -109,6 +109,19 @@ weight_char_fields(
 
   return weighted_char_fields;
 }
+
+// Characteristic field weighting a char field by its char speed
+template <typename FieldTag>
+db::const_item_type<FieldTag> weight_char_field_by_char_speed(
+    const db::const_item_type<FieldTag>& char_field,
+    const Scalar<DataVector>& char_speed) noexcept {
+  db::const_item_type<FieldTag> weighted_char_field = char_field;
+  for (auto it = weighted_char_field.begin(); it != weighted_char_field.end();
+       ++it) {
+    *it *= get(char_speed);
+  }
+  return weighted_char_field;
+}
 }  // namespace GeneralizedHarmonic_detail
 
 /// \cond
@@ -404,6 +417,42 @@ void ComputeNormalDotFluxes<Dim>::apply(
 }
 
 template <size_t Dim>
+void ComputeNormalDotFluxesFromCharFields<Dim>::apply(
+    gsl::not_null<tnsr::aa<DataVector, Dim>*> spacetime_metric_normal_dot_flux,
+    gsl::not_null<tnsr::aa<DataVector, Dim>*> pi_normal_dot_flux,
+    gsl::not_null<tnsr::iaa<DataVector, Dim>*> phi_normal_dot_flux,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_psi,
+    const tnsr::iaa<DataVector, Dim, Frame::Inertial>& u_zero,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_plus,
+    const tnsr::aa<DataVector, Dim, Frame::Inertial>& u_minus,
+    const std::array<DataVector, 4>& char_speeds,
+    const Scalar<DataVector>& gamma2,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        interface_unit_normal) noexcept {
+  Scalar<DataVector> char_speed_u_psi{char_speeds[0]};
+  Scalar<DataVector> char_speed_u_zero{char_speeds[1]};
+  Scalar<DataVector> char_speed_u_plus{char_speeds[2]};
+  Scalar<DataVector> char_speed_u_minus{char_speeds[3]};
+
+  const auto flux = evolved_fields_from_characteristic_fields(
+      gamma2,
+      GeneralizedHarmonic_detail::weight_char_field_by_char_speed<
+          Tags::UPsi<Dim, Frame::Inertial>>(u_psi, char_speed_u_psi),
+      GeneralizedHarmonic_detail::weight_char_field_by_char_speed<
+          Tags::UZero<Dim, Frame::Inertial>>(u_zero, char_speed_u_zero),
+      GeneralizedHarmonic_detail::weight_char_field_by_char_speed<
+          Tags::UPlus<Dim, Frame::Inertial>>(u_plus, char_speed_u_plus),
+      GeneralizedHarmonic_detail::weight_char_field_by_char_speed<
+          Tags::UMinus<Dim, Frame::Inertial>>(u_minus, char_speed_u_minus),
+      interface_unit_normal);
+
+  *spacetime_metric_normal_dot_flux =
+      get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial>>(flux);
+  *pi_normal_dot_flux = get<Tags::Pi<Dim, Frame::Inertial>>(flux);
+  *phi_normal_dot_flux = get<Tags::Phi<Dim, Frame::Inertial>>(flux);
+}
+
+template <size_t Dim>
 void UpwindFlux<Dim>::package_data(
     const gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
         packaged_spacetime_metric,
@@ -537,6 +586,8 @@ using variables_tags =
 #define INSTANTIATE(_, data)                                                 \
   template struct GeneralizedHarmonic::ComputeDuDt<DIM(data)>;               \
   template struct GeneralizedHarmonic::ComputeNormalDotFluxes<DIM(data)>;    \
+  template struct GeneralizedHarmonic::ComputeNormalDotFluxesFromCharFields< \
+      DIM(data)>;                                                            \
   template struct GeneralizedHarmonic::UpwindFlux<DIM(data)>;                \
   template Variables<                                                        \
       db::wrap_tags_in<::Tags::deriv, derivative_tags<DIM(data)>,            \
