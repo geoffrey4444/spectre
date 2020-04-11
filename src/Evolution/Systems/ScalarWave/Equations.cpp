@@ -47,41 +47,36 @@ void ComputeNormalDotFluxes<Dim>::apply(
     const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
         phi_normal_dot_flux,
     const gsl::not_null<Scalar<DataVector>*> psi_normal_dot_flux,
-    const Scalar<DataVector>& pi,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& phi,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        interface_unit_normal) noexcept {
-  // We assume that all values of psi_normal_dot_flux are the same. The reason
-  // is that std::fill is actually surprisingly/disappointingly slow.
-  if (psi_normal_dot_flux->get()[0] != 0.0) {
-    std::fill(psi_normal_dot_flux->get().begin(),
-              psi_normal_dot_flux->get().end(), 0.0);
-  }
-
-  get(*pi_normal_dot_flux) = get<0>(interface_unit_normal) * get<0>(phi);
-  for (size_t i = 1; i < Dim; ++i) {
-    get(*pi_normal_dot_flux) += interface_unit_normal.get(i) * phi.get(i);
-  }
-
+    const Scalar<DataVector>& pi) noexcept {
+  destructive_resize_components(pi_normal_dot_flux, get(pi).size());
+  destructive_resize_components(phi_normal_dot_flux, get(pi).size());
+  destructive_resize_components(psi_normal_dot_flux, get(pi).size());
+  get(*pi_normal_dot_flux) = 0.0;
+  get(*psi_normal_dot_flux) = 0.0;
   for (size_t i = 0; i < Dim; ++i) {
-    phi_normal_dot_flux->get(i) = interface_unit_normal.get(i) * get(pi);
+    phi_normal_dot_flux->get(i) = 0.0;
   }
 }
 
 template <size_t Dim>
-void PenaltyFlux<Dim>::package_data(
-    const gsl::not_null<Scalar<DataVector>*> packaged_n_dot_flux_pi,
+void UpwindPenaltyCorrection<Dim>::package_data(
+    const gsl::not_null<Scalar<DataVector>*> packaged_v_psi,
     const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        packaged_n_dot_flux_phi,
+        packaged_v_zero,
     const gsl::not_null<Scalar<DataVector>*> packaged_v_plus,
     const gsl::not_null<Scalar<DataVector>*> packaged_v_minus,
     const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
         packaged_n_times_v_plus,
     const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
         packaged_n_times_v_minus,
-    const Scalar<DataVector>& normal_dot_flux_pi,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_dot_flux_phi,
+    const gsl::not_null<Scalar<DataVector>*> packaged_gamma2_v_psi,
+    const gsl::not_null<std::array<DataVector, 4>*> packaged_char_speeds,
+
+    const Scalar<DataVector>& v_psi,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& v_zero,
     const Scalar<DataVector>& v_plus, const Scalar<DataVector>& v_minus,
+    const std::array<DataVector, 4>& char_speeds,
+    const Scalar<DataVector>& constraint_gamma2,
     const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
     const noexcept {
   // Computes the contribution to the numerical flux from one side of the
@@ -91,140 +86,95 @@ void PenaltyFlux<Dim>::package_data(
   // packaged data to fill the interior fields, and its neighbor's packaged data
   // to fill the exterior fields. This introduces a sign flip for each normal
   // used in computing the exterior fields.
-  *packaged_n_dot_flux_pi = normal_dot_flux_pi;
-  *packaged_n_dot_flux_phi = normal_dot_flux_phi;
-  *packaged_v_plus = v_plus;
-  *packaged_v_minus = v_minus;
+  get(*packaged_v_psi) = char_speeds[0] * get(v_psi);
+  *packaged_v_zero = v_zero;
+  for (size_t i = 0; i < Dim; ++i) {
+    packaged_v_zero->get(i) *= char_speeds[1];
+  }
+  get(*packaged_v_plus) = char_speeds[2] * get(v_plus);
+  get(*packaged_v_minus) = char_speeds[3] * get(v_minus);
   for (size_t d = 0; d < Dim; ++d) {
     packaged_n_times_v_plus->get(d) =
-        get(v_plus) * interface_unit_normal.get(d);
+        get(*packaged_v_plus) * interface_unit_normal.get(d);
     packaged_n_times_v_minus->get(d) =
-        get(v_minus) * interface_unit_normal.get(d);
+        get(*packaged_v_minus) * interface_unit_normal.get(d);
   }
+  *packaged_char_speeds = char_speeds;
+  get(*packaged_gamma2_v_psi) = get(constraint_gamma2) * get(*packaged_v_psi);
 }
 
 template <size_t Dim>
-void PenaltyFlux<Dim>::operator()(
-    const gsl::not_null<Scalar<DataVector>*> pi_normal_dot_numerical_flux,
+void UpwindPenaltyCorrection<Dim>::operator()(
+    const gsl::not_null<Scalar<DataVector>*> pi_boundary_correction,
     const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        phi_normal_dot_numerical_flux,
-    const gsl::not_null<Scalar<DataVector>*> psi_normal_dot_numerical_flux,
-    const Scalar<DataVector>& normal_dot_flux_pi_interior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_dot_flux_phi_interior,
-    const Scalar<DataVector>& /* v_plus_interior */,
-    const Scalar<DataVector>& v_minus_interior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-    /* normal_times_v_plus_interior */,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_times_v_minus_interior,
-    const Scalar<DataVector>& /* minus_normal_dot_flux_pi_exterior */,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-    /* minus_normal_dot_flux_phi_exterior */,
-    const Scalar<DataVector>& v_plus_exterior,
-    const Scalar<DataVector>& /* v_minus_exterior */,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        minus_normal_times_v_plus_exterior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-    /* minus_normal_times_v_minus_exterior */) const noexcept {
-  constexpr double penalty_factor = 1.;
+        phi_boundary_correction,
+    const gsl::not_null<Scalar<DataVector>*> psi_boundary_correction,
 
-  // NormalDotNumericalFlux<Psi>
-  std::fill(psi_normal_dot_numerical_flux->get().begin(),
-            psi_normal_dot_numerical_flux->get().end(), 0.);
-  // NormalDotNumericalFlux<Pi>
-  get(*pi_normal_dot_numerical_flux) =
-      get(normal_dot_flux_pi_interior) +
-      0.5 * penalty_factor * (get(v_minus_interior) - get(v_plus_exterior));
-  // NormalDotNumericalFlux<Phi>
-  for (size_t d = 0; d < Dim; ++d) {
-    phi_normal_dot_numerical_flux->get(d) =
-        normal_dot_flux_phi_interior.get(d) -
-        0.5 * penalty_factor *
-            (normal_times_v_minus_interior.get(d) +
-             minus_normal_times_v_plus_exterior.get(d));
-  }
-}
+    const Scalar<DataVector>& v_psi_int,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& v_zero_int,
+    const Scalar<DataVector>& v_plus_int, const Scalar<DataVector>& v_minus_int,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_times_v_plus_int,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_times_v_minus_int,
+    const Scalar<DataVector>& constraint_gamma2_v_psi_int,
+    const std::array<DataVector, 4>& char_speeds_int,
 
-template <size_t Dim>
-void UpwindFlux<Dim>::package_data(
-    const gsl::not_null<Scalar<DataVector>*> packaged_n_dot_flux_pi,
-    const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        packaged_n_dot_flux_phi,
-    const gsl::not_null<Scalar<DataVector>*> packaged_pi,
-    const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        packaged_n_times_flux_pi,
-    const gsl::not_null<Scalar<DataVector>*> packaged_gamma2_psi,
-    const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        packaged_normal_times_gamma2_psi,
-    const Scalar<DataVector>& normal_dot_flux_pi,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_dot_flux_phi,
-    const Scalar<DataVector>& pi, const Scalar<DataVector>& psi,
-    const Scalar<DataVector>& constraint_gamma2,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& interface_unit_normal)
-    const noexcept {
-  // Computes the contribution to the numerical flux from one side of the
-  // interface.
-  //
-  // Note: when Upwind::operator() is called, an Element passes in its own
-  // packaged data to fill the interior fields, and its neighbors packaged data
-  // to fill the exterior fields. This introduces a sign flip for each normal
-  // used in computing the exterior fields.
-  *packaged_pi = pi;
-  *packaged_n_dot_flux_pi = normal_dot_flux_pi;
-  *packaged_n_dot_flux_phi = normal_dot_flux_phi;
-  for (size_t d = 0; d < Dim; ++d) {
-    packaged_n_times_flux_pi->get(d) =
-        interface_unit_normal.get(d) * get(normal_dot_flux_pi);
-  }
-  // Package quantities needed for constraint damping related terms
-  get(*packaged_gamma2_psi) = get(constraint_gamma2) * get(psi);
-  auto& normal_times_flux_psi = *packaged_normal_times_gamma2_psi;
-  for (size_t d = 0; d < Dim; ++d) {
-    normal_times_flux_psi.get(d) =
-        get(*packaged_gamma2_psi) * interface_unit_normal.get(d);
-  }
-}
+    const Scalar<DataVector>& v_psi_ext,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>& v_zero_ext,
+    const Scalar<DataVector>& v_plus_ext, const Scalar<DataVector>& v_minus_ext,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        minus_normal_times_v_plus_ext,
+    const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        minus_normal_times_v_minus_ext,
+    const Scalar<DataVector>& constraint_gamma2_v_psi_ext,
+    const std::array<DataVector, 4>& char_speeds_ext) const noexcept {
+  const DataVector weighted_lambda_psi_int = step_function(-char_speeds_int[0]);
+  const DataVector weighted_lambda_psi_ext = -step_function(char_speeds_ext[0]);
 
-template <size_t Dim>
-void UpwindFlux<Dim>::operator()(
-    const gsl::not_null<Scalar<DataVector>*> pi_normal_dot_numerical_flux,
-    const gsl::not_null<tnsr::i<DataVector, Dim, Frame::Inertial>*>
-        phi_normal_dot_numerical_flux,
-    const gsl::not_null<Scalar<DataVector>*> psi_normal_dot_numerical_flux,
-    const Scalar<DataVector>& normal_dot_flux_pi_interior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_dot_flux_phi_interior,
-    const Scalar<DataVector>& pi_interior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_times_flux_pi_interior,
-    const Scalar<DataVector>& gamma2_psi_interior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_times_gamma2_psi_interior,
-    const Scalar<DataVector>& minus_normal_dot_flux_pi_exterior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        minus_normal_dot_flux_phi_exterior,
-    const Scalar<DataVector>& pi_exterior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        normal_times_flux_pi_exterior,
-    const Scalar<DataVector>& gamma2_psi_exterior,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
-        minus_normal_times_gamma2_psi_exterior) const noexcept {
-  std::fill(psi_normal_dot_numerical_flux->get().begin(),
-            psi_normal_dot_numerical_flux->get().end(), 0.);
-  get(*pi_normal_dot_numerical_flux) =
-      0.5 *
-      (get(pi_interior) - get(pi_exterior) + get(normal_dot_flux_pi_interior) -
-       get(minus_normal_dot_flux_pi_exterior) + get(gamma2_psi_exterior) -
-       get(gamma2_psi_interior));
+  const DataVector weighted_lambda_zero_int =
+      step_function(-char_speeds_int[1]);
+  const DataVector weighted_lambda_zero_ext =
+      -step_function(char_speeds_ext[1]);
+
+  const DataVector weighted_lambda_plus_int =
+      step_function(-char_speeds_int[2]);
+  const DataVector weighted_lambda_plus_ext =
+      -step_function(char_speeds_ext[2]);
+
+  const DataVector weighted_lambda_minus_int =
+      step_function(-char_speeds_int[3]);
+  const DataVector weighted_lambda_minus_ext =
+      -step_function(char_speeds_ext[3]);
+
+  // D_psi = Theta(-lambda_psi^{ext}) lambda_psi^{ext} v_psi^{ext}
+  //       - Theta(-lambda_psi^{int}) lambda_psi^{int} v_psi^{int}
+  // where the unit normals on both sides point in the same direction, out
+  // of the current element. Since lambda_psi from the neighbor is computing
+  // with the normal vector pointing into the current element in the code,
+  // we need to swap the sign of lambda_psi^{ext}. Theta is the heaviside step
+  // function with Theta(0) = 0.
+  psi_boundary_correction->get() = weighted_lambda_psi_ext * get(v_psi_ext) -
+                                   weighted_lambda_psi_int * get(v_psi_int);
+
+  get(*pi_boundary_correction) =
+      0.5 * (weighted_lambda_plus_ext * get(v_plus_ext) +
+             weighted_lambda_minus_ext * get(v_minus_ext)) +
+      weighted_lambda_psi_ext * get(constraint_gamma2_v_psi_ext)
+
+      - 0.5 * (weighted_lambda_plus_int * get(v_plus_int) +
+               weighted_lambda_minus_int * get(v_minus_int)) -
+      weighted_lambda_psi_int * get(constraint_gamma2_v_psi_int);
+
   for (size_t d = 0; d < Dim; ++d) {
-    phi_normal_dot_numerical_flux->get(d) =
-        0.5 * (normal_dot_flux_phi_interior.get(d) -
-               minus_normal_dot_flux_phi_exterior.get(d) +
-               normal_times_flux_pi_interior.get(d) -
-               normal_times_flux_pi_exterior.get(d) -
-               normal_times_gamma2_psi_interior.get(d) +
-               minus_normal_times_gamma2_psi_exterior.get(d));
+    // Overall minus sign on ext because of normal vector is opposite direction.
+    phi_boundary_correction->get(d) =
+        -0.5 *
+            (weighted_lambda_minus_ext * minus_normal_times_v_minus_ext.get(d) -
+             weighted_lambda_plus_ext * minus_normal_times_v_plus_ext.get(d)) +
+        weighted_lambda_zero_ext * v_zero_ext.get(d)
+
+        - 0.5 * (weighted_lambda_plus_int * normal_times_v_plus_int.get(d) -
+                 weighted_lambda_minus_int * normal_times_v_minus_int.get(d)) -
+        weighted_lambda_zero_int * v_zero_int.get(d);
   }
 }
 /// \endcond
@@ -249,8 +199,7 @@ using derivative_frame = Frame::Inertial;
 #define INSTANTIATION(_, data)                                               \
   template class ScalarWave::ComputeDuDt<DIM(data)>;                         \
   template class ScalarWave::ComputeNormalDotFluxes<DIM(data)>;              \
-  template class ScalarWave::UpwindFlux<DIM(data)>;                          \
-  template class ScalarWave::PenaltyFlux<DIM(data)>;                         \
+  template class ScalarWave::UpwindPenaltyCorrection<DIM(data)>;             \
   template Variables<                                                        \
       db::wrap_tags_in<::Tags::deriv, derivative_tags<DIM(data)>,            \
                        tmpl::size_t<DIM(data)>, derivative_frame>>           \

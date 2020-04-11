@@ -8,6 +8,8 @@
 
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
+#include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
+#include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
 #include "ErrorHandling/Error.hpp"
 #include "ErrorHandling/FloatingPointExceptions.hpp"
@@ -75,6 +77,8 @@
 #include "Utilities/Functional.hpp"
 #include "Utilities/TMPL.hpp"
 
+#include "Evolution/Actions/AddMeshVelocityNonconservative.hpp"
+
 /// \cond
 namespace Frame {
 // IWYU pragma: no_forward_declare MathFunction
@@ -97,7 +101,7 @@ struct EvolutionMetavars {
       Tags::AnalyticSolution<ScalarWave::Solutions::PlaneWave<Dim>>;
   using boundary_condition_tag = initial_data_tag;
   using normal_dot_numerical_flux =
-      Tags::NumericalFlux<ScalarWave::UpwindFlux<Dim>>;
+      Tags::NumericalFlux<ScalarWave::UpwindPenaltyCorrection<Dim>>;
   using time_stepper_tag = Tags::TimeStepper<
       tmpl::conditional_t<local_time_stepping, LtsTimeStepper, TimeStepper>>;
   using boundary_scheme = tmpl::conditional_t<
@@ -165,6 +169,7 @@ struct EvolutionMetavars {
           boundary_scheme, domain::Tags::InternalDirections<volume_dim>>,
       dg::Actions::SendDataForFluxes<boundary_scheme>,
       Actions::ComputeTimeDerivative<ScalarWave::ComputeDuDt<Dim>>,
+      evolution::Actions::AddMeshVelocityNonconservative,
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           domain::Tags::BoundaryDirectionsInterior<Dim>>,
       dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
@@ -206,8 +211,11 @@ struct EvolutionMetavars {
               ScalarWave::Tags::ConstraintGamma2>,
           dg::Initialization::slice_tags_to_exterior<
               ScalarWave::Tags::ConstraintGamma2>,
-          dg::Initialization::face_compute_tags<>,
-          dg::Initialization::exterior_compute_tags<>, true, true>,
+          dg::Initialization::face_compute_tags<
+              ScalarWave::Tags::CharacteristicFieldsCompute<volume_dim>>,
+          dg::Initialization::exterior_compute_tags<
+              ScalarWave::Tags::CharacteristicFieldsCompute<volume_dim>>,
+          true, true>,
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               Dim, initial_data_tag, analytic_solution_fields>>>,
@@ -277,6 +285,8 @@ struct EvolutionMetavars {
 static const std::vector<void (*)()> charm_init_node_funcs{
     &setup_error_handling,
     &domain::creators::register_derived_with_charm,
+    &domain::creators::time_dependence::register_derived_with_charm,
+    &domain::FunctionsOfTime::register_derived_with_charm,
     &Parallel::register_derived_classes_with_charm<
         Event<metavariables::events>>,
     &Parallel::register_derived_classes_with_charm<MathFunction<1>>,

@@ -276,7 +276,6 @@ struct EvolutionMetavars {
       dg::Actions::InitializeInterfaces<
           system,
           dg::Initialization::slice_tags_to_face<
-              domain::Tags::MeshVelocity<volume_dim>,
               typename system::variables_tag,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
@@ -284,7 +283,6 @@ struct EvolutionMetavars {
               gr::Tags::Shift<volume_dim, frame, DataVector>,
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
-              domain::Tags::MeshVelocity<volume_dim>,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
@@ -299,11 +297,7 @@ struct EvolutionMetavars {
               GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
                                                                  frame>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
-                                                               frame>,
-              domain::Tags::CharSpeedCompute<
-                  GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
-                                                                   frame>,
-                  volume_dim>>,
+                                                               frame>>,
           dg::Initialization::exterior_compute_tags<
               GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
                                                                  frame>,
@@ -312,11 +306,7 @@ struct EvolutionMetavars {
               GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
                                                                  frame>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
-                                                               frame>,
-              domain::Tags::CharSpeedCompute<
-                  GeneralizedHarmonic::CharacteristicSpeedsCompute<volume_dim,
-                                                                   frame>,
-                  volume_dim>>,
+                                                               frame>>,
           true, true>,
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<

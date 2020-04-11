@@ -8,6 +8,9 @@
 #include <utility>  // IWYU pragma: keep  // for move
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Tags.hpp"
+#include "Domain/TagsTimeDependent.hpp"
 #include "Evolution/Initialization/InitialData.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "ParallelAlgorithms/Initialization/MergeIntoDataBox.hpp"
@@ -75,9 +78,16 @@ struct NonconservativeSystem {
 
     const size_t num_grid_points =
         db::get<domain::Tags::Mesh<dim>>(box).number_of_grid_points();
-    const double initial_time = db::get<Initialization::Tags::InitialTime>(box);
-    const auto& inertial_coords =
-        db::get<domain::Tags::Coordinates<dim, Frame::Inertial>>(box);
+    const double initial_time =
+        db::get<::Initialization::Tags::InitialTime>(box);
+    const auto inertial_coords =
+        db::get<::domain::CoordinateMaps::Tags::CoordinateMap<
+            Metavariables::volume_dim, Frame::Grid, Frame::Inertial>>(box)(
+            db::get<::domain::Tags::ElementMap<Metavariables::volume_dim,
+                                               Frame::Grid>>(box)(
+                db::get<::domain::Tags::Coordinates<Metavariables::volume_dim,
+                                                    Frame::Logical>>(box)),
+            initial_time, db::get<::domain::Tags::FunctionsOfTime>(box));
 
     // Set initial data from analytic solution
     Vars vars{num_grid_points};
