@@ -280,8 +280,10 @@ void ComputeDuDt<Dim>::apply(
   for (size_t n = 0; n < Dim; ++n) {
     for (size_t mu = 0; mu < Dim + 1; ++mu) {
       for (size_t nu = mu; nu < Dim + 1; ++nu) {
-        three_index_constraint.get(n, mu, nu) =
-            d_spacetime_metric.get(n, mu, nu) - phi.get(n, mu, nu);
+        const size_t storage_index =
+            three_index_constraint.get_storage_index(n, mu, nu);
+        three_index_constraint[storage_index] =
+            d_spacetime_metric[storage_index] - phi[storage_index];
       }
     }
   }
@@ -323,11 +325,15 @@ void ComputeDuDt<Dim>::apply(
   // Equation for dt_spacetime_metric
   for (size_t mu = 0; mu < Dim + 1; ++mu) {
     for (size_t nu = mu; nu < Dim + 1; ++nu) {
-      dt_spacetime_metric->get(mu, nu) = -lapse.get() * pi.get(mu, nu);
-      dt_spacetime_metric->get(mu, nu) +=
-          gamma1p1 * shift_dot_three_index_constraint.get(mu, nu);
+      const size_t storage_index_mu_nu =
+          dt_spacetime_metric->get_storage_index(mu, nu);
+      (*dt_spacetime_metric)[storage_index_mu_nu] =
+          -lapse.get() * pi[storage_index_mu_nu];
+      (*dt_spacetime_metric)[storage_index_mu_nu] +=
+          gamma1p1 * shift_dot_three_index_constraint[storage_index_mu_nu];
       for (size_t m = 0; m < Dim; ++m) {
-        dt_spacetime_metric->get(mu, nu) += shift.get(m) * phi.get(m, mu, nu);
+        (*dt_spacetime_metric)[storage_index_mu_nu] +=
+            shift.get(m) * phi.get(m, mu, nu);
       }
     }
   }
@@ -335,52 +341,55 @@ void ComputeDuDt<Dim>::apply(
   // Equation for dt_pi
   for (size_t mu = 0; mu < Dim + 1; ++mu) {
     for (size_t nu = mu; nu < Dim + 1; ++nu) {
-      dt_pi->get(mu, nu) =
+      const size_t storage_index_mu_nu = dt_pi->get_storage_index(mu, nu);
+      (*dt_pi)[storage_index_mu_nu] =
           -spacetime_deriv_gauge_function.get(mu, nu) -
           spacetime_deriv_gauge_function.get(nu, mu) -
-          0.5 * pi_contract_two_normal_spacetime_vectors * pi.get(mu, nu) +
+          0.5 * pi_contract_two_normal_spacetime_vectors *
+              pi[storage_index_mu_nu] +
           gamma0.get() * (normal_spacetime_one_form.get(mu) *
                               one_index_constraint.get(nu) +
                           normal_spacetime_one_form.get(nu) *
                               one_index_constraint.get(mu)) -
-          gamma0.get() * spacetime_metric.get(mu, nu) *
+          gamma0.get() * spacetime_metric[storage_index_mu_nu] *
               normal_dot_one_index_constraint;
 
       for (size_t delta = 0; delta < Dim + 1; ++delta) {
-        dt_pi->get(mu, nu) += 2 * christoffel_second_kind.get(delta, mu, nu) *
-                                  gauge_function.get(delta) -
-                              2 * pi.get(mu, delta) * pi_2_up.get(nu, delta);
+        (*dt_pi)[storage_index_mu_nu] +=
+            2 * christoffel_second_kind.get(delta, mu, nu) *
+                gauge_function.get(delta) -
+            2 * pi.get(mu, delta) * pi_2_up.get(nu, delta);
 
         for (size_t n = 0; n < Dim; ++n) {
-          dt_pi->get(mu, nu) +=
+          (*dt_pi)[storage_index_mu_nu] +=
               2 * phi_1_up.get(n, mu, delta) * phi_3_up.get(n, nu, delta);
         }
 
         for (size_t alpha = 0; alpha < Dim + 1; ++alpha) {
-          dt_pi->get(mu, nu) -=
+          (*dt_pi)[storage_index_mu_nu] -=
               2. * christoffel_first_kind_3_up.get(mu, alpha, delta) *
               christoffel_first_kind_3_up.get(nu, delta, alpha);
         }
       }
 
       for (size_t m = 0; m < Dim; ++m) {
-        dt_pi->get(mu, nu) -=
+        (*dt_pi)[storage_index_mu_nu] -=
             pi_dot_normal_spacetime_vector.get(m + 1) * phi_1_up.get(m, mu, nu);
 
         for (size_t n = 0; n < Dim; ++n) {
-          dt_pi->get(mu, nu) -=
+          (*dt_pi)[storage_index_mu_nu] -=
               inverse_spatial_metric.get(m, n) * d_phi.get(m, n, mu, nu);
         }
       }
 
-      dt_pi->get(mu, nu) *= lapse.get();
+      (*dt_pi)[storage_index_mu_nu] *= lapse.get();
 
-      dt_pi->get(mu, nu) +=
-          gamma12 * shift_dot_three_index_constraint.get(mu, nu);
+      (*dt_pi)[storage_index_mu_nu] +=
+          gamma12 * shift_dot_three_index_constraint[storage_index_mu_nu];
 
       for (size_t m = 0; m < Dim; ++m) {
         // DualFrame term
-        dt_pi->get(mu, nu) += shift.get(m) * d_pi.get(m, mu, nu);
+        (*dt_pi)[storage_index_mu_nu] += shift.get(m) * d_pi.get(m, mu, nu);
       }
     }
   }
@@ -389,20 +398,23 @@ void ComputeDuDt<Dim>::apply(
   for (size_t i = 0; i < Dim; ++i) {
     for (size_t mu = 0; mu < Dim + 1; ++mu) {
       for (size_t nu = mu; nu < Dim + 1; ++nu) {
-        dt_phi->get(i, mu, nu) =
+        const size_t storage_index_i_mu_nu =
+            dt_phi->get_storage_index(i, mu, nu);
+        (*dt_phi)[storage_index_i_mu_nu] =
             0.5 * pi.get(mu, nu) *
                 phi_contract_two_normal_spacetime_vectors.get(i) -
             d_pi.get(i, mu, nu) +
-            gamma2.get() * three_index_constraint.get(i, mu, nu);
+            gamma2.get() * three_index_constraint[storage_index_i_mu_nu];
         for (size_t n = 0; n < Dim; ++n) {
-          dt_phi->get(i, mu, nu) +=
+          (*dt_phi)[storage_index_i_mu_nu] +=
               phi_dot_normal_spacetime_vector.get(i, n + 1) *
               phi_1_up.get(n, mu, nu);
         }
 
-        dt_phi->get(i, mu, nu) *= lapse.get();
+        (*dt_phi)[storage_index_i_mu_nu] *= lapse.get();
         for (size_t m = 0; m < Dim; ++m) {
-          dt_phi->get(i, mu, nu) += shift.get(m) * d_phi.get(m, i, mu, nu);
+          (*dt_phi)[storage_index_i_mu_nu] +=
+              shift.get(m) * d_phi.get(m, i, mu, nu);
         }
       }
     }
