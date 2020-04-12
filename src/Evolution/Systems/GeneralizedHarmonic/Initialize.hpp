@@ -185,8 +185,18 @@ struct InitializeGauge {
 
     get<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>>(
         initial_gauge_h_vars) = initial_gauge_h;
+    const auto bad_time = db::get<::Tags::Time>(box);
+    db::mutate<::Tags::Time>(
+        make_not_null(&box),
+        [](const auto time_ptr, const auto& initial_time) noexcept {
+          *time_ptr = initial_time;
+        },
+        db::get<::Initialization::Tags::InitialTime>(box));
     const auto& inverse_jacobian =
         db::get<domain::Tags::InverseJacobian<Dim, Frame::Logical, frame>>(box);
+    db::mutate<::Tags::Time>(
+        make_not_null(&box),
+        [&bad_time](const auto time_ptr) noexcept { *time_ptr = bad_time; });
     auto d_initial_gauge_source =
         get<::Tags::deriv<GeneralizedHarmonic::Tags::InitialGaugeH<Dim, frame>,
                           tmpl::size_t<Dim>, frame>>(
