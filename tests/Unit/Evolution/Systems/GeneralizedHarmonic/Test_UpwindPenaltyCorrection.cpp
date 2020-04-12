@@ -19,6 +19,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/UpwindPenaltyCorrection.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
 #include "Helpers/DataStructures/RandomUnitNormal.hpp"
@@ -60,9 +61,10 @@ weight_char_fields(
 
 namespace {
 
-static_assert(test_protocol_conformance<GeneralizedHarmonic::UpwindFlux<3>,
-                                        dg::protocols::NumericalFlux>,
-              "Failed testing protocol conformance");
+static_assert(
+    test_protocol_conformance<GeneralizedHarmonic::UpwindPenaltyCorrection<3>,
+                              dg::protocols::NumericalFlux>,
+    "Failed testing protocol conformance");
 
 // Test GH upwind flux using random fields
 void test_upwind_flux_random() noexcept {
@@ -167,7 +169,7 @@ void test_upwind_flux_random() noexcept {
   std::array<DataVector, 4> char_speeds_minus_five{
       {get(minus_five), get(minus_five), get(minus_five), get(minus_five)}};
 
-  GeneralizedHarmonic::UpwindFlux<spatial_dim> flux_computer{};
+  GeneralizedHarmonic::UpwindPenaltyCorrection<spatial_dim> flux_computer{};
 
   INFO("test generalized-harmonic upwind weighting function")
   // If all the char speeds are +1, the weighted fields should just
@@ -254,7 +256,8 @@ void test_upwind_flux_random() noexcept {
 }
 }  // namespace
 
-SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.UpwindFlux",
-                  "[Unit][Evolution]") {
+SPECTRE_TEST_CASE(
+    "Unit.Evolution.Systems.GeneralizedHarmonic.UpwindPenaltyCorrection",
+    "[Unit][Evolution]") {
   test_upwind_flux_random();
 }
