@@ -12,6 +12,8 @@
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Tag.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
+#include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
+#include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "ErrorHandling/Error.hpp"
@@ -101,6 +103,9 @@
 #include "Utilities/Functional.hpp"
 #include "Utilities/TMPL.hpp"
 
+#include "Evolution/Actions/AddMeshVelocityNonconservative.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/UpwindPenaltyCorrection.hpp"
+
 /// \cond
 namespace Frame {
 // IWYU pragma: no_forward_declare MathFunction
@@ -121,8 +126,8 @@ struct EvolutionMetavars {
   using initial_data_tag = Tags::AnalyticSolution<
       GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>>;
   using boundary_condition_tag = initial_data_tag;
-  using normal_dot_numerical_flux =
-      Tags::NumericalFlux<GeneralizedHarmonic::UpwindFlux<volume_dim>>;
+  using normal_dot_numerical_flux = Tags::NumericalFlux<
+      GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
 
   using step_choosers_common =
       tmpl::list<StepChoosers::Registrars::Cfl<volume_dim, Frame::Inertial>,
@@ -245,6 +250,7 @@ struct EvolutionMetavars {
       dg::Actions::SendDataForFluxes<boundary_scheme>,
       Actions::ComputeTimeDerivative<
           GeneralizedHarmonic::ComputeDuDt<volume_dim>>,
+      evolution::Actions::AddMeshVelocityNonconservative,
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
       dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
@@ -378,6 +384,8 @@ struct EvolutionMetavars {
 
 static const std::vector<void (*)()> charm_init_node_funcs{
     &setup_error_handling,
+    &domain::creators::time_dependence::register_derived_with_charm,
+    &domain::FunctionsOfTime::register_derived_with_charm,
     &domain::creators::register_derived_with_charm,
     &Parallel::register_derived_classes_with_charm<
         Event<metavariables::events>>,
