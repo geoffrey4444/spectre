@@ -28,6 +28,7 @@
 #include "Evolution/NumericalInitialData.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Initialize.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/SemiAnalyticBoundaryConditions.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "IO/Importers/ElementActions.hpp"
@@ -265,7 +266,9 @@ struct EvolutionMetavars {
       evolution::Actions::AddMeshVelocityNonconservative,
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
-      dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
+      GeneralizedHarmonic::Actions::
+          ImposeDirichletBoundaryConditionsUnlessOnlyOutgoingCharSpeeds<
+              EvolutionMetavars>,
       dg::Actions::CollectDataForFluxes<
           boundary_scheme,
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
