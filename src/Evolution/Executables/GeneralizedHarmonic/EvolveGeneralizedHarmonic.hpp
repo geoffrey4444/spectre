@@ -33,6 +33,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "IO/Importers/ElementActions.hpp"
 #include "IO/Importers/VolumeDataReader.hpp"
+#include "IO/Importers/ReadSpecThirdOrderPiecewisePolynomial.hpp"
 #include "IO/Observer/Actions.hpp"  // IWYU pragma: keep
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
@@ -292,6 +293,7 @@ struct EvolutionMetavars {
   using initialization_actions = tmpl::list<
       Initialization::Actions::TimeAndTimeStep<EvolutionMetavars>,
       evolution::dg::Initialization::Domain<volume_dim>,
+      importers::Actions::ReadSpecThirdOrderPiecewisePolynomial,
       Initialization::Actions::NonconservativeSystem,
       Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
