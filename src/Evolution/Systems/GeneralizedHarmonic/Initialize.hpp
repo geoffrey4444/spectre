@@ -119,9 +119,10 @@ struct InitializeGhAnd3Plus1Variables {
                                                           DataVector>,
         GeneralizedHarmonic::Tags::ExtrinsicCurvatureCompute<Dim, frame>,
         GeneralizedHarmonic::Tags::TraceExtrinsicCurvatureCompute<Dim, frame>,
-        GeneralizedHarmonic::Tags::ConstraintGamma0Compute<Dim, frame>,
-        GeneralizedHarmonic::Tags::ConstraintGamma1Compute<Dim, frame>,
-        GeneralizedHarmonic::Tags::ConstraintGamma2Compute<Dim, frame>>;
+        GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<Dim, Frame::Grid>,
+        GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<Dim, Frame::Grid>,
+        GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<Dim,
+                                                              Frame::Grid>>;
 
     return std::make_tuple(
         Initialization::merge_into_databox<InitializeGhAnd3Plus1Variables,

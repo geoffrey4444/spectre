@@ -890,6 +890,114 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
   using base = ConstraintGamma2;
 };
 
+template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma, get<0>(coords).size());
+
+    constexpr double m_A = 0.5;
+    constexpr double m_B = 0.5;
+    constexpr double x_A = 10.0;
+    constexpr double x_B = -10.0;
+
+    constexpr double width_A = 7.0 / m_A;
+    constexpr double width_B = 7.0 / m_B;
+    constexpr double width_O = 2.5 * (x_A - x_B);
+    constexpr double amp_A = 4.0 / m_A;
+    constexpr double amp_B = 4.0 / m_B;
+    constexpr double amp_O = 0.075 / (m_A + m_B);
+    constexpr double asymptotic_damping = 0.001 / (m_A + m_B);
+
+    auto distance_A_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_A_squared) = square(get<0>(coords) - x_A) +
+                              square(get<1>(coords)) + square(get<2>(coords));
+    auto distance_B_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_B_squared) = square(get<0>(coords) - x_B) +
+                              square(get<1>(coords)) + square(get<2>(coords));
+    auto distance_O_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_O_squared) = get(dot_product(coords, coords));
+
+    get(*gamma) = amp_A * exp(-get(distance_A_squared) / square(width_A)) +
+                  amp_B * exp(-get(distance_B_squared) / square(width_B)) +
+                  amp_O * exp(-get(distance_O_squared) / square(width_O)) +
+                  asymptotic_damping;
+  }
+
+  using base = ConstraintGamma0;
+};
+
+template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma1BBHCompute : ConstraintGamma1, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma1,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma1, get<0>(coords).size());
+    constexpr double amp = 0.999;
+    constexpr double x_A = 10.0;
+    constexpr double x_B = -10.0;
+
+    constexpr double width = 10.0 * (x_A - x_B);
+    get(*gamma1) =
+        amp * (-1.0 + exp(-get(dot_product(coords, coords)) / width));
+  }
+
+  using base = ConstraintGamma1;
+};
+
+template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma, get<0>(coords).size());
+    constexpr double m_A = 0.5;
+    constexpr double m_B = 0.5;
+    constexpr double x_A = 10.0;
+    constexpr double x_B = -10.0;
+
+    constexpr double width_A = 7.0 / m_A;
+    constexpr double width_B = 7.0 / m_B;
+    constexpr double width_O = 2.5 * (x_A - x_B);
+    constexpr double amp_A = 4.0 / m_A;
+    constexpr double amp_B = 4.0 / m_B;
+    constexpr double amp_O = 0.075 / (m_A + m_B);
+    constexpr double asymptotic_damping = 0.001 / (m_A + m_B);
+
+    auto distance_A_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_A_squared) = square(get<0>(coords) - x_A) +
+                              square(get<1>(coords)) + square(get<2>(coords));
+    auto distance_B_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_B_squared) = square(get<0>(coords) - x_B) +
+                              square(get<1>(coords)) + square(get<2>(coords));
+    auto distance_O_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
+    get(distance_O_squared) = get(dot_product(coords, coords));
+
+    get(*gamma) = amp_A * exp(-get(distance_A_squared) / square(width_A)) +
+                  amp_B * exp(-get(distance_B_squared) / square(width_B)) +
+                  amp_O * exp(-get(distance_O_squared) / square(width_O)) +
+                  asymptotic_damping;
+  }
+
+  using base = ConstraintGamma2;
+};
+
 /*!
  * \brief  Compute item to get the implicit gauge source function from 3 + 1
  * quantities.
