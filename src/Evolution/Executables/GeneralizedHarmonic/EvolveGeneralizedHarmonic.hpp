@@ -32,8 +32,8 @@
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "IO/Importers/ElementActions.hpp"
-#include "IO/Importers/VolumeDataReader.hpp"
 #include "IO/Importers/ReadSpecThirdOrderPiecewisePolynomial.hpp"
+#include "IO/Importers/VolumeDataReader.hpp"
 #include "IO/Observer/Actions.hpp"  // IWYU pragma: keep
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
@@ -72,8 +72,8 @@
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeDomain.hpp"
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeInterfaces.hpp"
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeMortars.hpp"
-#include "ParallelAlgorithms/Events/ObserveErrorNorms.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
+#include "ParallelAlgorithms/Events/ObserveTensorNorms.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/EventsAndTriggers.hpp"
@@ -174,7 +174,6 @@ struct EvolutionMetavars {
   using analytic_solution_fields =
       db::get_variables_tags_list<typename system::variables_tag>;
   using observe_fields = tmpl::append<
-      analytic_solution_fields,
       tmpl::list<
           gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
@@ -228,10 +227,9 @@ struct EvolutionMetavars {
                  GeneralizedHarmonic::Tags::Phi<volume_dim, frame>>;
 
   using observation_events = tmpl::list<
-      dg::Events::Registrars::ObserveErrorNorms<Tags::Time,
-                                                analytic_solution_fields>,
-      dg::Events::Registrars::ObserveFields<
-          volume_dim, Tags::Time, observe_fields, analytic_solution_fields>,
+      dg::Events::Registrars::ObserveTensorNorms<Tags::Time, observe_fields>,
+      dg::Events::Registrars::ObserveFields<volume_dim, Tags::Time,
+                                            observe_fields>,
       Events::Registrars::ChangeSlabSize<slab_choosers>>;
   using triggers = Triggers::time_triggers;
 
