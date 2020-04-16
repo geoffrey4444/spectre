@@ -301,12 +301,14 @@ struct EvolutionMetavars {
           system,
           dg::Initialization::slice_tags_to_face<
               typename system::variables_tag,
+              domain::Tags::Coordinates<volume_dim, Frame::Grid>,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
               gr::Tags::Shift<volume_dim, frame, DataVector>,
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
+              domain::Tags::Coordinates<volume_dim, Frame::Grid>,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
@@ -314,21 +316,21 @@ struct EvolutionMetavars {
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::face_compute_tags<
               domain::Tags::BoundaryCoordinates<volume_dim, true>,
-              GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
-                                                                 frame>,
+              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+                  volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
           dg::Initialization::exterior_compute_tags<
-              GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
-                                                                 frame>,
+              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+                  volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
           true, true>,
@@ -375,6 +377,7 @@ struct EvolutionMetavars {
               Parallel::PhaseActions<
                   Phase, Phase::Register,
                   tmpl::flatten<tmpl::list<
+                      importers::Actions::ReadSpecThirdOrderPiecewisePolynomial,
                       intrp::Actions::RegisterElementWithInterpolator,
                       observers::Actions::RegisterWithObservers<
                           observers::RegisterObservers<
