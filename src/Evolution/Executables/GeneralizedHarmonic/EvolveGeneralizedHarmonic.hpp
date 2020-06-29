@@ -346,13 +346,13 @@ struct EvolutionMetavars {
       GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using initialize_initial_data_dependent_quantities_actions = tmpl::list<
       GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
           volume_dim, use_damped_harmonic_rollon>,
       GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
-      Parallel::Actions::TerminatePhase>;
+      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
 
   using component_list = tmpl::flatten<tmpl::list<
       observers::Observer<EvolutionMetavars>,
