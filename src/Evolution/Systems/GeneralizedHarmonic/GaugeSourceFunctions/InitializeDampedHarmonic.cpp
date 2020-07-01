@@ -250,8 +250,8 @@ void InitializeDampedHarmonic<Dim, UseRollon>::DampedHarmonicCompute<Frame>::
       make_not_null(&get<Tags::GaugeH<Dim, Frame>>(*h_and_d4_h)),
       make_not_null(&get<Tags::SpacetimeDerivGaugeH<Dim, Frame>>(*h_and_d4_h)),
       lapse, shift, spacetime_unit_normal_one_form, sqrt_det_spatial_metric,
-      inverse_spatial_metric, spacetime_metric, pi, phi, coords, 1., 1.,
-      1.,       // amp_coef_{L1, L2, S}
+      inverse_spatial_metric, spacetime_metric, pi, phi, coords, 0., 0.,
+      0.,       // amp_coef_{L1, L2, S}
       4, 4, 4,  // exp_{L1, L2, S}
       sigma_r);
 }
