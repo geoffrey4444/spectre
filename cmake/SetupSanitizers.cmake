@@ -2,6 +2,7 @@
 # See LICENSE.txt for details.
 
 option(ASAN "Add AddressSanitizer compile flags" OFF)
+option(THREADSAN "Add ThreadSanitizer compile flags" OFF)
 
 # We handle the sanitizers using targets for the compile options, but modify
 # CMAKE_EXE_LINKER_FLAGS for the linker flags because the sanitizers should
@@ -11,6 +12,7 @@ add_library(Sanitizers IMPORTED INTERFACE)
 add_library(Sanitizers::Address IMPORTED INTERFACE)
 add_library(Sanitizers::UbInteger IMPORTED INTERFACE)
 add_library(Sanitizers::UbUndefined IMPORTED INTERFACE)
+add_library(Sanitizers::Thread IMPORTED INTERFACE)
 
 if (ASAN)
   set_property(
@@ -22,6 +24,19 @@ if (ASAN)
   set(
     CMAKE_EXE_LINKER_FLAGS
     "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address"
+    )
+endif ()
+
+if (THREADSAN)
+  set_property(
+    TARGET Sanitizers::Thread
+    APPEND PROPERTY
+    INTERFACE_COMPILE_OPTIONS
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-omit-frame-pointer -fsanitize=thread>
+    )
+  set(
+    CMAKE_EXE_LINKER_FLAGS
+    "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread"
     )
 endif ()
 
@@ -61,6 +76,7 @@ target_link_libraries(
   SpectreFlags
   INTERFACE
   Sanitizers::Address
+  Sanitizers::Thread
   Sanitizers::UbInteger
   Sanitizers::UbUndefined
   )
