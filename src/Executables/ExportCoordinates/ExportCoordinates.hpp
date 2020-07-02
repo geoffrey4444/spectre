@@ -109,6 +109,11 @@ struct ExportCoordinates {
             std::add_pointer_t<ParallelComponent>{nullptr},
             Parallel::ArrayIndex<ElementId<Dim>>(array_index)),
         std::move(components), mesh.extents());
+
+    double min_grid_spacing =
+        minimum_grid_spacing(mesh.extents(), inertial_coordinates);
+    Parallel::printf("The minimum grid spacing is: %1.14e\n", min_grid_spacing);
+
     return std::forward_as_tuple(std::move(box));
   }
 };
