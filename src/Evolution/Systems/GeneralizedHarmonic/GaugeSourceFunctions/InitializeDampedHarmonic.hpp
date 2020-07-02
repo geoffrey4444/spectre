@@ -283,19 +283,17 @@ struct InitializeDampedHarmonic {
                   db::get<domain::Tags::Coordinates<Dim, Frame::Logical>>(box)),
               initial_time, db::get<::domain::Tags::FunctionsOfTime>(box));
 
-      // auto gauge_corrected_pi = new_pi_from_gauge_h(
-      //     db::get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial,
-      //     DataVector>>(
-      //         box),
-      //     db::get<GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>(box),
-      //     db::get<GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>(box),
-      //     inertial_coords,
-      //     db::get<GaugeHSpatialWeightDecayWidth<frame>>(box));
-      // db::mutate<GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>(
-      //     make_not_null(&box),
-      //     [&gauge_corrected_pi](const auto pi_ptr) noexcept {
-      //       *pi_ptr = gauge_corrected_pi;
-      //     });
+      auto gauge_corrected_pi = new_pi_from_gauge_h(
+          db::get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>(
+              box),
+          db::get<GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>(box),
+          db::get<GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>(box),
+          inertial_coords, db::get<GaugeHSpatialWeightDecayWidth<frame>>(box));
+      db::mutate<GeneralizedHarmonic::Tags::Pi<Dim, Frame::Inertial>>(
+          make_not_null(&box),
+          [&gauge_corrected_pi](const auto pi_ptr) noexcept {
+            *pi_ptr = gauge_corrected_pi;
+          });
 
       // Add gauge tags
       using compute_tags = db::AddComputeTags<DampedHarmonicCompute<frame>>;
