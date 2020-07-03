@@ -153,7 +153,7 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
           std::cout << "t = " << time_last_updated << "\n";
           for (size_t a = 0; a < number_of_components; ++a) {
             highest_derivative[a] =
-                dat_data(row, 4 + (max_deriv + 1) * a + max_deriv);
+                dat_data(row, 5 + (max_deriv + 1) * a + max_deriv);
           }
           spec_functions_of_time[spectre_name].update(time_last_updated,
                                                       highest_derivative);
