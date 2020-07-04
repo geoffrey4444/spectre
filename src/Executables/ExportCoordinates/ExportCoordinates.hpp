@@ -16,7 +16,6 @@
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"
 #include "Evolution/Initialization/DgDomain.hpp"
 #include "Evolution/Initialization/Evolution.hpp"
-#include "IO/Importers/ReadSpecThirdOrderPiecewisePolynomial.hpp"
 #include "IO/Observer/Actions.hpp"
 #include "IO/Observer/ArrayComponentId.hpp"
 #include "IO/Observer/Helpers.hpp"
@@ -156,11 +155,9 @@ struct Metavariables {
               Parallel::PhaseActions<
                   typename Metavariables::Phase,
                   Metavariables::Phase::RegisterWithObserver,
-                  tmpl::list<
-                      observers::Actions::RegisterWithObservers<
-                          Actions::ExportCoordinates<Dim>>,
-                      importers::Actions::ReadSpecThirdOrderPiecewisePolynomial,
-                      Parallel::Actions::TerminatePhase>>,
+                  tmpl::list<observers::Actions::RegisterWithObservers<
+                                 Actions::ExportCoordinates<Dim>>,
+                             Parallel::Actions::TerminatePhase>>,
               Parallel::PhaseActions<
                   typename Metavariables::Phase, Metavariables::Phase::Export,
                   tmpl::list<Actions::AdvanceTime,
