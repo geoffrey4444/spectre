@@ -927,10 +927,10 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
 
     constexpr double width_A = 7.0 / m_A;
     constexpr double width_B = 7.0 / m_B;
-    constexpr double width_O = 2.5 * (x_A - x_B);
+    constexpr double width_O = 6.0 * (x_A - x_B);
     constexpr double amp_A = 4.0 / m_A;
     constexpr double amp_B = 4.0 / m_B;
-    constexpr double amp_O = 0.075 / (m_A + m_B);
+    constexpr double amp_O = 2.0 * 0.075 / (m_A + m_B);
     constexpr double asymptotic_damping = 0.001 / (m_A + m_B);
 
     auto distance_A_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
