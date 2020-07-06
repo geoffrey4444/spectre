@@ -220,8 +220,7 @@ struct EvolutionMetavars {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA>;
     using post_horizon_find_callback =
-        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA,
-                                                     AhA>;
+        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
   };
   using interpolation_target_tags = tmpl::list<AhA>;
   using interpolator_source_vars =
@@ -237,9 +236,9 @@ struct EvolutionMetavars {
   using triggers = Triggers::time_triggers;
 
   // Events include the observation events and finding the horizon
-  using events = tmpl::push_back<observation_events,
-                                 intrp::Events::Registrars::Interpolate<
-                                     3, AhA, interpolator_source_vars>>;
+  using events = tmpl::push_back<
+      observation_events,
+      intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>>;
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
@@ -338,9 +337,9 @@ struct EvolutionMetavars {
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               volume_dim, analytic_solution_tag, analytic_solution_fields>>>,
-    //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
-    //       volume_dim, use_damped_harmonic_rollon>,
-    //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
+      //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
+      //       volume_dim, use_damped_harmonic_rollon>,
+      //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       Parallel::Actions::TerminatePhase>;
@@ -382,6 +381,8 @@ struct EvolutionMetavars {
                   Phase, Phase::Register,
                   tmpl::list<
                       importers::Actions::ReadSpecThirdOrderPiecewisePolynomial,
+                      GeneralizedHarmonic::Actions::
+                          SetPhiFromDerivSpacetimeMetric<volume_dim>,
                       intrp::Actions::RegisterElementWithInterpolator,
                       observers::Actions::RegisterWithObservers<
                           observers::RegisterObservers<
