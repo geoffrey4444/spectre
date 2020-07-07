@@ -52,6 +52,8 @@ struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
       const gsl::not_null<Scalar<DataVector>*> gamma,
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
+    tnsr::I<DataVector, SpatialDim, Frame> centered_coords = coords;
+    get<0>(centered_coords) -= 10.0;
     get(*gamma) =
         3. * exp(-0.0078125 * get(dot_product(coords, coords))) + 0.001;
   }
@@ -87,6 +89,8 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
       const gsl::not_null<Scalar<DataVector>*> gamma,
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
+    tnsr::I<DataVector, SpatialDim, Frame> centered_coords = coords;
+    get<0>(centered_coords) -= 10.0;
     get(*gamma) = exp(-0.0078125 * get(dot_product(coords, coords))) + 0.001;
   }
 
