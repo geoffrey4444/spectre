@@ -377,7 +377,6 @@ struct EvolutionMetavars {
               Parallel::PhaseActions<
                   Phase, Phase::Register,
                   tmpl::list<
-                      importers::Actions::ReadSpecThirdOrderPiecewisePolynomial,
                       intrp::Actions::RegisterElementWithInterpolator,
                       observers::Actions::RegisterWithObservers<
                           observers::RegisterObservers<
