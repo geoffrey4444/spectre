@@ -42,6 +42,16 @@ target_link_libraries(
   PRIVATE
   GeneralRelativitySolutions
   )
+add_generalized_harmonic_executable(
+  Minkowski3D
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+)
+target_link_libraries(
+  EvolveMinkowski3D
+  PRIVATE
+  GeneralRelativitySolutions
+  )
 
 add_generalized_harmonic_executable(
   KerrSchildNumericInitialData
