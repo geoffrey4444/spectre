@@ -295,6 +295,15 @@ struct InitializeDampedHarmonic {
             *pi_ptr = gauge_corrected_pi;
           });
 
+      // Reset phi to the spaital derivative of the spacetime metric, to
+      // satisfy the three-index constraint
+      db::mutate<GeneralizedHarmonic::Tags::Phi<Dim, Frame::Inertial>>(
+          make_not_null(&box), [&box](const auto phi_ptr) noexcept {
+            *phi_ptr = db::get<
+                ::Tags::deriv<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial>,
+                              tmpl::size_t<Dim>, Frame::Inertial>>(box);
+          });
+
       // Add gauge tags
       using compute_tags = db::AddComputeTags<DampedHarmonicCompute<frame>>;
       return std::make_tuple(
