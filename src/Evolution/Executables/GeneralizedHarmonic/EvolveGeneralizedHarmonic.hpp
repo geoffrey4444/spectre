@@ -327,20 +327,20 @@ struct EvolutionMetavars {
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::face_compute_tags<
               domain::Tags::BoundaryCoordinates<volume_dim, true>,
-              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma0MinkowskiCompute<
                   volume_dim, Frame::Grid>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma1MinkowskiCompute<
                   volume_dim, Frame::Grid>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma2MinkowskiCompute<
                   volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
           dg::Initialization::exterior_compute_tags<
-              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma0MinkowskiCompute<
                   volume_dim, Frame::Grid>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma1MinkowskiCompute<
                   volume_dim, Frame::Grid>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+              GeneralizedHarmonic::Tags::ConstraintGamma2MinkowskiCompute<
                   volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,

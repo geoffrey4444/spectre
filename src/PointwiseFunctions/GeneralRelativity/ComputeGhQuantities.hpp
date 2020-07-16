@@ -909,6 +909,57 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
 };
 
 template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma0MinkowskiCompute : ConstraintGamma0, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma, get<0>(coords).size());
+    get(*gamma) = 1.0;
+  }
+
+  using base = ConstraintGamma0;
+};
+/// \copydoc ConstraintGamma0Compute
+template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma1MinkowskiCompute : ConstraintGamma1, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma1,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma1, get<0>(coords).size());
+    get(*gamma1) = -1.;
+  }
+
+  using base = ConstraintGamma1;
+};
+/// \copydoc ConstraintGamma0Compute
+template <size_t SpatialDim, typename Frame>
+struct ConstraintGamma2MinkowskiCompute : ConstraintGamma2, db::ComputeTag {
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
+
+  using return_type = Scalar<DataVector>;
+
+  static constexpr void function(
+      const gsl::not_null<Scalar<DataVector>*> gamma,
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
+    destructive_resize_components(gamma, get<0>(coords).size());
+    get(*gamma) = 1.0;
+  }
+
+  using base = ConstraintGamma2;
+};
+
+template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
   using argument_tags =
       tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;

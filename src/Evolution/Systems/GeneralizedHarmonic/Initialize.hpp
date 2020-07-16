@@ -99,10 +99,12 @@ struct InitializeGhAnd3Plus1Variables {
         gr::Tags::SpacetimeNormalVectorCompute<Dim, frame, DataVector>,
         gr::Tags::InverseSpacetimeMetricCompute<Dim, frame, DataVector>,
         GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, frame>,
-        GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<Dim, Frame::Grid>,
-        GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<Dim, Frame::Grid>,
-        GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<Dim,
-                                                              Frame::Grid>>;
+        GeneralizedHarmonic::Tags::ConstraintGamma0MinkowskiCompute<
+            Dim, Frame::Grid>,
+        GeneralizedHarmonic::Tags::ConstraintGamma1MinkowskiCompute<
+            Dim, Frame::Grid>,
+        GeneralizedHarmonic::Tags::ConstraintGamma2MinkowskiCompute<
+            Dim, Frame::Grid>>;
 
     return std::make_tuple(
         Initialization::merge_into_databox<InitializeGhAnd3Plus1Variables,
