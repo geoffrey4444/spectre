@@ -64,6 +64,8 @@
 #include "NumericalAlgorithms/Interpolation/InterpolatorRegisterElement.hpp"
 #include "NumericalAlgorithms/Interpolation/Tags.hpp"
 #include "NumericalAlgorithms/Interpolation/TryToInterpolate.hpp"
+#include "NumericalAlgorithms/LinearOperators/ExponentialFilter.hpp"
+#include "NumericalAlgorithms/LinearOperators/FilterAction.hpp"
 #include "Options/Options.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
 #include "Parallel/InitializationFunctions.hpp"
@@ -85,6 +87,7 @@
 #include "ParallelAlgorithms/Initialization/Actions/AddComputeTags.hpp"
 #include "ParallelAlgorithms/Initialization/Actions/RemoveOptionsAndTerminatePhase.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Minkowski.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
@@ -220,8 +223,7 @@ struct EvolutionMetavars {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA>;
     using post_horizon_find_callback =
-        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA,
-                                                     AhA>;
+        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
   };
   using interpolation_target_tags = tmpl::list<AhA>;
   using interpolator_source_vars =
@@ -237,9 +239,9 @@ struct EvolutionMetavars {
   using triggers = Triggers::time_triggers;
 
   // Events include the observation events and finding the horizon
-  using events = tmpl::push_back<observation_events,
-                                 intrp::Events::Registrars::Interpolate<
-                                     3, AhA, interpolator_source_vars>>;
+  using events = tmpl::push_back<
+      observation_events,
+      intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>>;
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
@@ -275,7 +277,14 @@ struct EvolutionMetavars {
                                      Actions::MutateApply<boundary_scheme>>,
                           tmpl::list<Actions::MutateApply<boundary_scheme>,
                                      Actions::RecordTimeStepperData<>>>,
-      Actions::UpdateU<>>;
+      Actions::UpdateU<>,
+      dg::Actions::Filter<
+          Filters::Exponential<0>,
+          tmpl::list<
+              gr::Tags::SpacetimeMetric<volume_dim, Frame::Inertial,
+                                        DataVector>,
+              GeneralizedHarmonic::Tags::Pi<volume_dim, Frame::Inertial>,
+              GeneralizedHarmonic::Tags::Phi<volume_dim, Frame::Inertial>>>>;
 
   enum class Phase {
     Initialization,
@@ -338,9 +347,9 @@ struct EvolutionMetavars {
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               volume_dim, analytic_solution_tag, analytic_solution_fields>>>,
-    //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
-    //       volume_dim, use_damped_harmonic_rollon>,
-    //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
+      //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
+      //       volume_dim, use_damped_harmonic_rollon>,
+      //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       Parallel::Actions::TerminatePhase>;

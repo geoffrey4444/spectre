@@ -17,6 +17,8 @@ struct WrappedGr;
 namespace gr {
 namespace Solutions {
 struct KerrSchild;
+template <size_t VolumeDim>
+struct Minkowski;
 }  // namespace Solutions
 }  // namespace gr
 namespace evolution {
