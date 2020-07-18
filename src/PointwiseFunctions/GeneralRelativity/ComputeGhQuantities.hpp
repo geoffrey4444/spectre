@@ -925,8 +925,8 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
     constexpr double x_A = 10.0;
     constexpr double x_B = -10.0;
 
-    constexpr double width_A = 7.0 / m_A;
-    constexpr double width_B = 7.0 / m_B;
+    constexpr double width_A = 7.0 * m_A;
+    constexpr double width_B = 7.0 * m_B;
     constexpr double width_O = 2.5 * (x_A - x_B);
     constexpr double amp_A = 4.0 / m_A;
     constexpr double amp_B = 4.0 / m_B;
@@ -968,7 +968,7 @@ struct ConstraintGamma1BBHCompute : ConstraintGamma1, db::ComputeTag {
 
     constexpr double width = 10.0 * (x_A - x_B);
     get(*gamma1) =
-        amp * (-1.0 + exp(-get(dot_product(coords, coords)) / width));
+        amp * (-1.0 + exp(-get(dot_product(coords, coords)) / square(width)));
   }
 
   using base = ConstraintGamma1;
@@ -990,8 +990,8 @@ struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
     constexpr double x_A = 10.0;
     constexpr double x_B = -10.0;
 
-    constexpr double width_A = 7.0 / m_A;
-    constexpr double width_B = 7.0 / m_B;
+    constexpr double width_A = 7.0 * m_A;
+    constexpr double width_B = 7.0 * m_B;
     constexpr double width_O = 2.5 * (x_A - x_B);
     constexpr double amp_A = 4.0 / m_A;
     constexpr double amp_B = 4.0 / m_B;
