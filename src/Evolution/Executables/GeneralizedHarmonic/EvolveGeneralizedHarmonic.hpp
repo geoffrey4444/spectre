@@ -179,6 +179,9 @@ struct EvolutionMetavars {
   using observe_fields = tmpl::append<
       tmpl::list<
           gr::Tags::Lapse<DataVector>,
+          GeneralizedHarmonic::Tags::ConstraintGamma0,
+          GeneralizedHarmonic::Tags::ConstraintGamma1,
+          GeneralizedHarmonic::Tags::ConstraintGamma2,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
