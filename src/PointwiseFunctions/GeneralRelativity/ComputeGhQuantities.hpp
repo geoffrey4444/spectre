@@ -13,14 +13,12 @@
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
-#include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ComputeSpacetimeQuantities.hpp"
 #include "PointwiseFunctions/GeneralRelativity/IndexManipulation.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
-#include "Time/Tags.hpp"
 #include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeWithValue.hpp"
@@ -912,18 +910,14 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
 
 template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
-  using argument_tags = tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>,
-                                   ::Tags::Time, domain::Tags::FunctionsOfTime>;
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
 
   using return_type = Scalar<DataVector>;
 
-  using FunctionsOfTime = std::unordered_map<
-      std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>;
-
   static constexpr void function(
       const gsl::not_null<Scalar<DataVector>*> gamma,
-      const tnsr::I<DataVector, SpatialDim, Frame>& coords, const double time,
-      const FunctionsOfTime& functions_of_time) noexcept {
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
 
     constexpr double m_A = 0.5;
@@ -939,10 +933,6 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
     constexpr double amp_O = 0.075 / (m_A + m_B);
     constexpr double asymptotic_damping = 0.001 / (m_A + m_B);
 
-    // HACK: hard-code name of expansion factor as "ExpansionFactor"
-    const double inverse_expansion_factor =
-        1.0 / (functions_of_time.at("ExpansionFactor")->func(time)[0][0]);
-
     auto distance_A_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
     get(distance_A_squared) = square(get<0>(coords) - x_A) +
                               square(get<1>(coords)) + square(get<2>(coords));
@@ -952,12 +942,9 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
     auto distance_O_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
     get(distance_O_squared) = get(dot_product(coords, coords));
 
-    get(*gamma) = amp_A * exp(-get(distance_A_squared) /
-                              square(width_A * inverse_expansion_factor)) +
-                  amp_B * exp(-get(distance_B_squared) /
-                              square(width_B * inverse_expansion_factor)) +
-                  amp_O * exp(-get(distance_O_squared) /
-                              square(width_O * inverse_expansion_factor)) +
+    get(*gamma) = amp_A * exp(-get(distance_A_squared) / square(width_A)) +
+                  amp_B * exp(-get(distance_B_squared) / square(width_B)) +
+                  amp_O * exp(-get(distance_O_squared) / square(width_O)) +
                   asymptotic_damping;
   }
 
@@ -989,18 +976,14 @@ struct ConstraintGamma1BBHCompute : ConstraintGamma1, db::ComputeTag {
 
 template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
-  using argument_tags = tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>,
-                                   ::Tags::Time, domain::Tags::FunctionsOfTime>;
+  using argument_tags =
+      tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>>;
 
   using return_type = Scalar<DataVector>;
 
-  using FunctionsOfTime = std::unordered_map<
-      std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>;
-
   static constexpr void function(
       const gsl::not_null<Scalar<DataVector>*> gamma,
-      const tnsr::I<DataVector, SpatialDim, Frame>& coords, const double time,
-      const FunctionsOfTime& functions_of_time) noexcept {
+      const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
     constexpr double m_A = 0.5;
     constexpr double m_B = 0.5;
@@ -1015,10 +998,6 @@ struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
     constexpr double amp_O = 0.075 / (m_A + m_B);
     constexpr double asymptotic_damping = 0.001 / (m_A + m_B);
 
-    // HACK: hard-code name of expansion factor as "ExpansionFactor"
-    const double inverse_expansion_factor =
-        1.0 / (functions_of_time.at("ExpansionFactor")->func(time)[0][0]);
-
     auto distance_A_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
     get(distance_A_squared) = square(get<0>(coords) - x_A) +
                               square(get<1>(coords)) + square(get<2>(coords));
@@ -1028,12 +1007,9 @@ struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
     auto distance_O_squared = make_with_value<Scalar<DataVector>>(coords, 0.0);
     get(distance_O_squared) = get(dot_product(coords, coords));
 
-    get(*gamma) = amp_A * exp(-get(distance_A_squared) /
-                              square(width_A * inverse_expansion_factor)) +
-                  amp_B * exp(-get(distance_B_squared) /
-                              square(width_B * inverse_expansion_factor)) +
-                  amp_O * exp(-get(distance_O_squared) /
-                              square(width_O * inverse_expansion_factor)) +
+    get(*gamma) = amp_A * exp(-get(distance_A_squared) / square(width_A)) +
+                  amp_B * exp(-get(distance_B_squared) / square(width_B)) +
+                  amp_O * exp(-get(distance_O_squared) / square(width_O)) +
                   asymptotic_damping;
   }
 
