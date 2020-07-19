@@ -915,6 +915,8 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
   using argument_tags = tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>,
                                    ::Tags::Time, domain::Tags::FunctionsOfTime>;
 
+  using volume_tags = tmpl::list<::Tags::Time, domain::Tags::FunctionsOfTime>;
+
   using return_type = Scalar<DataVector>;
 
   using FunctionsOfTime = std::unordered_map<
@@ -991,6 +993,8 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
   using argument_tags = tmpl::list<domain::Tags::Coordinates<SpatialDim, Frame>,
                                    ::Tags::Time, domain::Tags::FunctionsOfTime>;
+
+  using volume_tags = tmpl::list<::Tags::Time, domain::Tags::FunctionsOfTime>;
 
   using return_type = Scalar<DataVector>;
 
