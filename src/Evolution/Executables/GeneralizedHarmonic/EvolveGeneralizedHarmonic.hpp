@@ -280,14 +280,7 @@ struct EvolutionMetavars {
                                      Actions::MutateApply<boundary_scheme>>,
                           tmpl::list<Actions::MutateApply<boundary_scheme>,
                                      Actions::RecordTimeStepperData<>>>,
-      Actions::UpdateU<>,
-      dg::Actions::Filter<
-          Filters::Exponential<0>,
-          tmpl::list<
-              gr::Tags::SpacetimeMetric<volume_dim, Frame::Inertial,
-                                        DataVector>,
-              GeneralizedHarmonic::Tags::Pi<volume_dim, Frame::Inertial>,
-              GeneralizedHarmonic::Tags::Phi<volume_dim, Frame::Inertial>>>>;
+      Actions::UpdateU<>>;
 
   enum class Phase {
     Initialization,
