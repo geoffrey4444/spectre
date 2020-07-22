@@ -1,7 +1,5 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
-#include <iostream>
-
 #pragma once
 
 #include <array>
@@ -24,6 +22,7 @@
 #include "IO/H5/File.hpp"
 #include "IO/Importers/Tags.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
+#include "Parallel/Printf.hpp"
 #include "ParallelAlgorithms/Initialization/MergeIntoDataBox.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
@@ -62,8 +61,8 @@ namespace Actions {
 ///
 struct ReadSpecThirdOrderPiecewisePolynomial {
   using const_global_cache_tags =
-       tmpl::list<importers::Tags::FunctionOfTimeFile,
-                  importers::Tags::FunctionOfTimeNameMap>;
+      tmpl::list<importers::Tags::FunctionOfTimeFile,
+                 importers::Tags::FunctionOfTimeNameMap>;
   template <
       typename DbTagsList, typename... InboxTags, typename Metavariables,
       typename ArrayIndex, typename ActionList, typename ParallelComponent,
@@ -101,18 +100,15 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
     for (const auto& spec_and_spectre_names : dataset_name_map) {
       const std::string& spec_name = std::get<0>(spec_and_spectre_names);
       const std::string& spectre_name = std::get<1>(spec_and_spectre_names);
-      std::cout << "Reading " << spectre_name << "...\n";
+      Parallel::printf("Reading %s...\n", spectre_name);
       // clang-tidy: use auto when initializing with a template cast to avoid
       // duplicating the type name
-      std::cout << "Reading h5 file...\n";
       const h5::Dat& dat_file = file->get<h5::Dat>("/" + spec_name);  // NOLINT
-      std::cout << "Getting dat_data h5 file...\n";
       const Matrix& dat_data = dat_file.get_data();
 
       // Check that the data in the file uses deriv order 3
       // Column 3 of the file contains the derivative order
       const size_t dat_max_deriv = dat_data(0, 3);
-      std::cout << "DatMaxDeriv = " << dat_max_deriv << "..\n";
       if (dat_max_deriv != max_deriv) {
         file.reset();
         ERROR("Deriv order in " << file_name << " should be " << max_deriv
@@ -122,7 +118,6 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
       // Get the initial time ('time of last update') from the file
       // and the values of the function and its derivatives at that time
       const double start_time = dat_data(0, 1);
-      std::cout << "start_time = " << start_time << "\n";
 
       // Currently, assume the same number of components are used
       // at each time. This could be generalized if needed
@@ -150,7 +145,6 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
         // The time of last update is stored in column 1 in the dat file
         if (dat_data(row, 1) > time_last_updated) {
           time_last_updated = dat_data(row, 1);
-          std::cout << "t = " << time_last_updated << "\n";
           for (size_t a = 0; a < number_of_components; ++a) {
             highest_derivative[a] =
                 dat_data(row, 5 + (max_deriv + 1) * a + max_deriv);
@@ -167,7 +161,7 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
       }
     }
 
-    std::cout << "Mutating databox...\n";
+    Parallel::printf("Mutating databox...\n");
     // Mutate ::domain::Tags::FunctionsOfTime, adding the imported
     // FunctionsOfTime to it
     db::mutate<::domain::Tags::FunctionsOfTime>(
@@ -206,7 +200,7 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
             *piecewise_polynomial = spec_functions_of_time[spectre_name];
           }
         });
-    std::cout << "Done reading functions of time from H5\n";
+    Parallel::printf("Done reading functions of time from H5\n");
     return std::forward_as_tuple(std::move(box));
   }
 };
