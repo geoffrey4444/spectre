@@ -9,6 +9,7 @@
 #include <tuple>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "Parallel/Printf.hpp"
 #include "Time/Tags.hpp"
 #include "Time/Time.hpp"
 #include "Time/TimeStepId.hpp"
@@ -64,10 +65,12 @@ struct AdvanceTime {
            const gsl::not_null<TimeDelta*> time_step,
            const gsl::not_null<double*> time,
            const TimeStepper& time_stepper) noexcept {
+          const double start_time = *time;
           *time_id = *next_time_id;
           *time_step = time_step->with_slab(time_id->step_time().slab());
           *next_time_id = time_stepper.next_time_id(*next_time_id, *time_step);
           *time = time_id->substep_time().value();
+          Parallel::printf("t = %1.15f -> t = %1.15f\n", start_time, *time);
         },
         db::get<Tags::TimeStepper<>>(box));
 
