@@ -11,7 +11,6 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/MortarHelpers.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "NumericalAlgorithms/Spectral/Projection.hpp"
-#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 
 /// \cond
@@ -161,7 +160,6 @@ struct CollectDataForFluxes<
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
-    Parallel::printf("Hello from CollectDataForFluxes::apply\n");
     // Collect data on external element boundaries
     auto interior_boundary_data =
         interface_apply<domain::Tags::BoundaryDirectionsInterior<volume_dim>,

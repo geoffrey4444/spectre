@@ -17,7 +17,6 @@
 #include "Evolution/TypeTraits.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
-#include "Parallel/Printf.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "Time/Tags.hpp"
 #include "Utilities/Gsl.hpp"
@@ -103,7 +102,6 @@ struct ImposeDirichletBoundaryConditions {
       Parallel::ConstGlobalCache<Metavariables>& cache,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
-    Parallel::printf("Hello from ImposeDirichletBoundaryConditions::apply\n");
     using system = typename Metavariables::system;
     return apply_impl<Metavariables::system::volume_dim>(
         box, cache,

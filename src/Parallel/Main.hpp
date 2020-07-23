@@ -384,7 +384,6 @@ template <typename Metavariables>
 void Main<Metavariables>::execute_next_phase() noexcept {
   current_phase_ = Metavariables::determine_next_phase(
       current_phase_, const_global_cache_proxy_);
-  Parallel::printf("Hello from phase %i\n", static_cast<int>(current_phase_));
   if (Metavariables::Phase::Exit == current_phase_) {
     Informer::print_exit_info();
     Parallel::exit();

@@ -9,7 +9,6 @@
 #include <tuple>
 
 #include "DataStructures/DataBox/DataBox.hpp"
-#include "Parallel/Printf.hpp"
 #include "Time/Tags.hpp"
 #include "Time/Time.hpp"
 #include "Time/TimeStepId.hpp"
@@ -57,7 +56,6 @@ struct AdvanceTime {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {  // NOLINT const
-    Parallel::printf("Hello from AdvanceTime\n");
     db::mutate<Tags::TimeStepId, Tags::Next<Tags::TimeStepId>, Tags::TimeStep,
                Tags::Time>(
         make_not_null(&box),
@@ -66,12 +64,10 @@ struct AdvanceTime {
            const gsl::not_null<TimeDelta*> time_step,
            const gsl::not_null<double*> time,
            const TimeStepper& time_stepper) noexcept {
-          Parallel::printf("Hello, time before advance is t = %1.15f\n", *time);
           *time_id = *next_time_id;
           *time_step = time_step->with_slab(time_id->step_time().slab());
           *next_time_id = time_stepper.next_time_id(*next_time_id, *time_step);
           *time = time_id->substep_time().value();
-          Parallel::printf("Hello, time after advance t = %1.15f\n", *time);
         },
         db::get<Tags::TimeStepper<>>(box));
 

@@ -22,7 +22,6 @@
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/InboxInserters.hpp"
 #include "Parallel/Invoke.hpp"
-#include "Parallel/Printf.hpp"
 #include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "Time/Slab.hpp"
@@ -118,7 +117,6 @@ struct ChangeSlabSize {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
-    Parallel::printf("Hello from ChangeSlabSize::apply\n");
     const auto& time_step_id = db::get<Tags::TimeStepId>(box);
 
     if (not time_step_id.is_at_slab_boundary()) {

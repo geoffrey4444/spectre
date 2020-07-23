@@ -15,7 +15,6 @@
 #include "DataStructures/Variables.hpp"
 #include "Domain/Tags.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
-#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
 #include "Utilities/TaggedTuple.hpp"
@@ -51,8 +50,6 @@ struct ComputeNonconservativeBoundaryFluxes {
   static void apply_flux(
       gsl::not_null<Variables<tmpl::list<NormalDotFluxTags...>>*> boundary_flux,
       const Args&... boundary_variables) noexcept {
-    Parallel::printf(
-        "Hello from ComputeNonconservativeBoundaryFluxes::apply\n");
     Metavariables::system::normal_dot_fluxes::apply(
         make_not_null(&get<NormalDotFluxTags>(*boundary_flux))...,
         boundary_variables...);
@@ -67,8 +64,6 @@ struct ComputeNonconservativeBoundaryFluxes {
       Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
-    Parallel::printf(
-        "Hello from ComputeNonconservativeBoundaryFluxes::apply\n");
     using system = typename Metavariables::system;
     using variables_tag = typename system::variables_tag;
 

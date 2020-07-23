@@ -9,7 +9,6 @@
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
-#include "Parallel/Printf.hpp"
 #include "Time/Tags.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/NoSuchType.hpp"
@@ -57,7 +56,6 @@ struct RecordTimeStepperData {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {  // NOLINT const
-    Parallel::printf("Hello from RecordTimeStepperData\n");
     using variables_tag =
         tmpl::conditional_t<std::is_same_v<VariablesTag, NoSuchType>,
                             typename Metavariables::system::variables_tag,
