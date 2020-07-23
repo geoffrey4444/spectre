@@ -32,7 +32,7 @@ spectre_unload_modules() {
     module unload libxsmm-1.10-gcc-7.3.0-sjh5yzv
     module unload yaml-cpp-develop-gcc-7.3.0-qcfbbll
     module unload boost-1.68.0-gcc-7.3.0-vgl6ofr
-    module unload hdf5-1.10.4-gcc-7.3.0-ytt4j54
+    module unload hdf5-1.12.0-gcc-7.3.0-mknp6xv
     module unload openblas-0.3.4-gcc-7.3.0-tt2coe7
     module unload python/3.7.0
     module unload charm
@@ -56,7 +56,7 @@ spectre_load_modules() {
     module load libxsmm-1.10-gcc-7.3.0-sjh5yzv
     module load yaml-cpp-develop-gcc-7.3.0-qcfbbll
     module load boost-1.68.0-gcc-7.3.0-vgl6ofr
-    module load hdf5-1.10.4-gcc-7.3.0-ytt4j54
+    module load hdf5-1.12.0-gcc-7.3.0-mknp6xv
     module load openblas-0.3.4-gcc-7.3.0-tt2coe7
     module load charm
 }
