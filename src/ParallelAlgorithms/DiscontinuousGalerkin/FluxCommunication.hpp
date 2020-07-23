@@ -23,6 +23,7 @@
 #include "Parallel/ConstGlobalCache.hpp"
 #include "Parallel/InboxInserters.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/Printf.hpp"
 #include "ParallelAlgorithms/DiscontinuousGalerkin/HasReceivedFromAllMortars.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
@@ -95,6 +96,7 @@ struct SendDataForFluxes {
       Parallel::ConstGlobalCache<Metavariables>& cache,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
+    Parallel::printf("Hello from SendDataForFluxes::apply\n");
     auto& receiver_proxy =
         Parallel::get_parallel_component<ParallelComponent>(cache);
 
@@ -193,6 +195,7 @@ struct ReceiveDataForFluxes {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
+    Parallel::printf("Hello from ReceiveDataForFluxes::apply\n");
     if (UNLIKELY(
             get<domain::Tags::Element<volume_dim>>(box).number_of_neighbors() ==
             0)) {

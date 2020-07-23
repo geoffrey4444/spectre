@@ -9,6 +9,7 @@
 #include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/TMPL.hpp"
@@ -69,6 +70,7 @@ struct ComputeTimeDerivative {
     // hard-coding `Tags::dt`) to retain consistency with other actions that do
     // the same (for instance `dg::Actions::ApplyFluxes` that is not specific to
     // evolution systems)
+    Parallel::printf("Hello from ComputeTimeDerivatives::apply\n");
     db::mutate_apply<typename TimeDerivativeComputer::template return_tags<
                          Metavariables::temporal_id::template step_prefix>,
                      typename TimeDerivativeComputer::argument_tags>(

@@ -7,6 +7,7 @@
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "Parallel/ConstGlobalCache.hpp"
+#include "Parallel/Printf.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Tags.hpp"
 #include "Utilities/TaggedTuple.hpp"
 
@@ -33,6 +34,7 @@ struct RunEventsAndTriggers {
                     Parallel::ConstGlobalCache<Metavariables>& cache,
                     const ArrayIndex& array_index, const ActionList /*meta*/,
                     const ParallelComponent* const component) noexcept {
+    Parallel::printf("Hello from RunEventsAndTriggers::apply\n");
     Parallel::get<Tags::EventsAndTriggersBase>(cache).run_events(
         box, cache, array_index, component);
 

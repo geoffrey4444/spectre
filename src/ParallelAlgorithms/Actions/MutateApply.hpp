@@ -6,6 +6,7 @@
 #include <tuple>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/TMPL.hpp"
 
 /// \cond
@@ -46,6 +47,7 @@ struct MutateApply {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {
+    Parallel::printf("Hello from MutateApply::apply\n");
     db::mutate_apply<Mutator>(make_not_null(&box));
     return {std::move(box)};
   }

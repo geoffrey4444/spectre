@@ -10,6 +10,7 @@
 #include "DataStructures/DataBox/Prefixes.hpp"
 #include "Domain/TagsTimeDependent.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/TMPL.hpp"
@@ -65,6 +66,7 @@ struct AddMeshVelocityNonconservative {
       const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
       const ArrayIndex& /*array_index*/, ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) noexcept {  // NOLINT const
+    Parallel::printf("Hello from AddMeshVelocityNonconservative::apply\n");
     using variables_tags =
         typename Metavariables::system::variables_tag::tags_list;
     const auto& mesh_velocity =
