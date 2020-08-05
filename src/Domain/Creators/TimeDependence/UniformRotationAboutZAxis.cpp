@@ -18,6 +18,9 @@
 #include "Domain/CoordinateMaps/MapInstantiationMacros.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
+#include "Domain/Creators/TimeDependence/Composition.hpp"
+#include "Domain/Creators/TimeDependence/Composition.tpp"
+#include "Domain/Creators/TimeDependence/CubicScale.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "ErrorHandling/Assert.hpp"
@@ -111,19 +114,25 @@ bool operator!=(const UniformRotationAboutZAxis<Dim>& lhs,
 
 #define GET_DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(r, data)                                   \
-  template class UniformRotationAboutZAxis<GET_DIM(data)>;       \
-  template bool operator==<GET_DIM(data)>(                       \
-      const UniformRotationAboutZAxis<GET_DIM(data)>&,           \
-      const UniformRotationAboutZAxis<GET_DIM(data)>&) noexcept; \
-  template bool operator!=<GET_DIM(data)>(                       \
-      const UniformRotationAboutZAxis<GET_DIM(data)>&,           \
-      const UniformRotationAboutZAxis<GET_DIM(data)>&) noexcept;
+#define INSTANTIATION(r, data)                                               \
+  template class UniformRotationAboutZAxis<GET_DIM(data)>;                   \
+  template bool operator==<GET_DIM(data)>(                                   \
+      const UniformRotationAboutZAxis<GET_DIM(data)>&,                       \
+      const UniformRotationAboutZAxis<GET_DIM(data)>&) noexcept;             \
+  template bool operator!=<GET_DIM(data)>(                                   \
+      const UniformRotationAboutZAxis<GET_DIM(data)>&,                       \
+      const UniformRotationAboutZAxis<GET_DIM(data)>&) noexcept;             \
+  template class Composition<                                                \
+      TimeDependenceCompositionTag<CubicScale<GET_DIM(data)>,                \
+                                   std::numeric_limits<size_t>::max()>,      \
+      TimeDependenceCompositionTag<UniformRotationAboutZAxis<GET_DIM(data)>, \
+                                   std::numeric_limits<size_t>::max()>>;
 
 GENERATE_INSTANTIATIONS(INSTANTIATION, (2, 3))
 
 #undef GET_DIM
 #undef INSTANTIATION
+
 /// \endcond
 }  // namespace time_dependence
 }  // namespace creators
