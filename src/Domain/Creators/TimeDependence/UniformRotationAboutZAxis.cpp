@@ -1,8 +1,6 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 
-#pragma once
-
 #include "Domain/Creators/TimeDependence/UniformRotationAboutZAxis.hpp"
 
 #include <array>
@@ -20,9 +18,6 @@
 #include "Domain/CoordinateMaps/MapInstantiationMacros.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
-#include "Domain/Creators/TimeDependence/Composition.hpp"
-#include "Domain/Creators/TimeDependence/Composition.tpp"
-#include "Domain/Creators/TimeDependence/CubicScale.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "ErrorHandling/Assert.hpp"
