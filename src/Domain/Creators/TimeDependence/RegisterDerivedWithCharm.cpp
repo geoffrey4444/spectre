@@ -2,15 +2,19 @@
 // See LICENSE.txt for details.
 
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <pup.h>
 
 #include "Domain/CoordinateMaps/TimeDependent/CubicScale.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/Translation.hpp"
+#include "Domain/Creators/TimeDependence/Composition.hpp"
+#include "Domain/Creators/TimeDependence/Composition.tpp"
 #include "Domain/Creators/TimeDependence/CubicScale.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
 #include "Domain/Creators/TimeDependence/TimeDependence.hpp"
+#include "Domain/Creators/TimeDependence/UniformRotationAboutZAxis.hpp"
 #include "Domain/Creators/TimeDependence/UniformTranslation.hpp"
 #include "Parallel/RegisterDerivedClassesWithCharm.hpp"
 #include "Utilities/TMPL.hpp"
@@ -18,6 +22,12 @@
 namespace domain {
 namespace creators {
 namespace time_dependence {
+// Instantiate composition rotation(expansion(old_coords))
+template class Composition<
+    TimeDependenceCompositionTag<CubicScale<3>,
+                                 std::numeric_limits<size_t>::max()>,
+    TimeDependenceCompositionTag<UniformRotationAboutZAxis<3>,
+                                 std::numeric_limits<size_t>::max()>>;
 namespace {
 template <typename TimeDep>
 struct get_maps {

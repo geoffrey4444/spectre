@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -35,6 +36,10 @@ template <size_t MeshDim>
 class UniformRotationAboutZAxis;
 template <size_t MeshDim>
 class UniformTranslation;
+template <typename TimeDependence, size_t Suffix>
+struct TimeDependenceCompositionTag;
+template <typename Tag0, typename... Tags>
+class Composition;
 }  // namespace time_dependence
 }  // namespace creators
 }  // namespace domain
@@ -56,7 +61,13 @@ struct TimeDependence {
  private:
   using creatable_classes_1d = tmpl::list<>;
   using creatable_classes_2d = tmpl::list<UniformRotationAboutZAxis<2>>;
-  using creatable_classes_3d = tmpl::list<UniformRotationAboutZAxis<3>>;
+  using creatable_classes_3d = tmpl::list<
+      UniformRotationAboutZAxis<3>,
+      Composition<
+          TimeDependenceCompositionTag<CubicScale<3>,
+                                       std::numeric_limits<size_t>::max()>,
+          TimeDependenceCompositionTag<UniformRotationAboutZAxis<3>,
+                                       std::numeric_limits<size_t>::max()>>>;
   using creatable_classes_any_dim =
       tmpl::list<CubicScale<MeshDim>, None<MeshDim>,
                  UniformTranslation<MeshDim>>;
