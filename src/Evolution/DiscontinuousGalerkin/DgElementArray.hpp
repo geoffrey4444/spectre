@@ -16,6 +16,7 @@
 #include "Domain/Tags.hpp"
 #include "Evolution/Protocols.hpp"
 #include "Evolution/Tags.hpp"
+#include "IO/Importers/ReadSpecThirdOrderPiecewisePolynomial.hpp"
 #include "IO/Importers/VolumeDataReader.hpp"
 #include "IO/Importers/VolumeDataReaderActions.hpp"
 #include "Parallel/GlobalCache.hpp"
@@ -60,6 +61,12 @@ using read_element_data_action = importers::ThreadedActions::ReadVolumeData<
     evolution::OptionTags::NumericInitialData, ImportFields,
     ::Actions::SetData<ImportFields>, DgElementArray>;
 
+template <typename DgElementArray>
+using read_spec_data_action =
+    importers::ThreadedActions::ReadSpecThirdOrderPiecewisePolynomial<
+        ::Actions::SetData<tmpl::list<domain::Tags::FunctionsOfTime>>,
+        DgElementArray>;
+
 template <typename DgElementArray, typename ImportInitialData>
 struct import_numeric_data_cache_tags {
   using type = tmpl::list<>;
@@ -73,6 +80,12 @@ struct import_numeric_data_cache_tags<
   using type =
       typename read_element_data_action<DgElementArray,
                                         InitialData>::const_global_cache_tags;
+};
+
+template <typename DgElementArray>
+struct import_spec_data_cache_tags {
+  using type =
+      typename read_spec_data_action<DgElementArray>::const_global_cache_tags;
 };
 
 }  // namespace DgElementArray_detail
@@ -101,6 +114,8 @@ struct DgElementArray {
 
   using const_global_cache_tags =
       tmpl::list<domain::Tags::Domain<volume_dim>,
+                 typename DgElementArray_detail::import_spec_data_cache_tags<
+                     DgElementArray>::type,
                  typename DgElementArray_detail::import_numeric_data_cache_tags<
                      DgElementArray, ImportInitialData>::type>;
 
@@ -133,6 +148,10 @@ struct DgElementArray {
         Parallel::threaded_action<
             DgElementArray_detail::read_element_data_action<
                 DgElementArray, typename ImportInitialData::initial_data>>(
+            Parallel::get_parallel_component<
+                importers::VolumeDataReader<Metavariables>>(local_cache));
+        Parallel::threaded_action<
+            DgElementArray_detail::read_spec_data_action<DgElementArray>>(
             Parallel::get_parallel_component<
                 importers::VolumeDataReader<Metavariables>>(local_cache));
       }
