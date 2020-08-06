@@ -116,8 +116,8 @@ struct ConstraintGamma0BBHCompute : ConstraintGamma0, db::ComputeTag {
 
     constexpr double m_A = 0.5;
     constexpr double m_B = 0.5;
-    constexpr double x_A = 10.0;
-    constexpr double x_B = -10.0;
+    constexpr double x_A = 8.2997;
+    constexpr double x_B = -8.2997;
 
     constexpr double width_A = 7.0 * m_A;
     constexpr double width_B = 7.0 * m_B;
@@ -164,8 +164,8 @@ struct ConstraintGamma1BBHCompute : ConstraintGamma1, db::ComputeTag {
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma1, get<0>(coords).size());
     constexpr double amp = 0.999;
-    constexpr double x_A = 10.0;
-    constexpr double x_B = -10.0;
+    constexpr double x_A = 8.2997;
+    constexpr double x_B = -8.2997;
 
     constexpr double width = 10.0 * (x_A - x_B);
     get(*gamma1) =
@@ -194,8 +194,8 @@ struct ConstraintGamma2BBHCompute : ConstraintGamma2, db::ComputeTag {
     destructive_resize_components(gamma, get<0>(coords).size());
     constexpr double m_A = 0.5;
     constexpr double m_B = 0.5;
-    constexpr double x_A = 10.0;
-    constexpr double x_B = -10.0;
+    constexpr double x_A = 8.2997;
+    constexpr double x_B = -8.2997;
 
     constexpr double width_A = 7.0 * m_A;
     constexpr double width_B = 7.0 * m_B;
