@@ -11,63 +11,88 @@
 namespace Parallel {
 /*!
  * \ingroup ParallelGroup
- * \brief Create a converse CmiNodeLock
+ * \brief A typesafe wrapper for the Converse nodelock, with safe creation,
+ * destruction, and serialization.
+ *
+ * \details On construction, this class creates a Converse nodelock, and frees
+ * the lock on destruction. During serialization, the contained nodelock at the
+ * sending node is destroyed to avoid misuse, and throws an error if the lock is
+ * used thereafter. When the lock is deserialized, the nodelock is re-created.
  */
-inline CmiNodeLock create_lock() noexcept { return CmiCreateLock(); }
+class NodeLock {
+ public:
+  NodeLock() noexcept {
+    lock_ = CmiCreateLock();
+  }
 
-/*!
- * \ingroup ParallelGroup
- * \brief Free a converse CmiNodeLock. Using the lock after free is undefined
- * behavior.
- */
-inline void free_lock(const gsl::not_null<CmiNodeLock*> node_lock) noexcept {
+  explicit NodeLock(CkMigrateMessage* /*message*/) noexcept {}
+
+  NodeLock(const NodeLock&) = delete;
+  NodeLock& operator=(const NodeLock&) = delete;
+  NodeLock(NodeLock&& moved_lock) noexcept {
+    moved_lock.destroy();
+    lock_ = CmiCreateLock();
+  }
+
+  NodeLock& operator=(NodeLock&& moved_lock) noexcept {
+    moved_lock.destroy();
+    lock_ = CmiCreateLock();
+    return *this;
+  }
+
+  ~NodeLock() noexcept { destroy(); }
+
+  void lock() noexcept {
+  if (UNLIKELY(destroyed_)) {
+    ERROR("Trying to lock a destroyed lock");
+  }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
-  CmiDestroyLock(*node_lock);
+    CmiLock(lock_);
 #pragma GCC diagnostic pop
 }
 
-/*!
- * \ingroup ParallelGroup
- * \brief Lock a converse CmiNodeLock
- */
-inline void lock(const gsl::not_null<CmiNodeLock*> node_lock) noexcept {
+  bool try_lock() noexcept {
+    if (UNLIKELY(destroyed_)) {
+      ERROR("Trying to try_lock a destroyed lock");
+    }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
-  CmiLock(*node_lock);
+    return CmiTryLock(lock_) == 0;
 #pragma GCC diagnostic pop
-}
+  }
 
-/// \cond
-constexpr inline void lock(
-    const gsl::not_null<NoSuchType*> /*unused*/) noexcept {}
-/// \endcond
-
-/*!
- * \ingroup ParallelGroup
- * \brief Returns true if the lock was successfully acquired and false if the
- * lock is already acquired by another processor.
- */
-inline bool try_lock(const gsl::not_null<CmiNodeLock*> node_lock) noexcept {
+  void unlock() noexcept {
+    if (UNLIKELY(destroyed_)) {
+      ERROR("Trying to unlock a destroyed lock");
+    }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
-  return CmiTryLock(*node_lock) == 0;
+    CmiUnlock(lock_);
 #pragma GCC diagnostic pop
-}
+  }
 
-/*!
- * \ingroup ParallelGroup
- * \brief Unlock a converse CmiNodeLock
- */
-inline void unlock(const gsl::not_null<CmiNodeLock*> node_lock) noexcept {
+  void destroy() noexcept {
+    if(destroyed_) {
+      return;
+    }
+    destroyed_ = true;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
-  CmiUnlock(*node_lock);
+    CmiDestroyLock(lock_);
 #pragma GCC diagnostic pop
-}
+  }
 
-/// \cond
-constexpr inline void unlock(
-    const gsl::not_null<NoSuchType*> /*unused*/) noexcept {}
-/// \endcond
+  void pup(PUP::er& p) noexcept {  // NOLINT
+    if (p.isUnpacking()) {
+      lock_ = CmiCreateLock();
+    } else if (p.isPacking()) {
+      destroy();
+    }
+  }
+
+ private:
+  bool destroyed_ = false;
+  CmiNodeLock lock_{};  // NOLINT
+};
 }  // namespace Parallel

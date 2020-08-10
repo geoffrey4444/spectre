@@ -50,6 +50,8 @@
 #include "Utilities/TypeTraits.hpp"
 #include "Utilities/TypeTraits/IsA.hpp"
 
+#include "Parallel/Printf.hpp"
+
 /// \cond
 // IWYU pragma: no_forward_declare db::DataBox
 namespace PUP {
@@ -818,7 +820,7 @@ class MockDistributedObject {
       NAME##_queue_.push_back(                                                \
           std::make_unique<BOOST_PP_IF(USE_SIMPLE_ACTION, InvokeSimpleAction, \
                                        InvokeThreadedAction) < Action,        \
-                           Args...>> (this, std::move(args)));                \
+                           Args...> > (this, std::move(args)));               \
     }                                                                         \
   }                                                                           \
   template <typename Action, typename... Args,                                \
@@ -840,7 +842,7 @@ class MockDistributedObject {
       NAME##_queue_.push_back(                                                \
           std::make_unique<BOOST_PP_IF(USE_SIMPLE_ACTION, InvokeSimpleAction, \
                                        InvokeThreadedAction) < new_action,    \
-                           Args...>> (this, std::move(args)));                \
+                           Args...> > (this, std::move(args)));               \
     }                                                                         \
   }                                                                           \
   template <typename Action,                                                  \
@@ -859,7 +861,7 @@ class MockDistributedObject {
     } else {                                                                  \
       NAME##_queue_.push_back(                                                \
           std::make_unique<BOOST_PP_IF(USE_SIMPLE_ACTION, InvokeSimpleAction, \
-                                       InvokeThreadedAction) < Action>>       \
+                                       InvokeThreadedAction) < Action> >      \
           (this));                                                            \
     }                                                                         \
   }                                                                           \
@@ -884,7 +886,7 @@ class MockDistributedObject {
     } else {                                                                  \
       simple_action_queue_.push_back(                                         \
           std::make_unique<BOOST_PP_IF(USE_SIMPLE_ACTION, InvokeSimpleAction, \
-                                       InvokeThreadedAction) < new_action>>   \
+                                       InvokeThreadedAction) < new_action> >  \
           (this));                                                            \
     }                                                                         \
   }
@@ -947,9 +949,11 @@ class MockDistributedObject {
   void forward_tuple_to_threaded_action(
       std::tuple<Args...>&& args,
       std::index_sequence<Is...> /*meta*/) noexcept {
+    Parallel::printf("threaded action\n");
     Parallel::Algorithm_detail::simple_action_visitor<Action, Component>(
         box_, *const_global_cache_, std::as_const(array_index_),
         make_not_null(&node_lock_), std::forward<Args>(std::get<Is>(args))...);
+    Parallel::printf("done threaded action\n");
   }
 
   template <typename PhaseDepActions, size_t... Is>
@@ -1082,7 +1086,7 @@ class MockDistributedObject {
   tuples::tagged_tuple_from_typelist<inbox_tags_list>* inboxes_{nullptr};
   std::deque<std::unique_ptr<InvokeActionBase>> simple_action_queue_;
   std::deque<std::unique_ptr<InvokeActionBase>> threaded_action_queue_;
-  CmiNodeLock node_lock_ = Parallel::create_lock();
+  Parallel::NodeLock node_lock_;
 };
 
 template <typename Component>
