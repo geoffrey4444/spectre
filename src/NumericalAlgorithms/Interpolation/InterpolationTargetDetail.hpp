@@ -480,5 +480,16 @@ void set_up_interpolation(
       });
 }
 
+template <typename T, typename = std::void_t<>>
+struct has_should_interpolate_function : std::false_type {};
+
+template <typename T>
+struct has_should_interpolate_function<
+  T, std::void_t<decltype(T::should_interpolate(
+      std::declval<db::DataBox<tmpl::list<>>>()))>> : std::true_type {};
+
+template <typename T>
+constexpr bool has_should_interpolate_function_v =
+    has_should_interpolate_function<T>::value;
 }  // namespace InterpolationTarget_detail
 }  // namespace intrp

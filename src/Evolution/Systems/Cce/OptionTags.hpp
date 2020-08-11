@@ -9,6 +9,7 @@
 #include "DataStructures/DataBox/Tag.hpp"
 #include "Evolution/Systems/Cce/Initialize/InitializeJ.hpp"
 #include "Evolution/Systems/Cce/InterfaceManagers/GhInterfaceManager.hpp"
+#include "Evolution/Systems/Cce/InterfaceManagers/GhInterpolationStrategies.hpp"
 #include "Evolution/Systems/Cce/InterfaceManagers/GhLockstep.hpp"
 #include "Evolution/Systems/Cce/ReadBoundaryDataH5.hpp"
 #include "NumericalAlgorithms/Interpolation/SpanInterpolator.hpp"
@@ -375,6 +376,19 @@ struct GhInterfaceManager : db::SimpleTag {
       const std::unique_ptr<InterfaceManagers::GhInterfaceManager>&
           interface_manager) noexcept {
     return interface_manager->get_clone();
+  }
+};
+
+struct InterfaceManagerInterpolationStrategy : db::SimpleTag {
+  using type = InterfaceManagers::InterpolationStrategy;
+  using option_tags = tmpl::list<OptionTags::GhInterfaceManager>;
+
+  static constexpr bool pass_metavariables = false;
+  static InterfaceManagers::InterpolationStrategy
+  create_from_options(
+      const std::unique_ptr<InterfaceManagers::GhInterfaceManager>&
+          interface_manager) noexcept {
+    return interface_manager->get_interpolation_strategy();
   }
 };
 
