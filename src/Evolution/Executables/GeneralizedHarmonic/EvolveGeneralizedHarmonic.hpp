@@ -65,6 +65,7 @@
 #include "NumericalAlgorithms/Interpolation/Tags.hpp"
 #include "NumericalAlgorithms/Interpolation/TryToInterpolate.hpp"
 #include "Options/Options.hpp"
+#include "Parallel/Actions/ManagePhaseControl.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
 #include "Parallel/InitializationFunctions.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
@@ -78,6 +79,7 @@
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeMortars.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
 #include "ParallelAlgorithms/Events/ObserveTensorNorms.hpp"
+#include "ParallelAlgorithms/Events/RequestPhase.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/EventsAndTriggers.hpp"
@@ -126,6 +128,30 @@ class CProxy_ConstGlobalCache;
 
 template <typename InitialData, typename BoundaryConditions>
 struct EvolutionMetavars {
+  enum class Phase {
+    Initialization,
+    RegisterWithVolumeDataReader,
+    ImportInitialData,
+    InitializeInitialDataDependentQuantities,
+    InitializeTimeStepperHistory,
+    Register,
+    LoadBalancing,
+    Evolve,
+    Exit
+  };
+  static std::string phase_name(const Phase phase) noexcept {
+    switch (phase) {
+      case Phase::LoadBalancing:
+        return "LoadBalancing";
+      default:
+        ERROR("No name for given phase");
+    }
+  }
+  using global_sync_phases =
+      tmpl::list<std::integral_constant<Phase, Phase::LoadBalancing>>;
+
+  static void global_startup_routines() noexcept { TurnManualLBOn(); }
+
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
@@ -235,6 +261,8 @@ struct EvolutionMetavars {
                                             observe_fields>,
       Events::Registrars::ChangeSlabSize<slab_choosers>>;
   using triggers = Triggers::time_triggers;
+  using global_sync_triggers = tmpl::list<Triggers::Registrars::EveryNSlabs,
+                                          Triggers::Registrars::SpecifiedSlabs>;
 
   // Events include the observation events and finding the horizon
   using events = tmpl::push_back<
@@ -276,17 +304,6 @@ struct EvolutionMetavars {
                           tmpl::list<Actions::MutateApply<boundary_scheme>,
                                      Actions::RecordTimeStepperData<>>>,
       Actions::UpdateU<>>;
-
-  enum class Phase {
-    Initialization,
-    RegisterWithVolumeDataReader,
-    ImportInitialData,
-    InitializeInitialDataDependentQuantities,
-    InitializeTimeStepperHistory,
-    Register,
-    Evolve,
-    Exit
-  };
 
   using initialization_actions = tmpl::list<
       Initialization::Actions::TimeAndTimeStep<EvolutionMetavars>,
@@ -351,6 +368,41 @@ struct EvolutionMetavars {
       GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       Parallel::Actions::TerminatePhase>;
 
+  using dg_registration_list =
+      tmpl::list<observers::Actions::RegisterWithObservers<
+          observers::RegisterObservers<Tags::Time, element_observation_type>>>;
+
+  using dg_element_array_component = DgElementArray<
+      EvolutionMetavars,
+      tmpl::flatten<tmpl::list<
+          Parallel::PhaseActions<Phase, Phase::Initialization,
+                                 initialization_actions>,
+          tmpl::conditional_t<
+              evolution::is_numeric_initial_data_v<initial_data>,
+              Parallel::PhaseActions<
+                  Phase, Phase::RegisterWithVolumeDataReader,
+                  tmpl::list<importers::Actions::RegisterWithVolumeDataReader,
+                             Parallel::Actions::TerminatePhase>>,
+              tmpl::list<>>,
+          Parallel::PhaseActions<
+              Phase, Phase::InitializeInitialDataDependentQuantities,
+              initialize_initial_data_dependent_quantities_actions>,
+          Parallel::PhaseActions<Phase, Phase::InitializeTimeStepperHistory,
+                                 SelfStart::self_start_procedure<step_actions>>,
+          Parallel::PhaseActions<
+              Phase, Phase::Register,
+              tmpl::list<intrp::Actions::RegisterElementWithInterpolator,
+                         dg_registration_list,
+                         Parallel::Actions::TerminatePhase>>,
+          Parallel::PhaseActions<
+              Phase, Phase::Evolve,
+              tmpl::list<Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
+                         step_actions, Actions::AdvanceTime>>>>,
+      tmpl::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
+                          ImportNumericInitialData<
+                              Phase, Phase::ImportInitialData, initial_data>,
+                          ImportNoInitialData>>;
+
   using component_list = tmpl::flatten<tmpl::list<
       observers::Observer<EvolutionMetavars>,
       observers::ObserverWriter<EvolutionMetavars>,
@@ -359,42 +411,14 @@ struct EvolutionMetavars {
       tmpl::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
                           importers::VolumeDataReader<EvolutionMetavars>,
                           tmpl::list<>>,
-      DgElementArray<
-          EvolutionMetavars,
-          tmpl::flatten<tmpl::list<
-              Parallel::PhaseActions<Phase, Phase::Initialization,
-                                     initialization_actions>,
-              tmpl::conditional_t<
-                  evolution::is_numeric_initial_data_v<initial_data>,
-                  Parallel::PhaseActions<
-                      Phase, Phase::RegisterWithVolumeDataReader,
-                      tmpl::list<
-                          importers::Actions::RegisterWithVolumeDataReader,
-                          Parallel::Actions::TerminatePhase>>,
-                  tmpl::list<>>,
-              Parallel::PhaseActions<
-                  Phase, Phase::InitializeInitialDataDependentQuantities,
-                  initialize_initial_data_dependent_quantities_actions>,
-              Parallel::PhaseActions<
-                  Phase, Phase::InitializeTimeStepperHistory,
-                  SelfStart::self_start_procedure<step_actions>>,
-              Parallel::PhaseActions<
-                  Phase, Phase::Register,
-                  tmpl::list<intrp::Actions::RegisterElementWithInterpolator,
-                             observers::Actions::RegisterWithObservers<
-                                 observers::RegisterObservers<
-                                     Tags::Time, element_observation_type>>,
-                             Parallel::Actions::TerminatePhase>>,
-              Parallel::PhaseActions<
-                  Phase, Phase::Evolve,
-                  tmpl::list<Actions::RunEventsAndTriggers,
-                             Actions::ChangeSlabSize, step_actions,
-                             Actions::AdvanceTime>>>>,
-          tmpl::conditional_t<
-              evolution::is_numeric_initial_data_v<initial_data>,
-              ImportNumericInitialData<Phase, Phase::ImportInitialData,
-                                       initial_data>,
-              ImportNoInitialData>>>>;
+      dg_element_array_component>>;
+
+  template <typename component>
+  struct registration_list {
+    using type = std::conditional_t<
+        std::is_same_v<component, dg_element_array_component>,
+        dg_registration_list, tmpl::list<>>;
+  };
 
   static constexpr OptionString help{
       "Evolve a generalized harmonic analytic solution.\n\n"
@@ -448,7 +472,9 @@ static const std::vector<void (*)()> charm_init_node_funcs{
     &Parallel::register_derived_classes_with_charm<StepController>,
     &Parallel::register_derived_classes_with_charm<TimeStepper>,
     &Parallel::register_derived_classes_with_charm<
-        Trigger<metavariables::triggers>>};
+        Trigger<metavariables::triggers>>,
+    &Parallel::register_derived_classes_with_charm<
+        Trigger<metavariables::global_sync_triggers>>};
 
 static const std::vector<void (*)()> charm_init_proc_funcs{
     &enable_floating_point_exceptions};
