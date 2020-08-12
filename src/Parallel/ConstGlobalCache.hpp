@@ -6,12 +6,17 @@
 
 #pragma once
 
+#include <boost/optional.hpp>
+#include <charm++.h>
+#include <pup.h>
 #include <string>
 
 #include "DataStructures/DataBox/Tag.hpp"
 #include "ErrorHandling/Assert.hpp"
+#include "ErrorHandling/Error.hpp"
 #include "Parallel/CharmRegistration.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
+#include "Utilities/NoSuchType.hpp"
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/TMPL.hpp"
@@ -19,6 +24,7 @@
 #include "Utilities/TypeTraits/IsA.hpp"
 
 #include "Parallel/ConstGlobalCache.decl.h"
+#include "Parallel/Main.decl.h"
 
 namespace Parallel {
 
@@ -141,6 +147,8 @@ class ConstGlobalCache : public CBase_ConstGlobalCache<Metavariables> {
           tmpl::bind<Parallel::proxy_from_parallel_component, tmpl::_1>>>;
 
  public:
+  using self_proxy_type = CProxy_ConstGlobalCache<Metavariables>;
+  using main_proxy_type = CProxy_Main<Metavariables>;
   /// Access to the Metavariables template parameter
   using metavariables = Metavariables;
   /// Typelist of the ParallelComponents stored in the ConstGlobalCache
@@ -168,6 +176,24 @@ class ConstGlobalCache : public CBase_ConstGlobalCache<Metavariables> {
       tuples::tagged_tuple_from_typelist<parallel_component_tag_list>&&
           parallel_components,
       const CkCallback& callback) noexcept;
+
+  /// Entry method to set the proxy to the const global cache itself (needed to
+  /// serialize the pointers to the const global cache kept in the \ref
+  /// DataBoxGroup and `Parallel::AlgorithmImpl`). This should be only called
+  /// once.
+  void set_self_proxy(const self_proxy_type& self_proxy) noexcept;
+
+  /// Retrieve the proxy to the const global cache or errors if not using charm
+  /// proxies.
+  boost::optional<self_proxy_type> get_self_proxy() noexcept;
+
+  /// Entry method to set the proxy to the Main chare. This should be only
+  /// called once.
+  void set_main_proxy(const main_proxy_type& main_proxy) noexcept;
+
+  /// Retrieve the proxy to the Main chare (or boost::none if the proxy has not
+  /// been set).
+  boost::optional<main_proxy_type> get_main_proxy() noexcept;
 
  private:
   // clang-tidy: false positive, redundant declaration
@@ -197,6 +223,8 @@ class ConstGlobalCache : public CBase_ConstGlobalCache<Metavariables> {
   tuples::tagged_tuple_from_typelist<parallel_component_tag_list>
       parallel_components_{};
   bool parallel_components_have_been_set_{false};
+  boost::optional<self_proxy_type> self_proxy_;
+  boost::optional<main_proxy_type> main_proxy_;
 };
 
 template <typename Metavariables>
@@ -209,6 +237,40 @@ void ConstGlobalCache<Metavariables>::set_parallel_components(
   parallel_components_ = std::move(parallel_components);
   parallel_components_have_been_set_ = true;
   this->contribute(callback);
+}
+
+template <typename Metavariables>
+void ConstGlobalCache<Metavariables>::set_self_proxy(
+    const self_proxy_type& self_proxy) noexcept {
+  if (not static_cast<bool>(self_proxy_)) {
+    self_proxy_ = self_proxy;
+  } else {
+    ERROR("The self proxy has already been set, and cannot be set twice.");
+  }
+}
+
+template <typename Metavariables>
+boost::optional<
+    typename Parallel::ConstGlobalCache<Metavariables>::self_proxy_type>
+ConstGlobalCache<Metavariables>::get_self_proxy() noexcept {
+  return self_proxy_;
+}
+
+template <typename Metavariables>
+void ConstGlobalCache<Metavariables>::set_main_proxy(
+    const main_proxy_type& main_proxy) noexcept {
+  if (not static_cast<bool>(main_proxy_)) {
+    main_proxy_ = main_proxy;
+  } else {
+    ERROR("The main proxy has already been set, and cannot be set twice.");
+  }
+}
+
+template <typename Metavariables>
+boost::optional<
+    typename Parallel::ConstGlobalCache<Metavariables>::main_proxy_type>
+ConstGlobalCache<Metavariables>::get_main_proxy() noexcept {
+  return main_proxy_;
 }
 
 // @{
@@ -283,7 +345,7 @@ struct ConstGlobalCache : db::BaseTag {};
 
 template <class Metavariables>
 struct ConstGlobalCacheImpl : ConstGlobalCache, db::SimpleTag {
-  using type = const Parallel::ConstGlobalCache<Metavariables>*;
+  using type = Parallel::ConstGlobalCache<Metavariables>*;
   static std::string name() noexcept { return "ConstGlobalCache"; }
 };
 
@@ -305,6 +367,38 @@ struct FromConstGlobalCache : CacheTag, db::ComputeTag {
 };
 }  // namespace Tags
 }  // namespace Parallel
+
+namespace PUP {
+
+/// \ingroup ParallelGroup
+/// Serialization of a pointer to the const global cache for Charm++
+template <typename Metavariables>
+inline void pup(PUP::er& p,  // NOLINT
+                Parallel::ConstGlobalCache<Metavariables>*& t) noexcept {
+  boost::optional<
+      typename Parallel::ConstGlobalCache<Metavariables>::self_proxy_type>
+      local_const_global_cache_proxy;
+  if (p.isUnpacking()) {
+    p | local_const_global_cache_proxy;
+    if(not static_cast<bool>(local_const_global_cache_proxy)) {
+      ERROR(
+          "Unpacking un-set cache proxy; No correct cache pointer can be set.");
+    }
+    t = (*local_const_global_cache_proxy).ckLocalBranch();
+  } else {
+    local_const_global_cache_proxy = t->get_self_proxy();
+    p | local_const_global_cache_proxy;
+  }
+}
+
+/// \ingroup ParallelGroup
+/// Serialization of a pointer to the const global cache for Charm++
+template <typename Metavariables>
+inline void operator|(PUP::er& p,  // NOLINT
+                      Parallel::ConstGlobalCache<Metavariables>*& t) {
+  pup(p, t);
+}
+}  // namespace PUP
 
 #define CK_TEMPLATES_ONLY
 #include "Parallel/ConstGlobalCache.def.h"

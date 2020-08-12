@@ -66,8 +66,14 @@ class Main : public CBase_Main<Metavariables> {
   /// initialization phase on each component
   void allocate_array_components_and_execute_initialization_phase() noexcept;
 
-  /// Determine the next phase of the simulation and execute it.
+  /// Determine the next phase of the simulation and execute it. The earliest
+  /// next requested phase will be run.
   void execute_next_phase() noexcept;
+
+  /// Request a collection of phases to execute after the next global sync
+  void request_global_sync_phases(
+      const std::unordered_set<typename Metavariables::Phase>&
+          phase_requests) noexcept;
 
  private:
   template <typename ParallelComponent>
@@ -87,6 +93,9 @@ class Main : public CBase_Main<Metavariables> {
       Metavariables::Phase::Initialization};
 
   CProxy_ConstGlobalCache<Metavariables> const_global_cache_proxy_;
+  std::set<typename Metavariables::Phase> requested_global_sync_phases_;
+  boost::optional<typename Metavariables::Phase>
+      phase_to_resume_after_sync_phases_;
   Options<option_list> options_;
 };
 
@@ -132,17 +141,17 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
             -> std::void_t<decltype(
                 tmpl::type_from<decltype(mv)>::input_file)> {
           // Metavariables has options and default input file name
-          command_line_options.add_options()
-              ("input-file",
-               bpo::value<std::string>()->default_value(
-                   tmpl::type_from<decltype(mv)>::input_file),
-               "Input file name");
+          command_line_options.add_options()(
+              "input-file",
+              bpo::value<std::string>()->default_value(
+                  tmpl::type_from<decltype(mv)>::input_file),
+              "Input file name");
         },
         [&command_line_options](std::true_type /*meta*/, auto /*mv*/,
                                 auto... /*unused*/) {
           // Metavariables has options and no default input file name
-          command_line_options.add_options()
-              ("input-file", bpo::value<std::string>(), "Input file name");
+          command_line_options.add_options()(
+              "input-file", bpo::value<std::string>(), "Input file name");
         },
         [](std::false_type /*meta*/, auto mv, int /*gcc_bug*/)
             -> std::void_t<decltype(
@@ -248,6 +257,8 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
   const_global_cache_proxy_ = CProxy_ConstGlobalCache<Metavariables>::ckNew(
       Parallel::create_from_options<Metavariables>(items_from_options,
                                                    const_global_cache_tags{}));
+  const_global_cache_proxy_.set_self_proxy(const_global_cache_proxy_);
+  const_global_cache_proxy_.set_main_proxy(this->thisProxy);
 
   tuples::tagged_tuple_from_typelist<parallel_component_tag_list>
       the_parallel_components;
@@ -263,10 +274,10 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
   const_global_cache_dependency.setGroupDepID(
       const_global_cache_proxy_.ckGetGroupID());
 
-  tmpl::for_each<group_component_list>([
-    this, &the_parallel_components, &items_from_options, &
-    const_global_cache_dependency
-  ](auto parallel_component_v) noexcept {
+  tmpl::for_each<group_component_list>([this, &the_parallel_components,
+                                        &items_from_options,
+                                        &const_global_cache_dependency](
+                                           auto parallel_component_v) noexcept {
     using parallel_component = tmpl::type_from<decltype(parallel_component_v)>;
     using ParallelComponentProxy =
         Parallel::proxy_from_parallel_component<parallel_component>;
@@ -284,19 +295,21 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
       tmpl::filter<component_list,
                    Parallel::is_chare_proxy<tmpl::bind<
                        Parallel::proxy_from_parallel_component, tmpl::_1>>>;
-  tmpl::for_each<singleton_component_list>([
-    this, &the_parallel_components, &items_from_options
-  ](auto parallel_component_v) noexcept {
-    using parallel_component = tmpl::type_from<decltype(parallel_component_v)>;
-    using ParallelComponentProxy =
-        Parallel::proxy_from_parallel_component<parallel_component>;
-    tuples::get<tmpl::type_<ParallelComponentProxy>>(the_parallel_components) =
-        ParallelComponentProxy::ckNew(
-            const_global_cache_proxy_,
-            Parallel::create_from_options<Metavariables>(
-                items_from_options,
-                typename parallel_component::initialization_tags{}));
-  });
+  tmpl::for_each<singleton_component_list>(
+      [this, &the_parallel_components,
+       &items_from_options](auto parallel_component_v) noexcept {
+        using parallel_component =
+            tmpl::type_from<decltype(parallel_component_v)>;
+        using ParallelComponentProxy =
+            Parallel::proxy_from_parallel_component<parallel_component>;
+        tuples::get<tmpl::type_<ParallelComponentProxy>>(
+            the_parallel_components) =
+            ParallelComponentProxy::ckNew(
+                const_global_cache_proxy_,
+                Parallel::create_from_options<Metavariables>(
+                    items_from_options,
+                    typename parallel_component::initialization_tags{}));
+      });
 
   // Create proxies for empty array chares (whose elements will be created by
   // the allocate functions of the array components during
@@ -307,7 +320,7 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
                      Parallel::proxy_from_parallel_component, tmpl::_1>>,
                  tmpl::not_<Parallel::is_bound_array<tmpl::_1>>>>;
   tmpl::for_each<array_component_list>([&the_parallel_components](
-      auto parallel_component) noexcept {
+                                           auto parallel_component) noexcept {
     using ParallelComponentProxy = Parallel::proxy_from_parallel_component<
         tmpl::type_from<decltype(parallel_component)>>;
     tuples::get<tmpl::type_<ParallelComponentProxy>>(the_parallel_components) =
@@ -320,8 +333,9 @@ Main<Metavariables>::Main(CkArgMsg* msg) noexcept
       tmpl::and_<Parallel::is_array_proxy<tmpl::bind<
                      Parallel::proxy_from_parallel_component, tmpl::_1>>,
                  Parallel::is_bound_array<tmpl::_1>>>;
-  tmpl::for_each<bound_array_component_list>([&the_parallel_components](
-      auto parallel_component) noexcept {
+  tmpl::for_each<
+      bound_array_component_list>([&the_parallel_components](
+                                      auto parallel_component) noexcept {
     using ParallelComponentProxy = Parallel::proxy_from_parallel_component<
         tmpl::type_from<decltype(parallel_component)>>;
     CkArrayOptions opts;
@@ -361,8 +375,8 @@ void Main<Metavariables>::
       tmpl::filter<component_list,
                    Parallel::is_array_proxy<tmpl::bind<
                        Parallel::proxy_from_parallel_component, tmpl::_1>>>;
-  tmpl::for_each<array_component_list>([ this, &items_from_options ](
-      auto parallel_component_v) noexcept {
+  tmpl::for_each<array_component_list>([this, &items_from_options](
+                                           auto parallel_component_v) noexcept {
     using parallel_component = tmpl::type_from<decltype(parallel_component_v)>;
     parallel_component::allocate_array(
         const_global_cache_proxy_,
@@ -380,21 +394,70 @@ void Main<Metavariables>::
                        this->thisProxy));
 }
 
+namespace detail {
+template <typename Metavariables, typename phase_constant = std::void_t<>>
+struct has_load_balancing_phase_impl : std::false_type {};
+
+template <typename Metavariables>
+struct has_load_balancing_phase_impl<
+    Metavariables,
+    std::void_t<std::integral_constant<typename Metavariables::Phase,
+                                       Metavariables::Phase::LoadBalancing>>>
+    : std::true_type {};
+
+template <typename Metavariables>
+constexpr bool has_load_balancing_phase =
+    has_load_balancing_phase_impl<Metavariables>::value;
+}  // namespace detail
+
 template <typename Metavariables>
 void Main<Metavariables>::execute_next_phase() noexcept {
-  current_phase_ = Metavariables::determine_next_phase(
-      current_phase_, const_global_cache_proxy_);
-  Parallel::printf("Starting phase %i\n", static_cast<int>(current_phase_));
+  if (not static_cast<bool>(phase_to_resume_after_sync_phases_)) {
+    current_phase_ = Metavariables::determine_next_phase(
+        current_phase_, const_global_cache_proxy_);
+  } else {
+    if (requested_global_sync_phases_.size() == 0) {
+      current_phase_ = *phase_to_resume_after_sync_phases_;
+      phase_to_resume_after_sync_phases_ = boost::none;
+    } else {
+      // when selecting a next phase, we prioritize those that appear earlier in
+      // the enum specification (lower values when treated as integers).
+      current_phase_ = *(requested_global_sync_phases_.begin());
+      requested_global_sync_phases_.erase(
+          requested_global_sync_phases_.begin());
+    }
+  }
   if (Metavariables::Phase::Exit == current_phase_) {
     Informer::print_exit_info();
     Parallel::exit();
   }
+  if constexpr (detail::has_load_balancing_phase<Metavariables>) {
+    if (Metavariables::Phase::LoadBalancing == current_phase_) {
+      Parallel::printf("Starting phase: LoadBalancing at: %f\n",
+                       Parallel::wall_time());
+      CkStartLB();
+      CkStartQD(CkCallback(CkIndex_Main<Metavariables>::execute_next_phase(),
+                           this->thisProxy));
+      return;
+    }
+  }
+  Parallel::printf("Starting phase: %zu at: %f\n",
+                   static_cast<size_t>(current_phase_), Parallel::wall_time());
   tmpl::for_each<component_list>([this](auto parallel_component) noexcept {
     tmpl::type_from<decltype(parallel_component)>::execute_next_phase(
         current_phase_, const_global_cache_proxy_);
   });
   CkStartQD(CkCallback(CkIndex_Main<Metavariables>::execute_next_phase(),
                        this->thisProxy));
+}
+
+template <typename Metavariables>
+void Main<Metavariables>::request_global_sync_phases(
+    const std::unordered_set<typename Metavariables::Phase>&
+        phase_requests) noexcept {
+  requested_global_sync_phases_.insert(phase_requests.begin(),
+                                       phase_requests.end());
+  phase_to_resume_after_sync_phases_ = current_phase_;
 }
 
 }  // namespace Parallel

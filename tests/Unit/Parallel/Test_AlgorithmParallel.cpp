@@ -254,7 +254,8 @@ struct IncrementInt0 {
 struct RemoveInt0 {
   template <typename DbTags, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
-            typename ParallelComponent>
+            typename ParallelComponent,
+            Requires<tmpl::list_contains_v<DbTags, Tags::Int0>> = nullptr>
   static auto apply(db::DataBox<DbTags>& box,
                     tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
                     const Parallel::ConstGlobalCache<Metavariables>& /*cache*/,
