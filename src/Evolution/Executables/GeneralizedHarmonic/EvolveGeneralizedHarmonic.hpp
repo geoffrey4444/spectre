@@ -64,6 +64,7 @@
 #include "NumericalAlgorithms/Interpolation/Tags.hpp"
 #include "NumericalAlgorithms/Interpolation/TryToInterpolate.hpp"
 #include "Options/Options.hpp"
+#include "Parallel/Actions/ManagePhaseControl.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
 #include "Parallel/InitializationFunctions.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
@@ -77,6 +78,7 @@
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeMortars.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
 #include "ParallelAlgorithms/Events/ObserveTensorNorms.hpp"
+#include "ParallelAlgorithms/Events/RequestPhase.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/EventsAndTriggers.hpp"
@@ -125,6 +127,30 @@ class CProxy_GlobalCache;
 
 template <typename InitialData, typename BoundaryConditions>
 struct EvolutionMetavars {
+  enum class Phase {
+    Initialization,
+    RegisterWithVolumeDataReader,
+    ImportInitialData,
+    InitializeInitialDataDependentQuantities,
+    InitializeTimeStepperHistory,
+    Register,
+    LoadBalancing,
+    Evolve,
+    Exit
+  };
+  static std::string phase_name(const Phase phase) noexcept {
+    switch (phase) {
+      case Phase::LoadBalancing:
+        return "LoadBalancing";
+      default:
+        ERROR("No name for given phase");
+    }
+  }
+  using global_sync_phases =
+      tmpl::list<std::integral_constant<Phase, Phase::LoadBalancing>>;
+
+  static void global_startup_routines() noexcept { TurnManualLBOn(); }
+
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
