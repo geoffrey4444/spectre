@@ -72,11 +72,11 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
             typename Metavariables, typename ArrayIndex,
             Requires<db::tag_is_retrievable_v<Tags::RegisteredElements,
                                               DataBox>> = nullptr>
-  static auto apply(DataBox& box,
-                    Parallel::ConstGlobalCache<Metavariables>& cache,
-                    const ArrayIndex& /*array_index*/,
-                    const gsl::not_null<CmiNodeLock*> node_lock) noexcept {
-    Parallel::lock(node_lock);
+  static auto apply(
+      DataBox& box, Parallel::ConstGlobalCache<Metavariables>& cache,
+      const ArrayIndex& /*array_index*/,
+      const gsl::not_null<Parallel::NodeLock*> node_lock) noexcept {
+    node_lock->lock();
     {
       // The scoping is to close the file before unlocking
       const std::string& file_name{
@@ -208,7 +208,7 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
             std::move(imported_functions_of_time));
       }
     }
-    Parallel::unlock(node_lock);
+    node_lock->unlock();
   }
 };
 }  // namespace ThreadedActions
