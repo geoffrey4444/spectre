@@ -77,6 +77,7 @@
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeMortars.hpp"
 #include "ParallelAlgorithms/Events/ObserveErrorNorms.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
+#include "ParallelAlgorithms/Events/ObserveTensorNorms.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/EventsAndTriggers.hpp"
@@ -126,12 +127,12 @@ struct GeneralizedHarmonicDefaults {
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
-  static constexpr bool use_damped_harmonic_rollon = true;
+  static constexpr bool use_damped_harmonic_rollon = false;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
-    GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
+      GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
 
   using step_choosers_common =
       tmpl::list<StepChoosers::Registrars::Cfl<volume_dim, Frame::Inertial>,
@@ -199,8 +200,7 @@ struct GeneralizedHarmonicDefaults {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA>;
     using post_horizon_find_callback =
-        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA,
-                                                     AhA>;
+        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
   };
 
   using interpolation_target_tags = tmpl::list<AhA>;
@@ -226,8 +226,8 @@ struct GeneralizedHarmonicDefaults {
   };
 
   using initialize_initial_data_dependent_quantities_actions = tmpl::list<
-      GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
-          volume_dim>,
+      GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<volume_dim,
+                                                                     false>,
       GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       Parallel::Actions::TerminatePhase>;
 };
@@ -252,8 +252,8 @@ struct GeneralizedHarmonicTemplateBase<
   using boundary_condition_tag = analytic_solution_tag;
 
   using observe_fields = tmpl::append<
-      tmpl::push_back<
-          analytic_solution_fields,
+      tmpl::list<
+          gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
@@ -265,16 +265,15 @@ struct GeneralizedHarmonicTemplateBase<
                          tmpl::list<>>>;
 
   using observation_events = tmpl::list<
-    dg::Events::Registrars::ObserveErrorNorms<Tags::Time,
-                                              analytic_solution_fields>,
-    dg::Events::Registrars::ObserveFields<
-      volume_dim, Tags::Time, observe_fields, analytic_solution_fields>,
-    Events::Registrars::ChangeSlabSize<slab_choosers>>;
+      dg::Events::Registrars::ObserveTensorNorms<Tags::Time, observe_fields>,
+      dg::Events::Registrars::ObserveFields<volume_dim, Tags::Time,
+                                            observe_fields>,
+      Events::Registrars::ChangeSlabSize<slab_choosers>>;
 
   // Events include the observation events and finding the horizon
-  using events = tmpl::push_back<observation_events,
-                                 intrp::Events::Registrars::Interpolate<
-                                   3, AhA, interpolator_source_vars>>;
+  using events = tmpl::push_back<
+      observation_events,
+      intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>>;
 
   // A tmpl::list of tags to be added to the ConstGlobalCache by the
   // metavariables
@@ -283,8 +282,8 @@ struct GeneralizedHarmonicTemplateBase<
                  time_stepper_tag, Tags::EventsAndTriggers<events, triggers>>;
 
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
-    tmpl::push_back<typename Event<observation_events>::creatable_classes,
-                    typename AhA::post_horizon_find_callback>>;
+      tmpl::push_back<typename Event<observation_events>::creatable_classes,
+                      typename AhA::post_horizon_find_callback>>;
 
   static Phase determine_next_phase(
       const Phase& current_phase,
@@ -329,7 +328,7 @@ struct GeneralizedHarmonicTemplateBase<
       evolution::Actions::AddMeshVelocityNonconservative,
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
-      dg::Actions::ImposeDirichletBoundaryConditions<derived_metavars>,
+      dg::Actions::ImposeDirichletBoundaryConditions<derived_metavars, true>,
       dg::Actions::CollectDataForFluxes<
           boundary_scheme,
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
@@ -355,12 +354,14 @@ struct GeneralizedHarmonicTemplateBase<
           system,
           dg::Initialization::slice_tags_to_face<
               typename system::variables_tag,
+              domain::Tags::Coordinates<volume_dim, Frame::Grid>,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
               gr::Tags::Shift<volume_dim, frame, DataVector>,
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::slice_tags_to_exterior<
+              domain::Tags::Coordinates<volume_dim, Frame::Grid>,
               gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
               gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
                                                           DataVector>,
@@ -368,33 +369,33 @@ struct GeneralizedHarmonicTemplateBase<
               gr::Tags::Lapse<DataVector>>,
           dg::Initialization::face_compute_tags<
               domain::Tags::BoundaryCoordinates<volume_dim, true>,
-              GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
-                                                                 frame>,
+              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+                  volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
           dg::Initialization::exterior_compute_tags<
-              GeneralizedHarmonic::Tags::ConstraintGamma0Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma1Compute<volume_dim,
-                                                                 frame>,
-              GeneralizedHarmonic::Tags::ConstraintGamma2Compute<volume_dim,
-                                                                 frame>,
+              GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma1BBHCompute<
+                  volume_dim, Frame::Grid>,
+              GeneralizedHarmonic::Tags::ConstraintGamma2BBHCompute<
+                  volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
           true, true>,
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               volume_dim, analytic_solution_tag, analytic_solution_fields>>>,
-      GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
-          volume_dim, use_damped_harmonic_rollon>,
-      GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
+      //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
+      //       volume_dim, use_damped_harmonic_rollon>,
+      //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
       dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<derived_metavars>,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using gh_dg_element_array = DgElementArray<
       derived_metavars,

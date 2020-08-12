@@ -33,7 +33,6 @@
 #include "Evolution/Systems/Cce/System.hpp"
 #include "Evolution/Systems/Cce/Tags.hpp"
 #include "IO/Observer/Actions.hpp"
-#include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
 #include "IO/Observer/RegisterObservers.hpp"
 #include "IO/Observer/Tags.hpp"
@@ -108,23 +107,23 @@ struct EvolutionMetavars
       Cce::all_boundary_swsh_derivative_tags_for_scri>>;
 
   using scri_values_to_observe =
-      tmpl::list<Cce::Tags::News, Cce::Tags::ScriPlus<Cce::Tags::Strain>,
+      tmpl::list<Cce::Tags::EthInertialRetardedTime, Cce::Tags::News,
+                 Cce::Tags::ScriPlus<Cce::Tags::Strain>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi0>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi1>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi2>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi3>,
-                 Tags::Multiplies<Cce::Tags::Du<Cce::Tags::TimeIntegral<
-                                      Cce::Tags::ScriPlus<Cce::Tags::Psi4>>>,
-                                  Cce::Tags::ScriPlusFactor<Cce::Tags::Psi4>>>;
+                 Cce::Tags::Du<Cce::Tags::TimeIntegral<
+                     Cce::Tags::ScriPlus<Cce::Tags::Psi4>>>>;
 
   using cce_scri_tags =
-      tmpl::list<Cce::Tags::News, Cce::Tags::ScriPlus<Cce::Tags::Strain>,
+      tmpl::list<Cce::Tags::EthInertialRetardedTime, Cce::Tags::News,
+                 Cce::Tags::ScriPlus<Cce::Tags::Strain>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi0>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi1>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi2>,
                  Cce::Tags::ScriPlus<Cce::Tags::Psi3>,
-                 Cce::Tags::TimeIntegral<Cce::Tags::ScriPlus<Cce::Tags::Psi4>>,
-                 Cce::Tags::ScriPlusFactor<Cce::Tags::Psi4>>;
+                 Cce::Tags::TimeIntegral<Cce::Tags::ScriPlus<Cce::Tags::Psi4>>>;
   using cce_integrand_tags = tmpl::flatten<tmpl::transform<
       Cce::bondi_hypersurface_step_tags,
       tmpl::bind<Cce::integrand_terms_to_compute_for_bondi_variable,
@@ -253,7 +252,7 @@ struct EvolutionMetavars
       dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       intrp::Actions::ElementInitInterpPoints,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using gh_dg_element_array = DgElementArray<
       EvolutionMetavars,
