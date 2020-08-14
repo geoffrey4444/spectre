@@ -422,8 +422,10 @@ struct EvolutionMetavars {
                          Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Phase, Phase::Evolve,
-              tmpl::list<Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
-                         step_actions, Actions::AdvanceTime>>>>,
+              tmpl::list<
+                  Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
+                  Parallel::Actions::ManagePhaseControl<EvolutionMetavars>,
+                  step_actions, Actions::AdvanceTime>>>>,
       tmpl::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
                           ImportNumericInitialData<
                               Phase, Phase::ImportInitialData, initial_data>,
