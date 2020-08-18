@@ -202,7 +202,6 @@ struct DgElementArray {
     }
   }
 };
-
 template <class Metavariables, class PhaseDepActionList,
           class ImportInitialData>
 void DgElementArray<Metavariables, PhaseDepActionList, ImportInitialData>::
