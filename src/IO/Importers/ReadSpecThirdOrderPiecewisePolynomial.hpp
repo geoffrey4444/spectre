@@ -24,7 +24,7 @@
 #include "IO/Importers/Tags.hpp"
 #include "IO/Observer/ArrayComponentId.hpp"
 #include "Parallel/ArrayIndex.hpp"
-#include "Parallel/ConstGlobalCache.hpp"
+#include "Parallel/GlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
 #include "Parallel/NodeLock.hpp"
 #include "ParallelAlgorithms/Initialization/MergeIntoDataBox.hpp"
@@ -73,7 +73,7 @@ struct ReadSpecThirdOrderPiecewisePolynomial {
             Requires<db::tag_is_retrievable_v<Tags::RegisteredElements,
                                               DataBox>> = nullptr>
   static auto apply(
-      DataBox& box, Parallel::ConstGlobalCache<Metavariables>& cache,
+      DataBox& box, Parallel::GlobalCache<Metavariables>& cache,
       const ArrayIndex& /*array_index*/,
       const gsl::not_null<Parallel::NodeLock*> node_lock) noexcept {
     node_lock->lock();
