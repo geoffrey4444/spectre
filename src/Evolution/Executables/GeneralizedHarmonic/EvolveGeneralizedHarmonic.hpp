@@ -150,8 +150,6 @@ struct EvolutionMetavars {
   using global_sync_phases =
       tmpl::list<std::integral_constant<Phase, Phase::LoadBalancing>>;
 
-  static void global_startup_routines() noexcept { TurnManualLBOn(); }
-
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
