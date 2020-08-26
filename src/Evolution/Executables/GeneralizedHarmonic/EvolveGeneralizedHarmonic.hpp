@@ -78,7 +78,6 @@
 #include "ParallelAlgorithms/DiscontinuousGalerkin/InitializeMortars.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
 #include "ParallelAlgorithms/Events/ObserveTensorNorms.hpp"
-#include "ParallelAlgorithms/Events/RequestPhase.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Actions/RunEventsAndTriggers.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/EventsAndTriggers.hpp"
@@ -142,6 +141,8 @@ struct EvolutionMetavars {
     switch (phase) {
       case Phase::LoadBalancing:
         return "LoadBalancing";
+      case Phase::Evolve:
+        return "Evolve";
       default:
         ERROR("No name for given phase");
     }
@@ -167,18 +168,6 @@ struct EvolutionMetavars {
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
       GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
-
-  enum class Phase {
-    Initialization,
-    RegisterWithVolumeDataReader,
-    ImportInitialData,
-    InitializeInitialDataDependentQuantities,
-    InitializeTimeStepperHistory,
-    Register,
-    LoadBalancing,
-    Evolve,
-    Exit
-  };
 
   using step_choosers_common =
       tmpl::list<StepChoosers::Registrars::Cfl<volume_dim, Frame::Inertial>,
@@ -222,22 +211,6 @@ struct EvolutionMetavars {
                               GeneralizedHarmonic::Tags::FourIndexConstraint<
                                   volume_dim, frame>>>,
                           tmpl::list<>>>;
-
-  static std::string phase_name(const Phase phase) noexcept {
-    switch (phase) {
-      case Phase::LoadBalancing:
-        return "LoadBalancing";
-      case Phase::Evolve:
-        return "Evolve";
-      default:
-        ERROR("No name for given phase");
-    }
-  }
-
-  using global_sync_phases =
-      tmpl::list<std::integral_constant<Phase, Phase::LoadBalancing>>;
-
-  static void global_startup_routines() noexcept { TurnManualLBOn(); }
 
   // HACK until we merge in a compute tag StrahlkorperGr::AreaCompute.
   // For now, simply do a surface integral of unity on the horizon to get the
