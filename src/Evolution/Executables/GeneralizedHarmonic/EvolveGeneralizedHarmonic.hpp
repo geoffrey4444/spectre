@@ -1,3 +1,4 @@
+
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 
@@ -27,6 +28,7 @@
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
 #include "Evolution/Initialization/SetVariables.hpp"
 #include "Evolution/NumericInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/InitializeDampedHarmonic.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Initialize.hpp"
@@ -63,6 +65,8 @@
 #include "NumericalAlgorithms/Interpolation/InterpolatorRegisterElement.hpp"
 #include "NumericalAlgorithms/Interpolation/Tags.hpp"
 #include "NumericalAlgorithms/Interpolation/TryToInterpolate.hpp"
+#include "NumericalAlgorithms/LinearOperators/ExponentialFilter.hpp"
+#include "NumericalAlgorithms/LinearOperators/FilterAction.hpp"  // IWYU pragma: keep
 #include "Options/Options.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
 #include "Parallel/InitializationFunctions.hpp"
@@ -123,7 +127,8 @@ class CProxy_GlobalCache;
 }  // namespace Parallel
 /// \endcond
 
-template <typename InitialData, typename BoundaryConditions>
+template <typename InitialData, typename BoundaryConditions,
+          bool BjorhusExternalBoundary = false>
 struct EvolutionMetavars {
   static constexpr int volume_dim = 3;
   using frame = Frame::Inertial;
@@ -135,12 +140,22 @@ struct EvolutionMetavars {
   using boundary_conditions = BoundaryConditions;
   // Only Dirichlet boundary conditions imposed by an analytic solution are
   // supported right now.
-  using analytic_solution = boundary_conditions;
-  using analytic_solution_tag = Tags::AnalyticSolution<boundary_conditions>;
+  using analytic_solution = tmpl::conditional_t<
+      evolution::is_analytic_solution_v<initial_data>, initial_data,
+      tmpl::conditional_t<
+          evolution::is_analytic_solution_v<boundary_conditions>,
+          boundary_conditions,
+          GeneralizedHarmonic::Solutions::WrappedGr<
+              gr::Solutions::KerrSchild>>>;
+  using analytic_solution_tag = Tags::AnalyticSolution<analytic_solution>;
   using boundary_condition_tag = analytic_solution_tag;
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
       GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
+  // A filter is added here, but when performing numerical experiments with the
+  // generalized harmonic system, the user should determine whether this filter
+  // can be removed.
+  static constexpr bool use_filtering = true;
 
   using step_choosers_common =
       tmpl::list<StepChoosers::Registrars::Cfl<volume_dim, Frame::Inertial>,
@@ -177,13 +192,40 @@ struct EvolutionMetavars {
           gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
+          ::Tags::PointwiseL2Norm<
+              GeneralizedHarmonic::Tags::TwoIndexConstraint<volume_dim, frame>>,
+          ::Tags::PointwiseL2Norm<
+              GeneralizedHarmonic::Tags::FConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
                                       ThreeIndexConstraint<volume_dim, frame>>>,
-      tmpl::conditional_t<volume_dim == 3,
-                          tmpl::list<::Tags::PointwiseL2Norm<
-                              GeneralizedHarmonic::Tags::FourIndexConstraint<
-                                  volume_dim, frame>>>,
-                          tmpl::list<>>>;
+      tmpl::conditional_t<
+          volume_dim == 3,
+          tmpl::list<
+              ::Tags::PointwiseL2Norm<
+                  GeneralizedHarmonic::Tags::FourIndexConstraint<volume_dim,
+                                                                 frame>>,
+              ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
+                                          ConstraintEnergy<volume_dim, frame>>>,
+          tmpl::list<>>>;
+  using constraint_fields = tmpl::append<
+      tmpl::list<
+          ::Tags::PointwiseL2Norm<
+              GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
+          ::Tags::PointwiseL2Norm<
+              GeneralizedHarmonic::Tags::TwoIndexConstraint<volume_dim, frame>>,
+          ::Tags::PointwiseL2Norm<
+              GeneralizedHarmonic::Tags::FConstraint<volume_dim, frame>>,
+          ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
+                                      ThreeIndexConstraint<volume_dim, frame>>>,
+      tmpl::conditional_t<
+          volume_dim == 3,
+          tmpl::list<
+              ::Tags::PointwiseL2Norm<
+                  GeneralizedHarmonic::Tags::FourIndexConstraint<volume_dim,
+                                                                 frame>>,
+              ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
+                                          ConstraintEnergy<volume_dim, frame>>>,
+          tmpl::list<>>>;
 
   // HACK until we merge in a compute tag StrahlkorperGr::AreaCompute.
   // For now, simply do a surface integral of unity on the horizon to get the
@@ -241,9 +283,12 @@ struct EvolutionMetavars {
 
   // A tmpl::list of tags to be added to the GlobalCache by the
   // metavariables
-  using const_global_cache_tags =
+  using const_global_cache_tags = tmpl::conditional_t<
+      evolution::is_analytic_solution_v<analytic_solution>,
       tmpl::list<analytic_solution_tag, normal_dot_numerical_flux,
-                 time_stepper_tag, Tags::EventsAndTriggers<events, triggers>>;
+                 time_stepper_tag, Tags::EventsAndTriggers<events, triggers>>,
+      tmpl::list<normal_dot_numerical_flux, time_stepper_tag,
+                 Tags::EventsAndTriggers<events, triggers>>>;
 
   struct ObservationType {};
   using element_observation_type = ObservationType;
@@ -263,17 +308,41 @@ struct EvolutionMetavars {
       evolution::Actions::AddMeshVelocityNonconservative,
       dg::Actions::ComputeNonconservativeBoundaryFluxes<
           domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
-      dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
-      dg::Actions::CollectDataForFluxes<
-          boundary_scheme,
-          domain::Tags::BoundaryDirectionsInterior<volume_dim>>,
+      tmpl::conditional_t<
+          BjorhusExternalBoundary, tmpl::list<>,
+          tmpl::list<
+              dg::Actions::ImposeDirichletBoundaryConditions<EvolutionMetavars>,
+              dg::Actions::CollectDataForFluxes<
+                  boundary_scheme,
+                  domain::Tags::BoundaryDirectionsInterior<volume_dim>>>>,
       dg::Actions::ReceiveDataForFluxes<boundary_scheme>,
-      tmpl::conditional_t<local_time_stepping,
-                          tmpl::list<Actions::RecordTimeStepperData<>,
-                                     Actions::MutateApply<boundary_scheme>>,
-                          tmpl::list<Actions::MutateApply<boundary_scheme>,
-                                     Actions::RecordTimeStepperData<>>>,
-      Actions::UpdateU<>>;
+      tmpl::conditional_t<
+          local_time_stepping,
+          tmpl::list<tmpl::conditional_t<
+                         BjorhusExternalBoundary,
+                         tmpl::list<GeneralizedHarmonic::Actions::
+                                        ImposeBjorhusBoundaryConditions<
+                                            EvolutionMetavars>>,
+                         tmpl::list<>>,
+                     Actions::RecordTimeStepperData<>,
+                     Actions::MutateApply<boundary_scheme>>,
+          tmpl::list<Actions::MutateApply<boundary_scheme>,
+                     tmpl::conditional_t<
+                         BjorhusExternalBoundary,
+                         tmpl::list<GeneralizedHarmonic::Actions::
+                                        ImposeBjorhusBoundaryConditions<
+                                            EvolutionMetavars>>,
+                         tmpl::list<>>,
+                     Actions::RecordTimeStepperData<>>>,
+      Actions::UpdateU<>,
+      tmpl::conditional_t<
+          use_filtering,
+          dg::Actions::Filter<
+              Filters::Exponential<0>,
+              tmpl::list<gr::Tags::SpacetimeMetric<volume_dim, frame>,
+                         GeneralizedHarmonic::Tags::Pi<volume_dim, frame>,
+                         GeneralizedHarmonic::Tags::Phi<volume_dim, frame>>>,
+          tmpl::list<>>>;
 
   enum class Phase {
     Initialization,
@@ -306,13 +375,23 @@ struct EvolutionMetavars {
                                                           DataVector>,
               gr::Tags::Shift<volume_dim, frame, DataVector>,
               gr::Tags::Lapse<DataVector>>,
-          dg::Initialization::slice_tags_to_exterior<
-              domain::Tags::Coordinates<volume_dim, Frame::Grid>,
-              gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
-              gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
-                                                          DataVector>,
-              gr::Tags::Shift<volume_dim, frame, DataVector>,
-              gr::Tags::Lapse<DataVector>>,
+          tmpl::conditional_t<
+              BjorhusExternalBoundary,
+              dg::Initialization::slice_tags_to_exterior<
+                  domain::Tags::Coordinates<volume_dim, Frame::Grid>,
+                  typename system::variables_tag,
+                  gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
+                  gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
+                                                              DataVector>,
+                  gr::Tags::Shift<volume_dim, frame, DataVector>,
+                  gr::Tags::Lapse<DataVector>>,
+              dg::Initialization::slice_tags_to_exterior<
+                  domain::Tags::Coordinates<volume_dim, Frame::Grid>,
+                  gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
+                  gr::Tags::DetAndInverseSpatialMetricCompute<volume_dim, frame,
+                                                              DataVector>,
+                  gr::Tags::Shift<volume_dim, frame, DataVector>,
+                  gr::Tags::Lapse<DataVector>>>,
           dg::Initialization::face_compute_tags<
               domain::Tags::BoundaryCoordinates<volume_dim, true>,
               GeneralizedHarmonic::Tags::ConstraintGamma0BBHCompute<
@@ -332,14 +411,14 @@ struct EvolutionMetavars {
                   volume_dim, Frame::Grid>,
               GeneralizedHarmonic::CharacteristicFieldsCompute<volume_dim,
                                                                frame>>,
-          true, true>,
-      Initialization::Actions::AddComputeTags<
-          tmpl::list<evolution::Tags::AnalyticCompute<
-              volume_dim, analytic_solution_tag, analytic_solution_fields>>>,
-      //   GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
-      //       volume_dim, use_damped_harmonic_rollon>,
-      //   GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
-      dg::Actions::InitializeMortars<boundary_scheme, true>,
+          !BjorhusExternalBoundary, true>,
+      tmpl::conditional_t<evolution::is_analytic_solution_v<analytic_solution>,
+                          Initialization::Actions::AddComputeTags<
+                              tmpl::list<evolution::Tags::AnalyticCompute<
+                                  volume_dim, analytic_solution_tag,
+                                  analytic_solution_fields>>>,
+                          tmpl::list<>>,
+      dg::Actions::InitializeMortars<boundary_scheme, !BjorhusExternalBoundary>,
       Initialization::Actions::DiscontinuousGalerkin<EvolutionMetavars>,
       Parallel::Actions::TerminatePhase>;
 
