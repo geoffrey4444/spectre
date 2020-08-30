@@ -155,7 +155,7 @@ struct EvolutionMetavars {
   // A filter is added here, but when performing numerical experiments with the
   // generalized harmonic system, the user should determine whether this filter
   // can be removed.
-  static constexpr bool use_filtering = true;
+  static constexpr bool use_filtering = false;
 
   using step_choosers_common =
       tmpl::list<StepChoosers::Registrars::Cfl<volume_dim, Frame::Inertial>,
