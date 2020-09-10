@@ -1,7 +1,7 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 {
-  "image": "hub.docker.com/sxscollaboration/spectrebuildenv:latest",
+  "image": "sxscollaboration/spectrebuildenv:latest",
   "forwardPorts": [3000],
   "extensions": ["ms-vscode.cpptools",
                  "ms-python.python", "ms-python.vscode-pylance",
