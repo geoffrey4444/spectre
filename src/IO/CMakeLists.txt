@@ -29,7 +29,6 @@ target_link_libraries(
   Spectral
   Utilities
   INTERFACE
-  Domain
   DomainStructure
   Spectral
   )
