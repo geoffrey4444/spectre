@@ -26,6 +26,7 @@
 #include "IO/Observer/ObserverComponent.hpp"
 #include "IO/Observer/VolumeActions.hpp"
 #include "Options/Options.hpp"
+#include "Parallel/Actions/SetupDataBox.hpp"
 #include "Parallel/Actions/TerminatePhase.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Info.hpp"
@@ -149,8 +150,7 @@ struct SingletonParallelComponent {
 
 struct FindGlobalMinimumGridSpacing {
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
-            size_t Dim, typename ActionList,
-            typename ParallelComponent>
+            size_t Dim, typename ActionList, typename ParallelComponent>
   static std::tuple<db::DataBox<DbTagsList>&&> apply(
       db::DataBox<DbTagsList>& box,
       const tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
@@ -205,6 +205,7 @@ struct Metavariables {
                   typename Metavariables::Phase,
                   Metavariables::Phase::Initialization,
                   tmpl::list<
+                      Actions::SetupDataBox,
                       Initialization::Actions::TimeAndTimeStep<Metavariables>,
                       evolution::dg::Initialization::Domain<Dim>,
                       Initialization::Actions::AddComputeTags<
@@ -252,7 +253,8 @@ struct Metavariables {
 };
 
 static const std::vector<void (*)()> charm_init_node_funcs{
-    &setup_error_handling, &disable_openblas_multithreading,
+    &setup_error_handling,
+    &disable_openblas_multithreading,
     &domain::creators::register_derived_with_charm,
     &domain::creators::time_dependence::register_derived_with_charm,
     &domain::FunctionsOfTime::register_derived_with_charm,
