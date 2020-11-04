@@ -8,6 +8,7 @@ add_spectre_library(${LIBRARY})
 spectre_target_sources(
   ${LIBRARY}
   PRIVATE
+  DampingFunctions.cpp
   GaussianPlusConstant.cpp
   )
 
@@ -15,8 +16,9 @@ spectre_target_headers(
   ${LIBRARY}
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
-  GaussianPlusConstant.hpp
   DampingFunction.hpp
+  DampingFunctions.hpp
+  GaussianPlusConstant.hpp
   )
 
 target_link_libraries(
