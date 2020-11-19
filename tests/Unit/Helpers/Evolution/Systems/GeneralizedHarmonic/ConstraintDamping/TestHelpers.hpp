@@ -73,7 +73,12 @@ void check_impl(
  * If a DampingFunction class has member variables set by its constructor, then
  * these member variables must be passed in as the last arguments to the `check`
  * function`. Each python function must take these same arguments as the
- * trailing arguments.
+ * trailing arguments. If a DampingFunction is time dependent, then
+ * in addition to any member variables set by the constructor, member_args
+ * must include a double to use for the DampingFunction's
+ * time_dependent_scaling_ member variable, a double whose value can be updated
+ * by calling the DampingFunction's update_time_dependent_scaling() member
+ * function.
  */
 template <class DampingFunctionType, class T, class... MemberArgs>
 void check(std::unique_ptr<DampingFunctionType> in_gh_damping_function,
