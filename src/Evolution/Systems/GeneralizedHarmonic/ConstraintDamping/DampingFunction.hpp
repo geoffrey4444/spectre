@@ -4,7 +4,6 @@
 #pragma once
 
 #include <cstddef>
-#include <limits>
 #include <memory>
 #include <string>
 
@@ -38,9 +37,7 @@ class TripleGaussianPlusConstant;
  * inspiral). To implement a time-dependent `DampingFunction`, set its
  * is_time_dependent == true, set its function_of_time_for_scaling_name to the
  * name of a scalar FunctionOfTime. When using a time-dependent
- * `DampingFunction`, set member variable time_dependent_scale to this
- * FunctionOfTime's current value before calling the call operator for the first
- * time and before calling the call operator after time has changed.
+ * `DampingFunction`, pass a double as a second parameter to the call operator.
  */
 template <size_t VolumeDim, typename Fr>
 class DampingFunction : public PUP::able {
@@ -62,28 +59,27 @@ class DampingFunction : public PUP::able {
   DampingFunction& operator=(DampingFunction&& /*rhs*/) noexcept = default;
   ~DampingFunction() override = default;
 
-  //@{
-  /// Returns the value of the function at the coordinate 'x'.
-  virtual Scalar<double> operator()(
-      const tnsr::I<double, VolumeDim, Fr>& x) const noexcept = 0;
-  virtual Scalar<DataVector> operator()(
-      const tnsr::I<DataVector, VolumeDim, Fr>& x) const noexcept = 0;
-  //@}
-
   virtual auto get_clone() const noexcept
       -> std::unique_ptr<DampingFunction<VolumeDim, Fr>> = 0;
 
   // By default, a DampingFunction is not time dependent. To implement
   // a time-dependent DampingFunction, set is_time_dependent to true, and
   // set function_of_time_for_scaling_name to the name of a scalar
-  // FunctionOfTime. Before calling the call operator for the
-  // first time and whenever the time has changed, set member variable
-  // `time_dependent_scale` to the current value of the `FunctionOfTime` whose
-  // name is `function_of_time_for_scaling_name` before calling the call
-  // operator.
+  // FunctionOfTime. Then, override the 2-argument call operators
   const static bool is_time_dependent = false;
   std::string function_of_time_for_scaling_name = ""s;
-  double time_dependent_scale = std::numeric_limits<double>::signaling_NaN();
+
+  //@{
+  /// Returns the value of the function at the coordinate 'x'.
+  /// Derived classes that are time-independent should not use the
+  /// time_dependent_scale argument
+  virtual Scalar<DataVector> operator()(
+      const tnsr::I<DataVector, VolumeDim, Fr>& x,
+      const double time_dependent_scale) const noexcept = 0;
+  virtual Scalar<double> operator()(
+      const tnsr::I<double, VolumeDim, Fr>& x,
+      const double time_dependent_scale) const noexcept = 0;
+  //@}
 };
 }  // namespace GeneralizedHarmonic::ConstraintDamping
 

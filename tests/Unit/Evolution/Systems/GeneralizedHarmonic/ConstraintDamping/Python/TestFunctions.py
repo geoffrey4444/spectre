@@ -12,8 +12,8 @@ def squared_distance_from_center(centered_coords, center):
     return np.einsum("i,i", centered_coords, centered_coords)
 
 
-def gaussian_plus_constant_call_operator(coords, constant, amplitude, width,
-                                         center):
+def gaussian_plus_constant_call_operator(coords, time_dependent_scale,
+                                         constant, amplitude, width, center):
     one_over_width = 1.0 / width
     distance = squared_distance_from_center(
         centered_coordinates(coords, center), center)
@@ -21,9 +21,9 @@ def gaussian_plus_constant_call_operator(coords, constant, amplitude, width,
         -1.0 * distance * np.square(one_over_width)) + constant
 
 
-def triple_gaussian_plus_constant_call_operator(coords, constant, amplitudes,
-                                                widths, center0, center1,
-                                                center2, time_dependent_scale):
+def triple_gaussian_plus_constant_call_operator(coords, time_dependent_scale,
+                                                constant, amplitudes, widths,
+                                                center0, center1, center2):
     # Note that centers are passed in separately, because
     # check_with_random_values can only pass 1D arrays to python functions
     centers = [center0, center1, center2]

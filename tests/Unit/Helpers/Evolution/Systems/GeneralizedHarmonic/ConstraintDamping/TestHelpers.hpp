@@ -36,9 +36,8 @@ void check_impl(
   using GhDampingFunc =
       ::GeneralizedHarmonic::ConstraintDamping::DampingFunction<VolumeDim,
                                                                   Fr>;
-  using CallOperatorFunction =
-      Scalar<T> (GhDampingFunc::*)(const tnsr::I<T, VolumeDim, Fr>&)
-          const noexcept;
+  using CallOperatorFunction = Scalar<T> (GhDampingFunc::*)(
+      const tnsr::I<T, VolumeDim, Fr>&, const double) const noexcept;
 
   const auto member_args_tuple = std::make_tuple(member_args...);
   const auto helper =
@@ -73,12 +72,7 @@ void check_impl(
  * If a DampingFunction class has member variables set by its constructor, then
  * these member variables must be passed in as the last arguments to the `check`
  * function`. Each python function must take these same arguments as the
- * trailing arguments. If a DampingFunction is time dependent, then
- * in addition to any member variables set by the constructor, member_args
- * must include a double to use for the DampingFunction's
- * time_dependent_scaling_ member variable, a double whose value can be updated
- * by calling the DampingFunction's update_time_dependent_scaling() member
- * function.
+ * trailing arguments.
  */
 template <class DampingFunctionType, class T, class... MemberArgs>
 void check(std::unique_ptr<DampingFunctionType> in_gh_damping_function,

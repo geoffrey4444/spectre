@@ -3,7 +3,6 @@
 
 #include "Framework/TestingFramework.hpp"
 
-#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <random>
@@ -52,7 +51,6 @@ void test_gaussian_plus_constant_random(
 
   CHECK(gauss_plus_const.is_time_dependent == false);
   CHECK(gauss_plus_const.function_of_time_for_scaling_name == "");
-  CHECK(isnan(gauss_plus_const.time_dependent_scale));
 
   std::unique_ptr<GeneralizedHarmonic::ConstraintDamping::GaussianPlusConstant<
       VolumeDim, Fr>>

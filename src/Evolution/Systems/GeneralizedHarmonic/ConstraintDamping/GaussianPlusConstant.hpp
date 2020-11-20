@@ -80,9 +80,13 @@ class GaussianPlusConstant : public DampingFunction<VolumeDim, Fr> {
       default;
 
   Scalar<double> operator()(
-      const tnsr::I<double, VolumeDim, Fr>& x) const noexcept override;
+      const tnsr::I<double, VolumeDim, Fr>& x,
+      double time_dependent_scale =
+          std::numeric_limits<double>::signaling_NaN()) const noexcept override;
   Scalar<DataVector> operator()(
-      const tnsr::I<DataVector, VolumeDim, Fr>& x) const noexcept override;
+      const tnsr::I<DataVector, VolumeDim, Fr>& x,
+      double time_dependent_scale =
+          std::numeric_limits<double>::signaling_NaN()) const noexcept override;
 
   auto get_clone() const noexcept
       -> std::unique_ptr<DampingFunction<VolumeDim, Fr>> override;

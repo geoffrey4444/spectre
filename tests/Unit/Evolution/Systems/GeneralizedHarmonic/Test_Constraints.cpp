@@ -10,6 +10,7 @@
 #include <pup.h>
 #include <random>
 #include <string>
+#include <unordered_map>
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"  // IWYU pragma: keep
@@ -22,6 +23,7 @@
 #include "Domain/CoordinateMaps/CoordinateMap.tpp"
 #include "Domain/CoordinateMaps/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/ProductMaps.tpp"
+#include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Domain/LogicalCoordinates.hpp"
 #include "Domain/Tags.hpp"  // IWYU pragma: keep
 #include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/DampingFunction.hpp"
@@ -51,6 +53,7 @@
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
+#include "Time/Tags.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeWithValue.hpp"
@@ -851,6 +854,14 @@ void test_constraint_compute_items(
   constexpr double width = 11.3137084989848;  // sqrt(128.0)
   const std::array<double, 3> center{{0.0, 0.0, 0.0}};
 
+  // The compute tags for the constraint gammas expect Tags::Time and
+  // a FunctionsOfTime in the DataBox. However, since the DampingFunction
+  // is time-independent, neither should actually be used
+  constexpr double time = std::numeric_limits<double>::signaling_NaN();
+  std::unordered_map<std::string,
+                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+      functions_of_time{};
+
   // Insert into databox
   const auto box = db::create<
       db::AddSimpleTags<
@@ -877,6 +888,7 @@ void test_constraint_compute_items(
                         tmpl::size_t<3>, Frame::Inertial>,
           ::Tags::deriv<GeneralizedHarmonic::Tags::Pi<3, Frame::Inertial>,
                         tmpl::size_t<3>, Frame::Inertial>,
+          Tags::Time, domain::Tags::FunctionsOfTime,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
               3, Frame::Inertial>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
@@ -925,7 +937,8 @@ void test_constraint_compute_items(
       x, spatial_metric, lapse, shift, deriv_spatial_metric, deriv_lapse,
       deriv_shift, time_deriv_spatial_metric, time_deriv_lapse,
       time_deriv_shift, deriv_gauge_source, time_deriv_gauge_source,
-      deriv_spacetime_metric, deriv_phi, deriv_pi,
+      deriv_spacetime_metric, deriv_phi, deriv_pi, time,
+      std::move(functions_of_time),
       std::move(
           static_cast<std::unique_ptr<GeneralizedHarmonic::ConstraintDamping::
                                           DampingFunction<3, Frame::Inertial>>>(
