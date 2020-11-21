@@ -60,26 +60,14 @@ void test_triple_gaussian_plus_constant_random(
       triple_gauss_plus_const{constant, amplitudes, widths, centers,
                               function_of_time_name};
 
-  // Check that the time-dependent scale is initialized to a signaling NaN
-  CHECK(isnan(triple_gauss_plus_const.time_dependent_scale));
-
-  // The time-dependent scale factor, which in a real calculation might be
-  // obtained from the FunctionOfTime whose name is function_of_time_name
-  const double time_dependent_scale = positive_dis(gen);
-
-  // Update the time-dependent scale factor
-  triple_gauss_plus_const.time_dependent_scale = time_dependent_scale;
-
   // Note: pass each center separately, because pypp::check_with_random_values
   // only accepts 1D arrays as parameter inputs
   TestHelpers::GeneralizedHarmonic::ConstraintDamping::check(
       triple_gauss_plus_const, "triple_gaussian_plus_constant", used_for_size,
       {{{-1.0, 1.0}}}, constant, amplitudes, widths, centers[0], centers[1],
-      centers[2], time_dependent_scale);
+      centers[2]);
 
-  // Check that the call operator did not modify time_dependent_scale
-  // or function_of_time_name
-  CHECK(triple_gauss_plus_const.time_dependent_scale == time_dependent_scale);
+  // Check that the call operator did not modify function_of_time_name
   CHECK(triple_gauss_plus_const.function_of_time_for_scaling_name ==
         function_of_time_name);
 
@@ -92,14 +80,10 @@ void test_triple_gaussian_plus_constant_random(
                                TripleGaussianPlusConstant<VolumeDim, Fr>>(
               constant, amplitudes, widths, centers, function_of_time_name);
 
-  triple_gauss_plus_const_unique_ptr->time_dependent_scale =
-      time_dependent_scale;
-
   TestHelpers::GeneralizedHarmonic::ConstraintDamping::check(
       triple_gauss_plus_const_unique_ptr->get_clone(),
       "triple_gaussian_plus_constant", used_for_size, {{{-1.0, 1.0}}}, constant,
-      amplitudes, widths, centers[0], centers[1], centers[2],
-      time_dependent_scale);
+      amplitudes, widths, centers[0], centers[1], centers[2]);
 }
 }  // namespace
 

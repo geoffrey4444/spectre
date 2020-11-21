@@ -53,39 +53,38 @@ template <typename T>
 Scalar<T> TripleGaussianPlusConstant<VolumeDim, Fr>::apply_call_operator(
     const tnsr::I<T, VolumeDim, Fr>& centered_coords_0,
     const tnsr::I<T, VolumeDim, Fr>& centered_coords_1,
-    const tnsr::I<T, VolumeDim, Fr>& centered_coords_2) const noexcept {
+    const tnsr::I<T, VolumeDim, Fr>& centered_coords_2,
+    const double time_dependent_scale) const noexcept {
   Scalar<T> result = dot_product(centered_coords_0, centered_coords_0);
   get(result) =
       constant_ +
       amplitudes_[0] *
-          exp(-get(result) *
-              square(inverse_widths_[0] *
-                     DampingFunction<VolumeDim, Fr>::time_dependent_scale));
+          exp(-get(result) * square(inverse_widths_[0] * time_dependent_scale));
   get(result) +=
       amplitudes_[1] *
           exp(-get(dot_product(centered_coords_1, centered_coords_1)) *
-              square(inverse_widths_[1] *
-                     DampingFunction<VolumeDim, Fr>::time_dependent_scale)) +
+              square(inverse_widths_[1] * time_dependent_scale)) +
       amplitudes_[2] *
           exp(-get(dot_product(centered_coords_2, centered_coords_2)) *
-              square(inverse_widths_[2] *
-                     DampingFunction<VolumeDim, Fr>::time_dependent_scale));
+              square(inverse_widths_[2] * time_dependent_scale));
   return result;
 }
 
 template <size_t VolumeDim, typename Fr>
 Scalar<double> TripleGaussianPlusConstant<VolumeDim, Fr>::operator()(
-    const tnsr::I<double, VolumeDim, Fr>& x) const noexcept {
+    const tnsr::I<double, VolumeDim, Fr>& x,
+    const double time_dependent_scale) const noexcept {
   return apply_call_operator(centered_coordinates(x, 0),
                              centered_coordinates(x, 1),
-                             centered_coordinates(x, 2));
+                             centered_coordinates(x, 2), time_dependent_scale);
 }
 template <size_t VolumeDim, typename Fr>
 Scalar<DataVector> TripleGaussianPlusConstant<VolumeDim, Fr>::operator()(
-    const tnsr::I<DataVector, VolumeDim, Fr>& x) const noexcept {
+    const tnsr::I<DataVector, VolumeDim, Fr>& x,
+    const double time_dependent_scale) const noexcept {
   return apply_call_operator(centered_coordinates(x, 0),
                              centered_coordinates(x, 1),
-                             centered_coordinates(x, 2));
+                             centered_coordinates(x, 2), time_dependent_scale);
 }
 
 template <size_t VolumeDim, typename Fr>
@@ -96,7 +95,6 @@ void TripleGaussianPlusConstant<VolumeDim, Fr>::pup(PUP::er& p) {
   p | inverse_widths_;
   p | centers_;
   p | DampingFunction<VolumeDim, Fr>::function_of_time_for_scaling_name;
-  p | DampingFunction<VolumeDim, Fr>::time_dependent_scale;
 }
 
 template <size_t VolumeDim, typename Fr>
@@ -136,8 +134,8 @@ GENERATE_INSTANTIATIONS(INSTANTIATE, (1, 2, 3), (Frame::Grid, Frame::Inertial))
 #define INSTANTIATE(_, data)                                            \
   template Scalar<DTYPE(data)> GeneralizedHarmonic::ConstraintDamping:: \
       TripleGaussianPlusConstant<DIM(data), FRAME(data)>::operator()(   \
-          const tnsr::I<DTYPE(data), DIM(data), FRAME(data)>& x)        \
-          const noexcept;
+          const tnsr::I<DTYPE(data), DIM(data), FRAME(data)>& x,        \
+          const double time_dependent_scale) const noexcept;
 
 GENERATE_INSTANTIATIONS(INSTANTIATE, (1, 2, 3), (Frame::Grid, Frame::Inertial),
                         (double, DataVector))

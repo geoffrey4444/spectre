@@ -105,9 +105,11 @@ class TripleGaussianPlusConstant : public DampingFunction<VolumeDim, Fr> {
       TripleGaussianPlusConstant&& /*rhs*/) noexcept = default;
 
   Scalar<double> operator()(
-      const tnsr::I<double, VolumeDim, Fr>& x) const noexcept override;
+      const tnsr::I<double, VolumeDim, Fr>& x,
+      double time_dependent_scale) const noexcept override;
   Scalar<DataVector> operator()(
-      const tnsr::I<DataVector, VolumeDim, Fr>& x) const noexcept override;
+      const tnsr::I<DataVector, VolumeDim, Fr>& x,
+      double time_dependent_scale) const noexcept override;
 
   auto get_clone() const noexcept
       -> std::unique_ptr<DampingFunction<VolumeDim, Fr>> override;
@@ -142,7 +144,8 @@ class TripleGaussianPlusConstant : public DampingFunction<VolumeDim, Fr> {
   Scalar<T> apply_call_operator(
       const tnsr::I<T, VolumeDim, Fr>& centered_coords_0,
       const tnsr::I<T, VolumeDim, Fr>& centered_coords_1,
-      const tnsr::I<T, VolumeDim, Fr>& centered_coords_2) const noexcept;
+      const tnsr::I<T, VolumeDim, Fr>& centered_coords_2,
+      double time_dependent_scale) const noexcept;
 };
 
 template <size_t VolumeDim, typename Fr>
