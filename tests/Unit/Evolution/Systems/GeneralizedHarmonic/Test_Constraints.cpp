@@ -965,21 +965,21 @@ void test_constraint_compute_items(
           make_not_null(&gamma0),
           GeneralizedHarmonic::ConstraintDamping::GaussianPlusConstant<
               3, Frame::Inertial>{constant_02, amplitude_0, width, center},
-          x);
+          time, functions_of_time, x);
   Scalar<DataVector> gamma1{};
   GeneralizedHarmonic::ConstraintDamping::Tags::
       ConstraintGamma1Compute<3, Frame::Inertial>::function(
           make_not_null(&gamma1),
           GeneralizedHarmonic::ConstraintDamping::GaussianPlusConstant<
               3, Frame::Inertial>{constant_1, amplitude_1, width, center},
-          x);
+          time, functions_of_time, x);
   Scalar<DataVector> gamma2{};
   GeneralizedHarmonic::ConstraintDamping::Tags::
       ConstraintGamma2Compute<3, Frame::Inertial>::function(
           make_not_null(&gamma2),
           GeneralizedHarmonic::ConstraintDamping::GaussianPlusConstant<
               3, Frame::Inertial>{constant_02, amplitude_2, width, center},
-          x);
+          time, functions_of_time, x);
 
   const auto four_index_constraint =
       GeneralizedHarmonic::four_index_constraint(deriv_phi);

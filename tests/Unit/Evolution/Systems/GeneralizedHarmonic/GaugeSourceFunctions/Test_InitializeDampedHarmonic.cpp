@@ -56,14 +56,15 @@ struct component {
   using initial_tags = tmpl::conditional_t<
       metavariables::use_rollon,
       tmpl::list<
-          Tags::Time, domain::Tags::Mesh<Dim>,
+          Tags::Time, domain::Tags::FunctionsOfTime, domain::Tags::Mesh<Dim>,
           domain::Tags::Coordinates<Dim, Frame::Inertial>,
           domain::CoordinateMaps::Tags::CoordinateMap<Dim, Frame::Grid,
                                                       Frame::Inertial>,
           domain::Tags::InverseJacobian<Dim, Frame::Logical, Frame::Inertial>,
           typename Metavariables::variables_tag>,
       tmpl::list<
-          ::Initialization::Tags::InitialTime, domain::Tags::Mesh<Dim>,
+          Tags::Time, ::Initialization::Tags::InitialTime,
+          domain::Tags::Mesh<Dim>,
           domain::Tags::Coordinates<Dim, Frame::Logical>,
           domain::Tags::Coordinates<Dim, Frame::Inertial>,
           domain::Tags::ElementMap<Metavariables::volume_dim, Frame::Grid>,
@@ -225,7 +226,11 @@ void test(const gsl::not_null<std::mt19937*> generator) noexcept {
   if constexpr (UseRollon) {
     ActionTesting::emplace_component_and_initialize<comp>(
         &runner, 0,
-        {time, mesh, inertial_coords,
+        {time,
+         std::unordered_map<
+             std::string,
+             std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>{},
+         mesh, inertial_coords,
          domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
              domain::CoordinateMaps::Identity<Dim>{}),
          inv_jac, evolved_vars});
@@ -237,7 +242,7 @@ void test(const gsl::not_null<std::mt19937*> generator) noexcept {
 
     ActionTesting::emplace_component_and_initialize<comp>(
         &runner, 0,
-        {time, mesh, logical_coords, inertial_coords,
+        {time, time, mesh, logical_coords, inertial_coords,
          ElementMap<Dim, Frame::Grid>{
              ElementId<Dim>{0},
              domain::make_coordinate_map_base<Frame::Logical, Frame::Grid>(

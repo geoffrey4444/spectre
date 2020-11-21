@@ -63,12 +63,14 @@ struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
     if (damping_function.is_time_dependent) {
-      damping_function.time_dependent_scale =
-          gsl::at(functions_of_time,
-                  damping_function.function_of_time_scaling_name)
-              ->func(time)[0][0];
+      get(*gamma) = get(damping_function(
+          coords, functions_of_time
+                      .at(damping_function.function_of_time_for_scaling_name)
+                      ->func(time)[0][0]));
+    } else {
+      get(*gamma) = get(damping_function(
+          coords, std::numeric_limits<double>::signaling_NaN()));
     }
-    get(*gamma) = get(damping_function(coords));
   }
 
   using base = ConstraintGamma0;
@@ -101,12 +103,14 @@ struct ConstraintGamma1Compute : ConstraintGamma1, db::ComputeTag {
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma1, get<0>(coords).size());
     if (damping_function.is_time_dependent) {
-      damping_function.time_dependent_scale =
-          gsl::at(functions_of_time,
-                  damping_function.function_of_time_scaling_name)
-              ->func(time)[0][0];
+      get(*gamma1) = get(damping_function(
+          coords, functions_of_time
+                      .at(damping_function.function_of_time_for_scaling_name)
+                      ->func(time)[0][0]));
+    } else {
+      get(*gamma1) = get(damping_function(
+          coords, std::numeric_limits<double>::signaling_NaN()));
     }
-    get(*gamma1) = get(damping_function(coords));
   }
 
   using base = ConstraintGamma1;
@@ -139,12 +143,14 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
       const tnsr::I<DataVector, SpatialDim, Frame>& coords) noexcept {
     destructive_resize_components(gamma, get<0>(coords).size());
     if (damping_function.is_time_dependent) {
-      damping_function.time_dependent_scale =
-          gsl::at(functions_of_time,
-                  damping_function.function_of_time_scaling_name)
-              ->func(time)[0][0];
+      get(*gamma) = get(damping_function(
+          coords, functions_of_time
+                      .at(damping_function.function_of_time_for_scaling_name)
+                      ->func(time)[0][0]));
+    } else {
+      get(*gamma) = get(damping_function(
+          coords, std::numeric_limits<double>::signaling_NaN()));
     }
-    get(*gamma) = get(damping_function(coords));
   }
 
   using base = ConstraintGamma2;
