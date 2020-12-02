@@ -293,7 +293,7 @@ struct set_dt_v_minus {
     // Not using auto below to enforce a loose test on the quantity being
     // fetched from the buffer
     const auto constraint_gamma2 =
-        intermediates->get_var(Tags::ConstraintGamma2{});
+        intermediates->get_var(ConstraintDamping::Tags::ConstraintGamma2{});
     const auto three_index_constraint = intermediates->get_var(
         Tags::ThreeIndexConstraint<VolumeDim, Frame::Inertial>{});
     const auto unit_interface_normal_one_form = intermediates->get_var(

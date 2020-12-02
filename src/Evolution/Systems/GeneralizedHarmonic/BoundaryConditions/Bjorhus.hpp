@@ -104,7 +104,7 @@ struct ImposeBjorhusBoundaryConditions {
       constexpr const size_t number_of_independent_components =
           dt_variables_tag::type::number_of_independent_components;
 
-      const db::item_type<domain::Tags::Mesh<VolumeDim>>& mesh =
+      const typename domain::Tags::Mesh<VolumeDim>::type& mesh =
           db::get<domain::Tags::Mesh<VolumeDim>>(box);
       const size_t volume_grid_points = mesh.extents().product();
       const auto& unit_normal_one_forms = db::get<domain::Tags::Interface<
@@ -164,14 +164,13 @@ struct ImposeBjorhusBoundaryConditions {
         db::mutate<dt_variables_tag>(
             make_not_null(&box),
             // Function that applies bdry conditions to dt<variables>
-            [
-              &volume_grid_points, &slice_grid_points, &mesh, &dimension,
-              &direction, &intermediates, &vars, &dt_vars,
-              &unit_normal_one_form, &inertial_coords, &char_speeds
-            ](const gsl::not_null<db::item_type<dt_variables_tag>*>
-                  volume_dt_vars,
-              const double /* time */, const auto& /* boundary_condition */
-              ) noexcept {
+            [&volume_grid_points, &slice_grid_points, &mesh, &dimension,
+             &direction, &intermediates, &vars, &dt_vars, &unit_normal_one_form,
+             &inertial_coords, &char_speeds](
+                const gsl::not_null<typename dt_variables_tag::type*>
+                    volume_dt_vars,
+                const double /* time */, const auto& /* boundary_condition */
+                ) noexcept {
               // Preliminaries
               ASSERT(
                   volume_dt_vars->number_of_grid_points() == volume_grid_points,
@@ -231,7 +230,8 @@ struct ImposeBjorhusBoundaryConditions {
               // Convert them to desired values on dt<U>
               const auto bc_dt_all_u =
                   evolved_fields_from_characteristic_fields(
-                      intermediates.get_var(Tags::ConstraintGamma2{}),
+                      intermediates.get_var(
+                          ConstraintDamping::Tags::ConstraintGamma2{}),
                       bc_dt_u_psi, bc_dt_u_zero, bc_dt_u_plus, bc_dt_u_minus,
                       unit_normal_one_form);
               // Now store final values of dt<U> in suitable data structure

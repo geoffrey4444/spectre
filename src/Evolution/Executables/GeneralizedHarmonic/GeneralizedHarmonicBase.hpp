@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <vector>
 
-#include "AlgorithmSingleton.hpp"
 #include "ApparentHorizons/ComputeItems.hpp"
 #include "ApparentHorizons/Tags.hpp"
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
