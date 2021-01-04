@@ -555,12 +555,9 @@ void test_suite_for_time_dependent_map_on_sphere(
     const std::unordered_map<
         std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
         functions_of_time,
-    const bool include_origin = true,
+    gsl::not_null<std::mt19937*> generator, const bool include_origin = true,
     const double radius_of_sphere = 1.0) noexcept {
   static_assert(Map::dim == 3, "Works only for a 3d map");
-
-  // Set up random number generator
-  MAKE_GENERATOR(gen);
 
   // If we don't include the origin, we want to use some finite inner
   // boundary so that random points stay away from the origin.
@@ -572,11 +569,11 @@ void test_suite_for_time_dependent_map_on_sphere(
   std::uniform_real_distribution<> theta_dis(0, M_PI);
   std::uniform_real_distribution<> phi_dis(0, 2.0 * M_PI);
 
-  const double theta = theta_dis(gen);
+  const double theta = theta_dis(*generator);
   CAPTURE(theta);
-  const double phi = phi_dis(gen);
+  const double phi = phi_dis(*generator);
   CAPTURE(phi);
-  const double radius = radius_dis(gen);
+  const double radius = radius_dis(*generator);
   CAPTURE(radius);
   CAPTURE(time);
 
