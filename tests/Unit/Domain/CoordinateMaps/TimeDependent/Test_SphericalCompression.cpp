@@ -270,7 +270,7 @@ void test_is_identity(gsl::not_null<std::mt19937*> generator) noexcept {
 
 SPECTRE_TEST_CASE("Unit.Domain.CoordinateMaps.SphericalCompression",
                   "[Domain][Unit]") {
-  MAKE_GENERATOR(gen, 1989166745);
+  MAKE_GENERATOR(gen);
   test_suite(make_not_null(&gen));
   test_map(make_not_null(&gen));
   test_is_identity(make_not_null(&gen));

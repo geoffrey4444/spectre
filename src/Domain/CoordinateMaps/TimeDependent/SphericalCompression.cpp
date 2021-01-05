@@ -186,19 +186,17 @@ std::optional<std::array<double, 3>> SphericalCompression<3>::inverse(
       return target_coords;
     } else {
       std::array<double, 3> result{target_radial_position};
-      auto it_result = result.begin();
-      auto it_center = center_.begin();
-      for (; it_result != result.end() and it_center != center_.end();
-           it_result++, it_center++) {
-        if (target_radius < min_radius_ - lambda_y) {
-          *it_result /= 1.0 - lambda_y / min_radius_;
-        } else {
-          *it_result *= 1.0 + lambda_y * max_radius_ /
-                                  (max_radius_ - min_radius_) / target_radius;
-          *it_result /= 1.0 + lambda_y / (max_radius_ - min_radius_);
-        }
-        *it_result += *it_center;
+      double scale{};
+      if (target_radius < min_radius_ - lambda_y) {
+        scale = 1.0 / (1.0 - lambda_y / min_radius_);
+      } else {
+        scale = (1.0 + lambda_y * max_radius_ / (max_radius_ - min_radius_) /
+                           target_radius) /
+                (1.0 + lambda_y / (max_radius_ - min_radius_));
       }
+      result[0] = result[0] * scale + center_[0];
+      result[1] = result[1] * scale + center_[1];
+      result[2] = result[2] * scale + center_[2];
       return {result};
     }
   }
