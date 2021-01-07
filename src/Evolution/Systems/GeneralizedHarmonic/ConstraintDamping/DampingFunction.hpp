@@ -24,6 +24,8 @@ namespace GeneralizedHarmonic::ConstraintDamping {
 /// \cond
 template <size_t VolumeDim, typename Fr>
 class GaussianPlusConstant;
+template <size_t VolumeDim, typename Fr>
+class TimeDependentTripleGaussian;
 /// \endcond
 
 /*!
@@ -38,7 +40,9 @@ class DampingFunction : public PUP::able {
  public:
   using creatable_classes =
       tmpl::list<GeneralizedHarmonic::ConstraintDamping::GaussianPlusConstant<
-          VolumeDim, Fr>>;
+                     VolumeDim, Fr>,
+                 GeneralizedHarmonic::ConstraintDamping::
+                     TimeDependentTripleGaussian<VolumeDim, Fr>>;
   constexpr static size_t volume_dim = VolumeDim;
   using frame = Fr;
 
@@ -75,3 +79,4 @@ class DampingFunction : public PUP::able {
 }  // namespace GeneralizedHarmonic::ConstraintDamping
 
 #include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/GaussianPlusConstant.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/TimeDependentTripleGaussian.hpp"
