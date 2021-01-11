@@ -15,8 +15,6 @@
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
-#include "ErrorHandling/Error.hpp"
-#include "ErrorHandling/FloatingPointExceptions.hpp"
 #include "Evolution/Actions/AddMeshVelocityNonconservative.hpp"
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"
 #include "Evolution/ComputeTags.hpp"
@@ -115,6 +113,8 @@
 #include "Time/Tags.hpp"
 #include "Time/TimeSteppers/TimeStepper.hpp"
 #include "Time/Triggers/TimeTriggers.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/ErrorHandling/FloatingPointExceptions.hpp"
 #include "Utilities/Functional.hpp"
 #include "Utilities/TMPL.hpp"
 
