@@ -12,8 +12,6 @@
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
-#include "ErrorHandling/Error.hpp"
-#include "ErrorHandling/FloatingPointExceptions.hpp"
 #include "Evolution/ComputeTags.hpp"
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Actions/SendNextTimeToCce.hpp"
@@ -67,6 +65,8 @@
 #include "Time/StepControllers/StepController.hpp"
 #include "Time/TimeSteppers/TimeStepper.hpp"
 #include "Utilities/Blas.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/ErrorHandling/FloatingPointExceptions.hpp"
 #include "Utilities/TMPL.hpp"
 
 /// \cond
