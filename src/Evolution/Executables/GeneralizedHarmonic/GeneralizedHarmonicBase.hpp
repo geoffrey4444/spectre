@@ -396,7 +396,6 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
       Initialization::Actions::AddComputeTags<
           tmpl::list<evolution::Tags::AnalyticCompute<
               volume_dim, analytic_solution_tag, analytic_solution_fields>>>,
-      dg::Actions::InitializeMortars<boundary_scheme, true>,
       Initialization::Actions::DiscontinuousGalerkin<derived_metavars>,
       Parallel::Actions::TerminatePhase>;
 
