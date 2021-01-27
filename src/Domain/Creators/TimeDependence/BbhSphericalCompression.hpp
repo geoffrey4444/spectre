@@ -175,8 +175,10 @@ class BbhSphericalCompression final : public TimeDependence<MeshDim> {
 
   using MapForComposition = detail::generate_coordinate_map_t<
       domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
-          CoordinateMapA<true>, CoordinateMapA<false>, CoordinateMapB<true>,
-          CoordinateMapB<false>>>;
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              CoordinateMapA<true>, CoordinateMapA<false>>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              CoordinateMapB<true>, CoordinateMapB<false>>>>;
 
   using options =
       tmpl::list<InitialTime, InitialExpirationDeltaT, CompressionVelocityA,
@@ -204,7 +206,7 @@ class BbhSphericalCompression final : public TimeDependence<MeshDim> {
       double x_coord_object_a, double inner_radius_object_b,
       double outer_radius_object_b, double x_coord_object_b,
       std::string function_of_time_a = "LambdaFactorA0",
-      std::string function_of_time_a = "LambdaFactorB0") noexcept;
+      std::string function_of_time_b = "LambdaFactorB0") noexcept;
 
   auto get_clone() const noexcept
       -> std::unique_ptr<TimeDependence<MeshDim>> override;

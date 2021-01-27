@@ -31,20 +31,34 @@ namespace creators::time_dependence {
 
 template <size_t MeshDim>
 BbhSphericalCompression<MeshDim>::BbhSphericalCompression(
-    const double initial_time,
-    const std::optional<double> initial_expiration_delta_t,
-    const double angular_velocity, std::string function_of_time_name) noexcept
+    double initial_time, std::optional<double> initial_expiration_delta_t,
+    double compression_velocity_a, compression_velocity_b,
+    double inner_radius_object_a, double outer_radius_object_a,
+    double x_coord_object_a, double inner_radius_object_b,
+    double outer_radius_object_b, double x_coord_object_b,
+    std::string function_of_time_a, std::string function_of_time_b) noexcept
     : initial_time_(initial_time),
       initial_expiration_delta_t_(initial_expiration_delta_t),
-      angular_velocity_(angular_velocity),
-      function_of_time_name_(std::move(function_of_time_name)) {}
+      compression_velocity_a_(compression_velocity_a),
+      compression_velocity_b_(compression_velocity_b),
+      inner_radius_object_a_(inner_radius_object_a),
+      outer_radius_object_a_(outer_radius_object_a),
+      x_coord_object_a_(x_coord_object_a),
+      inner_radius_object_b_(inner_radius_object_b),
+      outer_radius_object_b_(outer_radius_object_b),
+      x_coord_object_b_(x_coord_object_b),
+      function_of_time_a_(std::move(function_of_time_name)),
+      function_of_time_b_(std::move(function_of_time_b)) {}
 
 template <size_t MeshDim>
 std::unique_ptr<TimeDependence<MeshDim>>
 BbhSphericalCompression<MeshDim>::get_clone() const noexcept {
   return std::make_unique<BbhSphericalCompression>(
-      initial_time_, initial_expiration_delta_t_, angular_velocity_,
-      function_of_time_name_);
+      initial_time_, initial_expiration_delta_t_, compression_velocity_a_,
+      compression_velocity_b_, inner_radius_object_a_, outer_radius_object_a_,
+      x_coord_object_a_, inner_radius_object_b_, outer_radius_object_b_,
+      x_coord_object_b_, std::string function_of_time_a_,
+      std::string function_of_time_b_);
 }
 
 template <size_t MeshDim>
@@ -72,10 +86,19 @@ BbhSphericalCompression<MeshDim>::functions_of_time() const noexcept {
       result{};
   // We use a third-order `PiecewisePolynomial` to ensure sufficiently
   // smooth behavior of the function of time
-  result[function_of_time_name_] =
+  result[function_of_time_a_] =
       std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time_,
-          std::array<DataVector, 4>{{{0.0}, {angular_velocity_}, {0.0}, {0.0}}},
+          std::array<DataVector, 4>{
+              {{0.0}, {compression_velocity_a_}, {0.0}, {0.0}}},
+          initial_expiration_delta_t_
+              ? initial_time_ + *initial_expiration_delta_t_
+              : std::numeric_limits<double>::max());
+  result[function_of_time_b_] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time_,
+          std::array<DataVector, 4>{
+              {{0.0}, {compression_velocity_b_}, {0.0}, {0.0}}},
           initial_expiration_delta_t_
               ? initial_time_ + *initial_expiration_delta_t_
               : std::numeric_limits<double>::max());
@@ -83,13 +106,6 @@ BbhSphericalCompression<MeshDim>::functions_of_time() const noexcept {
 }
 
 /// \cond
-template <>
-auto BbhSphericalCompression<2>::map_for_composition() const noexcept
-    -> MapForComposition {
-  return MapForComposition{domain::CoordinateMaps::TimeDependent::Rotation<2>{
-      function_of_time_name_}};
-}
-
 template <>
 auto BbhSphericalCompression<3>::map_for_composition() const noexcept
     -> MapForComposition {
@@ -107,8 +123,16 @@ bool operator==(const BbhSphericalCompression<Dim>& lhs,
                 const BbhSphericalCompression<Dim>& rhs) noexcept {
   return lhs.initial_time_ == rhs.initial_time_ and
          lhs.initial_expiration_delta_t_ == rhs.initial_expiration_delta_t_ and
-         lhs.angular_velocity_ == rhs.angular_velocity_ and
-         lhs.function_of_time_name_ == rhs.function_of_time_name_;
+         lhs.compression_velocity_a_ == rhs.compression_velocity_a_ and
+         lhs.compression_velocity_b_ == rhs.compression_velocity_b_ and
+         lhs.inner_radius_object_a_ == rhs.inner_radius_object_a_ and
+         lhs.outer_radius_object_a_ == rhs.outer_radius_object_a_ and
+         lhs.x_coord_object_a_ == rhs.x_coord_object_a_ and
+         lhs.inner_radius_object_b_ == rhs.inner_radius_object_b_ and
+         lhs.outer_radius_object_b_ == rhs.outer_radius_object_b_ and
+         lhs.x_coord_object_b_ == rhs.x_coord_object_b_ and
+         lhs.function_of_time_a_ == rhs.function_of_time_a_ and
+         lhs.function_of_time_b_ == rhs.function_of_time_b_;
 }
 
 template <size_t Dim>
