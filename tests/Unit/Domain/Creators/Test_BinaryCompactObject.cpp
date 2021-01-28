@@ -19,8 +19,6 @@
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"  // IWYU pragma: keep
 #include "Domain/Block.hpp"                       // IWYU pragma: keep
-#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
-#include "Domain/CoordinateMaps/TimeDependent/Translation.hpp"
 #include "Domain/Creators/BinaryCompactObject.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
 #include "Domain/Domain.hpp"
@@ -35,10 +33,6 @@ class FunctionOfTime;
 }  // namespace domain::FunctionsOfTime
 
 namespace {
-using Translation = domain::CoordinateMaps::TimeDependent::Translation;
-using Translation3D = domain::CoordinateMaps::TimeDependent::ProductOf3Maps<
-    Translation, Translation, Translation>;
-
 template <typename... FuncsOfTime>
 void test_binary_compact_object_construction(
     const domain::creators::BinaryCompactObject& binary_compact_object,
@@ -158,68 +152,16 @@ void test_bbh_time_dependent_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence:\n"
-          "      UniformTranslation:\n"
-          "        InitialTime: 1.0\n"
-          "        InitialExpirationDeltaT: 9.0\n"
-          "        Velocity: [2.3, -0.3, 0.5]\n"
-          "        FunctionOfTimeNames: [TranslationX, TranslationY, "
-          "TranslationZ]");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   const std::array<double, 4> times_to_check{{0.0, 4.4, 7.8}};
-
-  constexpr double initial_time = 0.0;
-  constexpr double expiration_time = 10.0;
-  constexpr double expected_time = 1.0; // matches InitialTime: 1.0 above
-  constexpr double expected_update_delta_t =
-      9.0;  // matches InitialExpirationDeltaT: 9.0 above
-  std::array<DataVector, 3> function_of_time_coefficients_x{
-      {{0.0}, {2.3}, {0.0}}};
-  const std::array<DataVector, 3> function_of_time_coefficients_y{
-      {{0.0}, {-0.3}, {0.0}}};
-  const std::array<DataVector, 3> function_of_time_coefficients_z{
-      {{0.0}, {0.5}, {0.0}}};
-
-  const std::tuple<
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>>
-      expected_functions_of_time = std::make_tuple(
-          std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationX"s,
-              {expected_time, function_of_time_coefficients_x,
-               expected_time + expected_update_delta_t}},
-          std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationY"s,
-              {expected_time, function_of_time_coefficients_y,
-               expected_time + expected_update_delta_t}},
-          std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationZ"s,
-              {expected_time, function_of_time_coefficients_z,
-               expected_time + expected_update_delta_t}});
-  std::unordered_map<std::string,
-                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
-      functions_of_time{};
-  functions_of_time["TranslationX"] =
-      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_x, expiration_time);
-  functions_of_time["TranslationY"] =
-      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_y, expiration_time);
-  functions_of_time["TranslationZ"] =
-      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_z, expiration_time);
 
   for (const double time : times_to_check) {
     test_binary_compact_object_construction(
         dynamic_cast<const domain::creators::BinaryCompactObject&>(
             *binary_compact_object),
-        time, functions_of_time, expected_functions_of_time);
+        time, {});
   }
-}
+}  // namespace
 
 void test_bbh_equiangular_factory() {
   const auto binary_compact_object =
@@ -244,8 +186,7 @@ void test_bbh_equiangular_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -274,8 +215,7 @@ void test_bbh_2_outer_radial_refinements_linear_map_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 2\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 2\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -304,8 +244,7 @@ void test_bbh_3_outer_radial_refinements_log_map_factory() {
           "    UseLogarithmicMapObjectA: true\n"
           "    AdditionToObjectARadialRefinementLevel: 3\n"
           "    UseLogarithmicMapObjectB: true\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -334,8 +273,7 @@ void test_bbh_equidistant_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -364,8 +302,7 @@ void test_bns_equiangular_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -394,8 +331,7 @@ void test_bns_equidistant_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -424,8 +360,7 @@ void test_bhns_equiangular_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -454,8 +389,7 @@ void test_bhns_equidistant_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -484,8 +418,7 @@ void test_nsbh_equiangular_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
@@ -514,8 +447,7 @@ void test_nsbh_equidistant_factory() {
           "    UseLogarithmicMapObjectA: false\n"
           "    AdditionToObjectARadialRefinementLevel: 0\n"
           "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n"
-          "    TimeDependence: None\n");
+          "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
