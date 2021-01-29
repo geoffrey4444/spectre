@@ -32,6 +32,14 @@ namespace domain::FunctionsOfTime {
 class FunctionOfTime;
 }  // namespace domain::FunctionsOfTime
 
+struct TimeIndependentMetavariables {
+  static constexpr bool enable_time_dependence{false};
+};
+
+struct TimeDependentMetavariables {
+  static constexpr bool enable_time_dependence{true};
+};
+
 namespace {
 template <typename... FuncsOfTime>
 void test_binary_compact_object_construction(
@@ -96,7 +104,8 @@ void test_connectivity() {
               use_equiangular_map,
               use_projective_map,
               use_logarithmic_map_outer_spherical_shell,
-              addition_to_outer_layer_radial_refinement_level};
+              addition_to_outer_layer_radial_refinement_level,
+          };
           test_binary_compact_object_construction(binary_compact_object);
 
           // Also check whether the radius of the inner boundary of Layer 5 is
@@ -130,324 +139,367 @@ void test_connectivity() {
 }
 }
 void test_bbh_time_dependent_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeDependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n"
+      "    InitialTime: 0.0 \n"
+      "    InitialExpirationDeltaT: Auto \n"
+      "    ExpansionMap: \n"
+      "      ExpansionMapOuterBoundary: 25.0 \n"
+      "      InitialExpansion: [1.0, 1.0] \n"
+      "      InitialExpansionVelocity: [-0.1, -0.1] \n"
+      "      InitialExpansionAcceleration: [-0.01, -0.01] \n"
+      "      ExpansionFunctionOfTimeNames: ['ExpansionFactor', "
+      " 'ExpansionFactor'] \n");
   const std::array<double, 4> times_to_check{{0.0, 4.4, 7.8}};
+
+  std::array<DataVector, 4> expansion_factor_coefs{
+      {{1.0}, {-0.1}, {-0.01}, {0.0}}};
+  const std::tuple<
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>>
+      expected_functions_of_time = std::make_tuple(
+          std::pair<std::string,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "ExpansionFactor"s,
+              {0.0, expansion_factor_coefs,
+               std::numeric_limits<double>::max()}});
 
   for (const double time : times_to_check) {
     test_binary_compact_object_construction(
         dynamic_cast<const domain::creators::BinaryCompactObject&>(
             *binary_compact_object),
-        time, {});
+        time, binary_compact_object->functions_of_time(),
+        expected_functions_of_time);
   }
 }  // namespace
 
 void test_bbh_equiangular_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bbh_2_outer_radial_refinements_linear_map_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 2\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 2\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 2\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 2\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bbh_3_outer_radial_refinements_log_map_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 3\n"
-          "    UseLogarithmicMapObjectA: true\n"
-          "    AdditionToObjectARadialRefinementLevel: 3\n"
-          "    UseLogarithmicMapObjectB: true\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 3\n"
+      "    UseLogarithmicMapObjectA: true\n"
+      "    AdditionToObjectARadialRefinementLevel: 3\n"
+      "    UseLogarithmicMapObjectB: true\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bbh_equidistant_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: false\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: false\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bns_equiangular_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: false\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: false\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: false\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: false\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bns_equidistant_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: false\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: false\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: false\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: false\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: false\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: false\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bhns_equiangular_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: false\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: false\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_bhns_equidistant_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: true\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: false\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: false\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: true\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: false\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: false\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_nsbh_equiangular_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: false\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: true\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: false\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: true\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
 }
 
 void test_nsbh_equidistant_factory() {
-  const auto binary_compact_object =
-      TestHelpers::test_factory_creation<DomainCreator<3>>(
-          "  BinaryCompactObject:\n"
-          "    InnerRadiusObjectA: 0.2\n"
-          "    OuterRadiusObjectA: 1.0\n"
-          "    XCoordObjectA: -2.0\n"
-          "    ExciseInteriorA: false\n"
-          "    InnerRadiusObjectB: 1.0\n"
-          "    OuterRadiusObjectB: 2.0\n"
-          "    XCoordObjectB: 3.0\n"
-          "    ExciseInteriorB: true\n"
-          "    RadiusOuterCube: 22.0\n"
-          "    RadiusOuterSphere: 25.0\n"
-          "    InitialRefinement: 1\n"
-          "    InitialGridPoints: 3\n"
-          "    UseEquiangularMap: false\n"
-          "    UseProjectiveMap: true\n"
-          "    UseLogarithmicMapOuterSphericalShell: false\n"
-          "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectA: false\n"
-          "    AdditionToObjectARadialRefinementLevel: 0\n"
-          "    UseLogarithmicMapObjectB: false\n"
-          "    AdditionToObjectBRadialRefinementLevel: 0\n");
+  const auto binary_compact_object = TestHelpers::test_factory_creation<
+      DomainCreator<3>,
+      TestHelpers::TestCreationOpt<std::unique_ptr<DomainCreator<3>>>,
+      TimeIndependentMetavariables>(
+      "  BinaryCompactObject:\n"
+      "    InnerRadiusObjectA: 0.2\n"
+      "    OuterRadiusObjectA: 1.0\n"
+      "    XCoordObjectA: -2.0\n"
+      "    ExciseInteriorA: false\n"
+      "    InnerRadiusObjectB: 1.0\n"
+      "    OuterRadiusObjectB: 2.0\n"
+      "    XCoordObjectB: 3.0\n"
+      "    ExciseInteriorB: true\n"
+      "    RadiusOuterCube: 22.0\n"
+      "    RadiusOuterSphere: 25.0\n"
+      "    InitialRefinement: 1\n"
+      "    InitialGridPoints: 3\n"
+      "    UseEquiangularMap: false\n"
+      "    UseProjectiveMap: true\n"
+      "    UseLogarithmicMapOuterSphericalShell: false\n"
+      "    AdditionToOuterLayerRadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectA: false\n"
+      "    AdditionToObjectARadialRefinementLevel: 0\n"
+      "    UseLogarithmicMapObjectB: false\n"
+      "    AdditionToObjectBRadialRefinementLevel: 0\n");
   test_binary_compact_object_construction(
       dynamic_cast<const domain::creators::BinaryCompactObject&>(
           *binary_compact_object));
