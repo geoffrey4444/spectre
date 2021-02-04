@@ -1,0 +1,69 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+# Executable: ExportTimeDependentCoordinates3D
+# Check: parse;execute
+# ExpectedOutput:
+#   ExportTimeDependentCoordinates3DVolume0.h5
+
+DomainCreator:
+  BinaryCompactObject:
+    ObjectA:
+      InnerRadius: 0.4409
+      OuterRadius: 6.0
+      XCoord: -10.0
+      ExciseInterior: true
+      UseLogarithmicMap: false
+      AdditionToRadialRefinementLevel: 1
+    ObjectB:
+      InnerRadius: 0.4409
+      OuterRadius: 6.0
+      XCoord: 10.0
+      ExciseInterior: true
+      UseLogarithmicMap: false
+      AdditionToRadialRefinementLevel: 1
+    EnvelopingCube:
+      Radius: 100.0
+    OuterSphere:
+      Radius: 590.0
+      UseLogarithmicMap: false
+      AdditionToRadialRefinementLevel: 0
+    InitialRefinement: 0
+    InitialGridPoints: 3
+    UseProjectiveMap: true
+    InitialTime: 0.0
+    InitialExpirationDeltaT: Auto
+    ExpansionMap:
+      ExpansionMapOuterBoundary: 600.0
+      InitialExpansion: [1.0, 1.0]
+      InitialExpansionVelocity: [0.0, 0.0]
+      ExpansionFunctionOfTimeNames: ['ExpansionFactor',  'Unity']
+    RotationAboutZAxisMap:
+      InitialRotationAngle: 0.0
+      InitialAngularVelocity: 0.0
+      RotationAboutZAxisFunctionOfTimeName: RotationAngle
+    SizeMap:
+      InitialSizeMapValues: [0.0, 0.0]
+      InitialSizeMapVelocities: [0.0, 0.0]
+      InitialSizeMapAccelerations: [0.0, 0.0]
+      SizeMapFunctionOfTimeNames: ['LambdaFactorA0',  'LambdaFactorB0']
+
+SpatialDiscretization:
+  DiscontinuousGalerkin:
+    Quadrature: GaussLobatto
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: 0.01
+  TimeStepper:
+    AdamsBashforthN:
+      Order: 1
+
+# To export a time-independent mesh, replace `? PastTime: 1.0` with `Always:`
+EventsAndTriggers:
+  ? PastTime: 0.08
+  : - Completion
+
+Observers:
+  VolumeFileName: "ExportTimeDependentCoordinates3DVolume"
+  ReductionFileName: "ExportTimeDependentCoordinates3DReductions"
