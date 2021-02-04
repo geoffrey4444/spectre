@@ -176,10 +176,11 @@ struct FindGlobalMinimumGridSpacing {
   }
 };
 
-template <size_t Dim>
+template <size_t Dim, bool EnableTimeDependence>
 struct Metavariables {
   static constexpr size_t volume_dim = Dim;
   static constexpr bool local_time_stepping = false;
+  static constexpr bool enable_time_dependence = EnableTimeDependence;
 
   using triggers = Triggers::time_triggers;
   using events = tmpl::list<>;
