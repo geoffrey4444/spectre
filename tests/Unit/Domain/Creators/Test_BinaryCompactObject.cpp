@@ -172,19 +172,36 @@ void test_bbh_time_dependent_factory() {
       "      InitialExpansionVelocity: [-0.1, -0.1] \n"
       "      InitialExpansionAcceleration: [-0.01, -0.01] \n"
       "      ExpansionFunctionOfTimeNames: ['ExpansionFactor', "
-      " 'ExpansionFactor'] \n");
+      " 'ExpansionFactor'] \n"
+      "    SizeMap: \n"
+      "      InitialSizeMapValues: [0.0, 0.0]\n"
+      "      InitialSizeMapVelocities: [-0.1, -0.1]\n"
+      "      InitialSizeMapAccelerations: [-0.01, -0.01]\n"
+      "      SizeMapFunctionOfTimeNames: ['LambdaFactorA0', "
+      " 'LambdaFactorB0']\n");
   const std::array<double, 4> times_to_check{{0.0, 4.4, 7.8}};
 
   std::array<DataVector, 4> expansion_factor_coefs{
       {{1.0}, {-0.1}, {-0.01}, {0.0}}};
+  std::array<DataVector, 4> size_map_coefs{{{0.0}, {-0.1}, {-0.01}, {0.0}}};
   const std::tuple<
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>>
       expected_functions_of_time = std::make_tuple(
           std::pair<std::string,
                     domain::FunctionsOfTime::PiecewisePolynomial<3>>{
               "ExpansionFactor"s,
               {0.0, expansion_factor_coefs,
-               std::numeric_limits<double>::max()}});
+               std::numeric_limits<double>::max()}},
+          std::pair<std::string,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "LambdaFactorA0"s,
+              {0.0, size_map_coefs, std::numeric_limits<double>::max()}},
+          std::pair<std::string,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "LambdaFactorB0"s,
+              {0.0, size_map_coefs, std::numeric_limits<double>::max()}});
 
   for (const double time : times_to_check) {
     test_binary_compact_object_construction(
