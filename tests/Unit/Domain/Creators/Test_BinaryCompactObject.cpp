@@ -170,7 +170,6 @@ void test_bbh_time_dependent_factory() {
       "      ExpansionMapOuterBoundary: 25.0 \n"
       "      InitialExpansion: [1.0, 1.0] \n"
       "      InitialExpansionVelocity: [-0.1, -0.1] \n"
-      "      InitialExpansionAcceleration: [-0.01, -0.01] \n"
       "      ExpansionFunctionOfTimeNames: ['ExpansionFactor', "
       " 'ExpansionFactor'] \n"
       "    SizeMap: \n"
@@ -181,16 +180,15 @@ void test_bbh_time_dependent_factory() {
       " 'LambdaFactorB0']\n");
   const std::array<double, 4> times_to_check{{0.0, 4.4, 7.8}};
 
-  std::array<DataVector, 4> expansion_factor_coefs{
-      {{1.0}, {-0.1}, {-0.01}, {0.0}}};
+  std::array<DataVector, 3> expansion_factor_coefs{{{1.0}, {-0.1}, {0.0}}};
   std::array<DataVector, 4> size_map_coefs{{{0.0}, {-0.1}, {-0.01}, {0.0}}};
   const std::tuple<
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>>
       expected_functions_of_time = std::make_tuple(
           std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
               "ExpansionFactor"s,
               {0.0, expansion_factor_coefs,
                std::numeric_limits<double>::max()}},
