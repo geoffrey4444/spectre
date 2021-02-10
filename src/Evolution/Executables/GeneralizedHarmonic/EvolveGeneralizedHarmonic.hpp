@@ -146,10 +146,10 @@ struct EvolutionMetavars {
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
   static constexpr bool use_damped_harmonic_rollon = true;
-  // Set override_cubic_functions_of_time to true to override the cubic
-  // piecewise polynomial functions of time using
-  // `read_spec_third_order_piecewise_polynomial()`
-  static constexpr bool override_cubic_functions_of_time = false;
+  // Set override_functions_of_time to true to override the
+  // 2nd or 3rd order piecewise polynomial functions of time using
+  // `read_spec_piecewise_polynomial()`
+  static constexpr bool override_functions_of_time = false;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
   using initial_data = InitialData;
@@ -284,7 +284,7 @@ struct EvolutionMetavars {
       Actions::SetupDataBox,
       Initialization::Actions::TimeAndTimeStep<EvolutionMetavars>,
       evolution::dg::Initialization::Domain<volume_dim,
-                                            override_cubic_functions_of_time>,
+                                            override_functions_of_time>,
       Initialization::Actions::NonconservativeSystem<system>,
       tmpl::conditional_t<
           evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
