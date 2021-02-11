@@ -181,7 +181,7 @@ struct Metavariables {
   static constexpr size_t volume_dim = Dim;
   static constexpr bool local_time_stepping = false;
   static constexpr bool enable_time_dependence = EnableTimeDependence;
-  static constexpr bool override_cubic_functions_of_time = true;
+  static constexpr bool override_cubic_functions_of_time = EnableTimeDependence;
 
   using triggers = Triggers::time_triggers;
   using events = tmpl::list<>;
