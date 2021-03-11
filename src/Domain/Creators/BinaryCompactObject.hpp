@@ -41,6 +41,10 @@ template <bool InteriorMap>
 class SphericalCompression;
 template <size_t VolumeDim>
 class CubicScale;
+template <size_t VolumeDim>
+class Rotation;
+template <typename Map1, typename Map2>
+class ProductOf2Maps;
 }  // namespace TimeDependent
 }  // namespace CoordinateMaps
 
@@ -164,7 +168,20 @@ class BinaryCompactObject : public DomainCreator<3> {
       domain::CoordinateMap<
           Frame::Grid, Frame::Inertial,
           domain::CoordinateMaps::TimeDependent::SphericalCompression<false>,
-          domain::CoordinateMaps::TimeDependent::CubicScale<3>>>;
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>>,
+      domain::CoordinateMap<
+          Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>,
+      domain::CoordinateMap<
+          Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::SphericalCompression<false>,
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>>;
 
   struct InnerRadiusObjectA {
     using type = double;
@@ -346,6 +363,30 @@ class BinaryCompactObject : public DomainCreator<3> {
     using group = ExpansionMap;
   };
 
+  struct RotationAboutZAxisMap {
+    static constexpr Options::String help = {
+        "Options for a time-dependent rotation map about the z axis"};
+  };
+  /// \brief The initial value of the rotation angle.
+  struct InitialRotationAngle {
+    using type = double;
+    static constexpr Options::String help = {"Rotation angle at initial time."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The angular velocity of the rotation.
+  struct InitialAngularVelocity {
+    using type = double;
+    static constexpr Options::String help = {"The angular velocity."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The names of the function of time to be added to the added to the
+  /// DataBox for the RotationAboutZAxisMap.
+  struct RotationAboutZAxisFunctionOfTimeName {
+    using type = std::string;
+    static constexpr Options::String help = {"Name of the function of time."};
+    using group = RotationAboutZAxisMap;
+  };
+
   struct SizeMap {
     static constexpr Options::String help = {
         "Options for a time-dependent size maps."};
@@ -393,8 +434,10 @@ class BinaryCompactObject : public DomainCreator<3> {
       tmpl::list<InitialTime, InitialExpirationDeltaT,
                  ExpansionMapOuterBoundary, InitialExpansion,
                  InitialExpansionVelocity, ExpansionFunctionOfTimeNames,
-                 InitialSizeMapValues, InitialSizeMapVelocities,
-                 InitialSizeMapAccelerations, SizeMapFunctionOfTimeNames>;
+                 InitialRotationAngle, InitialAngularVelocity,
+                 RotationAboutZAxisFunctionOfTimeName, InitialSizeMapValues,
+                 InitialSizeMapVelocities, InitialSizeMapAccelerations,
+                 SizeMapFunctionOfTimeNames>;
 
   template <typename Metavariables>
   using options = tmpl::conditional_t<
@@ -466,6 +509,10 @@ class BinaryCompactObject : public DomainCreator<3> {
       typename InitialExpansionVelocity::type initial_expansion_velocity,
       typename ExpansionFunctionOfTimeNames::type
           expansion_function_of_time_names,
+      typename InitialRotationAngle::type initial_rotation_angle,
+      typename InitialAngularVelocity::type initial_angular_velocity,
+      typename RotationAboutZAxisFunctionOfTimeName::type
+          rotation_about_z_axis_function_of_time_name,
       typename InitialSizeMapValues::type initial_size_map_values,
       typename InitialSizeMapVelocities::type initial_size_map_velocities,
       typename InitialSizeMapAccelerations::type initial_size_map_accelerations,
@@ -558,6 +605,10 @@ class BinaryCompactObject : public DomainCreator<3> {
   typename InitialExpansion::type initial_expansion_;
   typename InitialExpansionVelocity::type initial_expansion_velocity_;
   typename ExpansionFunctionOfTimeNames::type expansion_function_of_time_names_;
+  typename InitialRotationAngle::type initial_rotation_angle_;
+  typename InitialAngularVelocity::type initial_angular_velocity_;
+  typename RotationAboutZAxisFunctionOfTimeName::type
+      rotation_about_z_axis_function_of_time_name_;
   typename InitialSizeMapValues::type initial_size_map_values_;
   typename InitialSizeMapVelocities::type initial_size_map_velocities_;
   typename InitialSizeMapAccelerations::type initial_size_map_accelerations_;
