@@ -613,17 +613,19 @@ BinaryCompactObject::functions_of_time() const noexcept {
   // Use a 3rd deriv function of time so that it can be used with a control
   // system.
   result[expansion_function_of_time_names_[0]] =
-      std::make_unique<FunctionsOfTime::PiecewisePolynomial<2>>(
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time_,
-          std::array<DataVector, 3>{{{initial_expansion_[0]},
+          std::array<DataVector, 4>{{{initial_expansion_[0]},
                                      {initial_expansion_velocity_[0]},
+                                     {0.0},
                                      {0.0}}},
           initial_expiration_time);
   result[expansion_function_of_time_names_[1]] =
-      std::make_unique<FunctionsOfTime::PiecewisePolynomial<2>>(
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time_,
-          std::array<DataVector, 3>{{{initial_expansion_[1]},
+          std::array<DataVector, 4>{{{initial_expansion_[1]},
                                      {initial_expansion_velocity_[1]},
+                                     {0.0},
                                      {0.0}}},
           initial_expiration_time);
 
