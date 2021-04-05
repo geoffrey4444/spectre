@@ -78,7 +78,6 @@ void verify_temporal_ids_and_send_points_time_dependent(
     return; // Nothing to do if there are no pending temporal_ids.
   }
 
-  std::vector<TemporalId> new_temporal_ids{};
   auto& this_proxy = Parallel::get_parallel_component<ParallelComponent>(cache);
   double min_expiration_time = std::numeric_limits<double>::max();
   const bool at_least_one_pending_temporal_id_is_ready =
@@ -120,6 +119,7 @@ void verify_temporal_ids_and_send_points_time_dependent(
   // Move up-to-date PendingTemporalIds to TemporalIds, provided
   // that they are not already there, and fill new_temporal_ids
   // with the temporal_ids that were so moved.
+  std::vector<TemporalId> new_temporal_ids{};
   db::mutate_apply<tmpl::list<Tags::TemporalIds<TemporalId>,
                               Tags::PendingTemporalIds<TemporalId>>,
                    tmpl::list<Tags::CompletedTemporalIds<TemporalId>>>(
