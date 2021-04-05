@@ -18,6 +18,7 @@
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
+#include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Literals.hpp"
 #include "Utilities/Requires.hpp"
@@ -288,12 +289,9 @@ bool maps_are_time_dependent(
     const tmpl::type_<Metavariables>& /*meta*/) noexcept {
   const auto& domain =
       db::get<domain::Tags::Domain<Metavariables::volume_dim>>(box);
-  for (const auto& block : domain.blocks()) {
-    if (block.is_time_dependent()) {
-      return true;
-    }
-  }
-  return false;
+  return alg::any_of(domain.blocks(), [](const auto& block) noexcept {
+    return block.is_time_dependent();
+  });
 }
 
 /// Tells an InterpolationTarget that it should interpolate at
