@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <memory>
 #include <unordered_set>
 #include <vector>
 
@@ -324,9 +325,9 @@ void test_add_temporal_ids_time_dependent() {
   const auto domain_creator = domain::creators::Brick(
       {{-1.2, 3.0, 2.5}}, {{0.8, 5.0, 3.0}}, {{1, 1, 1}}, {{5, 4, 3}},
       {{false, false, false}},
-      std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>(
-          new domain::creators::time_dependence::UniformTranslation<3>(
-              0.0, expiration_time, {{0.1, 0.2, 0.3}})));
+      std::make_unique<
+          domain::creators::time_dependence::UniformTranslation<3>>(
+          0.0, expiration_time, std::array<double, 3>({{0.1, 0.2, 0.3}})));
 
   ActionTesting::MockRuntimeSystem<metavars> runner{
       {domain_creator.create_domain()}, {domain_creator.functions_of_time()}};
