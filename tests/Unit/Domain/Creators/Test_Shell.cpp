@@ -376,6 +376,7 @@ void test_shell_boundaries() {
         false,
         ShellWedges::All,
         1,
+        std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>{},
         create_inner_boundary_condition(),
         create_outer_boundary_condition()};
     test_physical_separation(
@@ -421,6 +422,7 @@ void test_shell_factory_equiangular() {
         "  AspectRatio: 1.0\n"
         "  UseLogarithmicMap: false\n"
         "  WhichWedges: All\n"
+        "  TimeDependence: None\n"
         "  RadialBlockLayers: 1\n" +
         (expected_boundary_conditions.empty() ? std::string{}
                                               : boundary_conditions_string()));
@@ -458,6 +460,7 @@ void test_shell_factory_equidistant() {
         "  AspectRatio: 1.0\n"
         "  UseLogarithmicMap: false\n"
         "  WhichWedges: All\n"
+        "  TimeDependence: None\n"
         "  RadialBlockLayers: 1\n" +
         (expected_boundary_conditions.empty() ? std::string{}
                                               : boundary_conditions_string()));
@@ -501,6 +504,7 @@ void test_shell_boundaries_aspect_ratio() {
       false,
       ShellWedges::All,
       1,
+      std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>{},
       create_inner_boundary_condition(),
       create_outer_boundary_condition()};
   test_physical_separation(shell_boundary_condition.create_domain().blocks());
@@ -530,6 +534,7 @@ void test_shell_factory_aspect_ratio() {
         "  AspectRatio: 2.0        \n"
         "  UseLogarithmicMap: false\n"
         "  WhichWedges: All\n"
+        "  TimeDependence: None\n"
         "  RadialBlockLayers: 1\n" +
         (expected_boundary_conditions.empty() ? std::string{}
                                               : boundary_conditions_string()));
@@ -575,6 +580,7 @@ void test_shell_boundaries_logarithmic_map() {
       use_logarithmic_map,
       ShellWedges::All,
       1,
+      std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>{},
       create_inner_boundary_condition(),
       create_outer_boundary_condition()};
   test_physical_separation(shell_boundary_condition.create_domain().blocks());
@@ -588,6 +594,8 @@ void test_shell_boundaries_logarithmic_map() {
       creators::Shell(
           inner_radius, outer_radius, refinement_level, grid_points_r_angular,
           false, aspect_ratio, use_logarithmic_map, ShellWedges::All, 1,
+          std::unique_ptr<
+              domain::creators::time_dependence::TimeDependence<3>>{},
           std::make_unique<TestHelpers::domain::BoundaryConditions::
                                TestPeriodicBoundaryCondition<3>>(),
           create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
@@ -597,6 +605,8 @@ void test_shell_boundaries_logarithmic_map() {
       creators::Shell(inner_radius, outer_radius, refinement_level,
                       grid_points_r_angular, false, aspect_ratio,
                       use_logarithmic_map, ShellWedges::All, 1,
+                      std::unique_ptr<
+                      domain::creators::time_dependence::TimeDependence<3>>{},
                       create_inner_boundary_condition(),
                       std::make_unique<TestHelpers::domain::BoundaryConditions::
                                            TestPeriodicBoundaryCondition<3>>(),
@@ -607,6 +617,8 @@ void test_shell_boundaries_logarithmic_map() {
       creators::Shell(inner_radius, outer_radius, refinement_level,
                       grid_points_r_angular, false, aspect_ratio,
                       use_logarithmic_map, ShellWedges::All, 1,
+                      std::unique_ptr<
+                      domain::creators::time_dependence::TimeDependence<3>>{},
                       create_inner_boundary_condition(),
                       std::make_unique<TestHelpers::domain::BoundaryConditions::
                                            TestNoneBoundaryCondition<3>>(),
@@ -618,6 +630,8 @@ void test_shell_boundaries_logarithmic_map() {
       creators::Shell(
           inner_radius, outer_radius, refinement_level, grid_points_r_angular,
           false, aspect_ratio, use_logarithmic_map, ShellWedges::All, 1,
+          std::unique_ptr<
+              domain::creators::time_dependence::TimeDependence<3>>{},
           std::make_unique<TestHelpers::domain::BoundaryConditions::
                                TestNoneBoundaryCondition<3>>(),
           create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
@@ -646,6 +660,7 @@ void test_shell_factory_logarithmic_map() {
         "  AspectRatio: 2.0        \n"
         "  UseLogarithmicMap: true\n"
         "  WhichWedges: All\n"
+        "  TimeDependence: None\n"
         "  RadialBlockLayers: 1\n" +
         (expected_boundary_conditions.empty() ? std::string{}
                                               : boundary_conditions_string()));
@@ -678,6 +693,7 @@ void test_shell_factory_logarithmic_map() {
       "  AspectRatio: 2.0        \n"
       "  UseLogarithmicMap: true\n"
       "  WhichWedges: All\n"
+      "  TimeDependence: None\n"
       "  RadialBlockLayers: 3\n" +
       boundary_conditions_string());
   const Domain<3> multiple_layers_domain = shell->create_domain();
@@ -725,6 +741,7 @@ void test_shell_factory_wedges_four_on_equator() {
       "  AspectRatio: 2.0        \n"
       "  UseLogarithmicMap: true\n"
       "  WhichWedges: FourOnEquator\n"
+      "  TimeDependence: None\n"
       "  RadialBlockLayers: 1\n");
   const double inner_radius = 1.0;
   const double outer_radius = 3.0;
@@ -754,6 +771,7 @@ void test_shell_factory_wedges_one_along_minus_x() {
       "  AspectRatio: 2.7        \n"
       "  UseLogarithmicMap: false\n"
       "  WhichWedges: OneAlongMinusX \n"
+      "  TimeDependence: None\n"
       "  RadialBlockLayers: 1\n");
   const double inner_radius = 2.0;
   const double outer_radius = 3.0;
