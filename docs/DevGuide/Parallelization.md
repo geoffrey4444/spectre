@@ -464,6 +464,15 @@ messages are received is undefined in most cases the
 `receive_data(..., true)` call should be used to restart the
 algorithm.
 
+The return value `Parallel::AlgorithmExecution::Retry` deserves
+special mention.  It is intended for use by actions that use data
+supplied by other parallel objects to indicate that they have not
+received all of the data they require.  The algorithm will stop until
+an operation that could supply data has occurred and then the action
+will be retried.  An example of an waiting because of missing data is
+
+\snippet Test_AlgorithmCore.cpp retry_example
+
 The third optional element in the returned `std::tuple` is a `size_t` whose
 value corresponds to the index of the action to be called next in the
 PDAL. The metafunction `tmpl::index_of<list, element>` can be used to
@@ -660,13 +669,13 @@ be called on the next `Parallel::mutate` of that item. The callback
 will typically check again if the item is up-to-date and if so will
 execute some code that gets the item via `Parallel::get`.
 
-For the case of iterable actions, `Parallel::mutable_cache_item_is_ready`
-is typically called from the `is_ready` function of the iterable action,
-and the callback is `perform_algorithm()`.  In the example below, the
-vector is considered up-to-date if it is non-empty. If the vector is not
-up-to-date, then when it becomes up-to-date the callback function will
-be invoked; in this case the callback function re-runs `perform_algorithm`,
-which will call the same `is_ready` function again.
+For the case of iterable actions,
+`Parallel::mutable_cache_item_is_ready` typically uses the callback
+`Parallel::PerformAlgorithmCallback`.  In the example below, the
+vector is considered up-to-date if it is non-empty. If the vector is
+not up-to-date, then when it becomes up-to-date the callback function
+will be invoked; in this case the callback function re-runs
+`perform_algorithm()`, which will call the same action again.
 
 \snippet Test_AlgorithmGlobalCache.cpp check_mutable_cache_item_is_ready
 
