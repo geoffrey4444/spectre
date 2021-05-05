@@ -36,6 +36,7 @@
 #include "Informer/Tags.hpp"  // IWYU pragma: keep
 #include "Informer/Verbosity.hpp"
 #include "NumericalAlgorithms/Interpolation/AddTemporalIdsToInterpolationTarget.hpp"  // IWYU pragma: keep
+#include "NumericalAlgorithms/Interpolation/Callbacks/ErrorOnFailedApparentHorizon.hpp"
 #include "NumericalAlgorithms/Interpolation/Callbacks/FindApparentHorizon.hpp"
 #include "NumericalAlgorithms/Interpolation/CleanUpInterpolator.hpp"  // IWYU pragma: keep
 #include "NumericalAlgorithms/Interpolation/InitializeInterpolationTarget.hpp"
@@ -217,6 +218,8 @@ struct MockMetavariables {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Inertial>;
     using post_horizon_find_callback = PostHorizonFindCallback;
+    using horizon_find_failure_callback =
+        intrp::callbacks::ErrorOnFailedApparentHorizon;
   };
   using interpolator_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<3, Frame::Inertial>,
