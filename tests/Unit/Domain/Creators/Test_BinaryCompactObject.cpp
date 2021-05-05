@@ -21,8 +21,6 @@
 #include "DataStructures/Tensor/TypeAliases.hpp"  // IWYU pragma: keep
 #include "Domain/Block.hpp"                       // IWYU pragma: keep
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
-#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
-#include "Domain/CoordinateMaps/TimeDependent/Translation.hpp"
 #include "Domain/Creators/BinaryCompactObject.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
 #include "Domain/Domain.hpp"
@@ -39,13 +37,42 @@ class FunctionOfTime;
 }  // namespace domain::FunctionsOfTime
 
 namespace {
-using Translation = domain::CoordinateMaps::TimeDependent::Translation;
-using Translation3D = domain::CoordinateMaps::TimeDependent::ProductOf3Maps<
-    Translation, Translation, Translation>;
 using BoundaryCondVector = std::vector<DirectionMap<
     3, std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>>;
 using Object = domain::creators::BinaryCompactObject::Object;
 using Excision = domain::creators::BinaryCompactObject::Excision;
+
+template <size_t Dim>
+struct TimeIndependentMetavariablesWithBoundaryCondition {
+  static constexpr bool enable_time_dependence{false};
+  using system =
+      TestHelpers::domain::BoundaryConditions::SystemWithBoundaryConditions<
+          Dim>;
+};
+
+template <size_t Dim>
+struct TimeDependentMetavariablesWithBoundaryCondition {
+  static constexpr bool enable_time_dependence{true};
+  using system =
+      TestHelpers::domain::BoundaryConditions::SystemWithBoundaryConditions<
+          Dim>;
+};
+
+template <size_t Dim>
+struct TimeIndependentMetavariablesWithoutBoundaryCondition {
+  static constexpr bool enable_time_dependence{false};
+  using system =
+      TestHelpers::domain::BoundaryConditions::SystemWithoutBoundaryConditions<
+          Dim>;
+};
+
+template <size_t Dim>
+struct TimeDependentMetavariablesWithoutBoundaryCondition {
+  static constexpr bool enable_time_dependence{true};
+  using system =
+      TestHelpers::domain::BoundaryConditions::SystemWithoutBoundaryConditions<
+          Dim>;
+};
 
 std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
 create_inner_boundary_condition() {
@@ -192,7 +219,6 @@ void test_connectivity() {
               use_projective_map,
               use_logarithmic_map_outer_spherical_shell,
               addition_to_outer_layer_radial_refinement_level,
-              nullptr,
               with_boundary_conditions ? create_outer_boundary_condition()
                                        : nullptr};
           test_binary_compact_object_construction(
@@ -250,7 +276,7 @@ void test_connectivity() {
                     radius_enveloping_cube, radius_enveloping_sphere,
                     refinement, grid_points, use_projective_map,
                     use_logarithmic_map_outer_spherical_shell,
-                    addition_to_outer_layer_radial_refinement_level, nullptr,
+                    addition_to_outer_layer_radial_refinement_level,
                     std::make_unique<PeriodicBc>(),
                     Options::Context{false, {}, 1, 1}),
                 Catch::Matchers::Contains("Cannot have periodic boundary "
@@ -275,7 +301,7 @@ void test_connectivity() {
                       radius_enveloping_cube, radius_enveloping_sphere,
                       refinement, grid_points, use_projective_map,
                       use_logarithmic_map_outer_spherical_shell,
-                      addition_to_outer_layer_radial_refinement_level, nullptr,
+                      addition_to_outer_layer_radial_refinement_level,
                       create_outer_boundary_condition(),
                       Options::Context{false, {}, 1, 1}),
                   Catch::Matchers::Contains("Cannot have periodic boundary "
@@ -300,7 +326,7 @@ void test_connectivity() {
                       refinement, grid_points, use_projective_map,
                       use_logarithmic_map_outer_spherical_shell,
                       addition_to_outer_layer_radial_refinement_level, nullptr,
-                      nullptr, Options::Context{false, {}, 1, 1}),
+                      Options::Context{false, {}, 1, 1}),
                   Catch::Matchers::Contains(
                       "Must specify either both inner and outer boundary "
                       "conditions or neither."));
@@ -321,7 +347,7 @@ void test_connectivity() {
                       radius_enveloping_cube, radius_enveloping_sphere,
                       refinement, grid_points, use_projective_map,
                       use_logarithmic_map_outer_spherical_shell,
-                      addition_to_outer_layer_radial_refinement_level, nullptr,
+                      addition_to_outer_layer_radial_refinement_level,
                       create_outer_boundary_condition(),
                       Options::Context{false, {}, 1, 1}),
                   Catch::Matchers::Contains(
@@ -346,14 +372,19 @@ std::string create_option_string(const bool excise_A, const bool excise_B,
                                  const bool add_boundary_condition) {
   const std::string time_dependence{
       add_time_dependence
-          ? "  TimeDependence:\n"
-            "    UniformTranslation:\n"
-            "      InitialTime: 1.0\n"
-            "      InitialExpirationDeltaT: 9.0\n"
-            "      Velocity: [2.3, -0.3, 0.5]\n"
-            "      FunctionOfTimeNames: [TranslationX, TranslationY, "
-            "TranslationZ]\n"
-          : "  TimeDependence: None\n"};
+          ? "  InitialTime: 1.0\n"
+            "  InitialExpirationDeltaT: 9.0\n"
+            "  ExpansionMap: \n"
+            "    ExpansionMapOuterBoundary: 25.0\n"
+            "    InitialExpansion: [1.0, 1.0]\n"
+            "    InitialExpansionVelocity: [-0.1, -0.1]\n"
+            "    ExpansionFunctionOfTimeNames: ['ExpansionFactor', "
+            " 'ExpansionFactor']\n"
+            "  RotationAboutZAxisMap:\n"
+            "    InitialRotationAngle: 2.0\n"
+            "    InitialAngularVelocity: -0.2\n"
+            "    RotationAboutZAxisFunctionOfTimeName: RotationAngle"
+          : ""};
   const std::string interior_A{
       add_boundary_condition
           ? std::string{"    Interior:\n" +
@@ -420,15 +451,15 @@ void test_bbh_time_dependent_factory(const bool with_boundary_conditions) {
     if (with_boundary_conditions) {
       return TestHelpers::test_option_tag<
           domain::OptionTags::DomainCreator<3>,
-          TestHelpers::domain::BoundaryConditions::
-              MetavariablesWithBoundaryConditions<3>>(create_option_string(
-          true, true, true, false, 0, 0, 0, with_boundary_conditions));
+          TimeDependentMetavariablesWithBoundaryCondition<3>>(
+          create_option_string(true, true, true, false, 0, 0, 0,
+                               with_boundary_conditions));
     } else {
       return TestHelpers::test_option_tag<
           domain::OptionTags::DomainCreator<3>,
-          TestHelpers::domain::BoundaryConditions::
-              MetavariablesWithoutBoundaryConditions<3>>(create_option_string(
-          true, true, true, false, 0, 0, 0, with_boundary_conditions));
+          TimeDependentMetavariablesWithoutBoundaryCondition<3>>(
+          create_option_string(true, true, true, false, 0, 0, 0,
+                               with_boundary_conditions));
     }
   }();
   const std::array<double, 4> times_to_check{{0.0, 4.4, 7.8}};
@@ -438,45 +469,32 @@ void test_bbh_time_dependent_factory(const bool with_boundary_conditions) {
   constexpr double expected_time = 1.0; // matches InitialTime: 1.0 above
   constexpr double expected_update_delta_t =
       9.0;  // matches InitialExpirationDeltaT: 9.0 above
-  std::array<DataVector, 3> function_of_time_coefficients_x{
-      {{0.0}, {2.3}, {0.0}}};
-  const std::array<DataVector, 3> function_of_time_coefficients_y{
-      {{0.0}, {-0.3}, {0.0}}};
-  const std::array<DataVector, 3> function_of_time_coefficients_z{
-      {{0.0}, {0.5}, {0.0}}};
+  std::array<DataVector, 3> expansion_factor_coefs{{{1.0}, {-0.1}, {0.0}}};
+  std::array<DataVector, 4> rotation_angle_coefs{{{2.0}, {-0.2}, {0.0}, {0.0}}};
 
   const std::tuple<
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
-      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>>
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>>
       expected_functions_of_time = std::make_tuple(
           std::pair<std::string,
                     domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationX"s,
-              {expected_time, function_of_time_coefficients_x,
+              "ExpansionFactor"s,
+              {expected_time, expansion_factor_coefs,
                expected_time + expected_update_delta_t}},
           std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationY"s,
-              {expected_time, function_of_time_coefficients_y,
-               expected_time + expected_update_delta_t}},
-          std::pair<std::string,
-                    domain::FunctionsOfTime::PiecewisePolynomial<2>>{
-              "TranslationZ"s,
-              {expected_time, function_of_time_coefficients_z,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "RotationAngle"s,
+              {expected_time, rotation_angle_coefs,
                expected_time + expected_update_delta_t}});
   std::unordered_map<std::string,
                      std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
       functions_of_time{};
-  functions_of_time["TranslationX"] =
+  functions_of_time["ExpansionFactor"] =
       std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_x, expiration_time);
-  functions_of_time["TranslationY"] =
-      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_y, expiration_time);
-  functions_of_time["TranslationZ"] =
-      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<2>>(
-          initial_time, function_of_time_coefficients_z, expiration_time);
+          initial_time, expansion_factor_coefs, expiration_time);
+  functions_of_time["RotationAngle"] =
+      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time, rotation_angle_coefs, expiration_time);
 
   for (const double time : times_to_check) {
     test_binary_compact_object_construction(
@@ -496,13 +514,12 @@ void test_binary_factory() {
       if (with_boundary_conditions) {
         return TestHelpers::test_option_tag<
             domain::OptionTags::DomainCreator<3>,
-            TestHelpers::domain::BoundaryConditions::
-                MetavariablesWithBoundaryConditions<3>>(opt_string);
+            TimeIndependentMetavariablesWithBoundaryCondition<3>>(opt_string);
       } else {
         return TestHelpers::test_option_tag<
             domain::OptionTags::DomainCreator<3>,
-            TestHelpers::domain::BoundaryConditions::
-                MetavariablesWithoutBoundaryConditions<3>>(opt_string);
+            TimeIndependentMetavariablesWithoutBoundaryCondition<3>>(
+            opt_string);
       }
     }();
     test_binary_compact_object_construction(
@@ -536,48 +553,48 @@ void test_parse_errors() {
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, 1.0, {{create_inner_boundary_condition()}}, false, 0},
           {0.3, 1.0, 1.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "The x-coordinate of ObjectA's center is expected to be negative."));
   CHECK_THROWS_WITH(
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, -1.0, {{create_inner_boundary_condition()}}, false, 0},
           {0.3, 1.0, -1.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "The x-coordinate of ObjectB's center is expected to be positive."));
   CHECK_THROWS_WITH(
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, -7.0, {{create_inner_boundary_condition()}}, false, 0},
           {0.3, 1.0, 8.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains("The radius for the enveloping cube is too "
                                 "small! The Frustums will be malformed."));
   CHECK_THROWS_WITH(
       domain::creators::BinaryCompactObject(
           {1.5, 1.0, -1.0, {{create_inner_boundary_condition()}}, false, 0},
           {0.3, 1.0, 1.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "ObjectA's inner radius must be less than its outer radius."));
   CHECK_THROWS_WITH(
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, -1.0, {{create_inner_boundary_condition()}}, false, 0},
           {3.3, 1.0, 1.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "ObjectB's inner radius must be less than its outer radius."));
   CHECK_THROWS_WITH(
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, -1.0, std::nullopt, true, 0},
           {0.3, 1.0, 1.0, {{create_inner_boundary_condition()}}, false, 0},
-          25.5, 32.4, 2, 6, true, false, 0, nullptr,
-          create_outer_boundary_condition(), Options::Context{false, {}, 1, 1}),
+          25.5, 32.4, 2, 6, true, false, 0, create_outer_boundary_condition(),
+          Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "Using a logarithmically spaced radial grid in the "
           "part of Layer 1 enveloping Object A requires excising the interior "
@@ -586,7 +603,7 @@ void test_parse_errors() {
       domain::creators::BinaryCompactObject(
           {0.5, 1.0, -1.0, {{create_inner_boundary_condition()}}, false, 0},
           {0.3, 1.0, 1.0, std::nullopt, true, 0}, 25.5, 32.4, 2, 6, true, false,
-          0, nullptr, create_outer_boundary_condition(),
+          0, create_outer_boundary_condition(),
           Options::Context{false, {}, 1, 1}),
       Catch::Matchers::Contains(
           "Using a logarithmically spaced radial grid in the "
