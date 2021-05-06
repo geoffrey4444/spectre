@@ -148,7 +148,7 @@ struct GeneralizedHarmonicDefaults {
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
-  static constexpr bool use_damped_harmonic_rollon = true;
+  static constexpr bool use_damped_harmonic_rollon = false;
   // Set override_cubic_functions_of_time to true to override the cubic
   // piecewise polynomial functions of time using
   // `read_spec_third_order_piecewise_polynomial()`
