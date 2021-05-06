@@ -383,7 +383,13 @@ std::string create_option_string(const bool excise_A, const bool excise_B,
             "  RotationAboutZAxisMap:\n"
             "    InitialRotationAngle: 2.0\n"
             "    InitialAngularVelocity: -0.2\n"
-            "    RotationAboutZAxisFunctionOfTimeName: RotationAngle"
+            "    RotationAboutZAxisFunctionOfTimeName: RotationAngle\n"
+            "  SizeMap:\n"
+            "    InitialSizeMapValues: [0.0, 0.0]\n"
+            "    InitialSizeMapVelocities: [-0.1, -0.2]\n"
+            "    InitialSizeMapAccelerations: [0.01, 0.02]\n"
+            "    SizeMapFunctionOfTimeNames: ['LambdaFactorA0', "
+            " 'LambdaFactorB0']"
           : ""};
   const std::string interior_A{
       add_boundary_condition
@@ -471,11 +477,27 @@ void test_bbh_time_dependent_factory(const bool with_boundary_conditions) {
       9.0;  // matches InitialExpirationDeltaT: 9.0 above
   std::array<DataVector, 3> expansion_factor_coefs{{{1.0}, {-0.1}, {0.0}}};
   std::array<DataVector, 4> rotation_angle_coefs{{{2.0}, {-0.2}, {0.0}, {0.0}}};
+  std::array<DataVector, 4> lambda_factor_a0_coefs{
+      {{0.0}, {-0.1}, {0.01}, {0.0}}};
+  std::array<DataVector, 4> lambda_factor_b0_coefs{
+      {{0.0}, {-0.2}, {0.02}, {0.0}}};
 
   const std::tuple<
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
+      std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>,
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<2>>,
       std::pair<std::string, domain::FunctionsOfTime::PiecewisePolynomial<3>>>
       expected_functions_of_time = std::make_tuple(
+          std::pair<std::string,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "LambdaFactorA0"s,
+              {expected_time, lambda_factor_a0_coefs,
+               expected_time + expected_update_delta_t}},
+          std::pair<std::string,
+                    domain::FunctionsOfTime::PiecewisePolynomial<3>>{
+              "LambdaFactorB0"s,
+              {expected_time, lambda_factor_b0_coefs,
+               expected_time + expected_update_delta_t}},
           std::pair<std::string,
                     domain::FunctionsOfTime::PiecewisePolynomial<2>>{
               "ExpansionFactor"s,
@@ -495,6 +517,12 @@ void test_bbh_time_dependent_factory(const bool with_boundary_conditions) {
   functions_of_time["RotationAngle"] =
       std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time, rotation_angle_coefs, expiration_time);
+  functions_of_time["LambdaFactorA0"] =
+      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time, lambda_factor_a0_coefs, expiration_time);
+  functions_of_time["LambdaFactorB0"] =
+      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time, lambda_factor_b0_coefs, expiration_time);
 
   for (const double time : times_to_check) {
     test_binary_compact_object_construction(
