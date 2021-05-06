@@ -28,6 +28,7 @@
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
 #include "Domain/CoordinateMaps/TimeDependent/Rotation.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/SphericalCompression.hpp"
 #include "Domain/Creators/DomainCreator.hpp"  // IWYU pragma: keep
 #include "Domain/Domain.hpp"
 #include "Domain/DomainHelpers.hpp"
@@ -170,7 +171,11 @@ BinaryCompactObject::BinaryCompactObject(
       expansion_function_of_time_names_({}),
       initial_rotation_angle_(std::numeric_limits<double>::signaling_NaN()),
       initial_angular_velocity_(std::numeric_limits<double>::signaling_NaN()),
-      rotation_about_z_axis_function_of_time_name_({}) {
+      rotation_about_z_axis_function_of_time_name_({}),
+      initial_size_map_values_({}),
+      initial_size_map_velocities_({}),
+      initial_size_map_accelerations_({}),
+      size_map_function_of_time_names_({}) {
   initialize_calculated_member_variables();
   check_for_parse_errors(context);
 }
@@ -184,7 +189,11 @@ BinaryCompactObject::BinaryCompactObject(
     std::array<double, 2> initial_expansion_velocity,
     std::array<std::string, 2> expansion_function_of_time_names,
     double initial_rotation_angle, double initial_angular_velocity,
-    std::string rotation_about_z_axis_function_of_time_name, Object object_A,
+    std::string rotation_about_z_axis_function_of_time_name,
+    std::array<double, 2> initial_size_map_values,
+    std::array<double, 2> initial_size_map_velocities,
+    std::array<double, 2> initial_size_map_accelerations,
+    std::array<std::string, 2> size_map_function_of_time_names, Object object_A,
     Object object_B, double radius_enveloping_cube,
     double radius_enveloping_sphere, size_t initial_refinement,
     size_t initial_grid_points_per_dim, bool use_projective_map,
@@ -216,7 +225,12 @@ BinaryCompactObject::BinaryCompactObject(
       initial_rotation_angle_(initial_rotation_angle),
       initial_angular_velocity_(initial_angular_velocity),
       rotation_about_z_axis_function_of_time_name_(
-          std::move(rotation_about_z_axis_function_of_time_name)) {
+          std::move(rotation_about_z_axis_function_of_time_name)),
+      initial_size_map_values_(initial_size_map_values),
+      initial_size_map_velocities_(initial_size_map_velocities),
+      initial_size_map_accelerations_(initial_size_map_accelerations),
+      size_map_function_of_time_names_(
+          std::move(size_map_function_of_time_names)) {
   initialize_calculated_member_variables();
   check_for_parse_errors(context);
 }
@@ -418,6 +432,10 @@ Domain<3> BinaryCompactObject::create_domain() const noexcept {
 
   // Inject the hard-coded time-dependence
   if (enable_time_dependence_) {
+    // Note on frames: Because the relevant maps will all be composed before
+    // they are used, all maps here go from Frame::Grid (the frame after the
+    // final time-independent map is applied) to Frame::Inertial
+    // (the frame after the final time-dependent map is applied).
     using CubicScaleMap = domain::CoordinateMaps::TimeDependent::CubicScale<3>;
     using CubicScaleMapForComposition =
         domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap>;
@@ -434,6 +452,15 @@ Domain<3> BinaryCompactObject::create_domain() const noexcept {
         domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap,
                               RotationMap>;
 
+    using CompressionMap =
+        domain::CoordinateMaps::TimeDependent::SphericalCompression<false>;
+    using CompressionMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, CompressionMap>;
+
+    using CompressionAndCubicScaleAndRotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, CompressionMap,
+                              CubicScaleMap, RotationMap>;
+
     std::vector<std::unique_ptr<
         domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, 3>>>
         block_maps{number_of_blocks_};
@@ -445,18 +472,84 @@ Domain<3> BinaryCompactObject::create_domain() const noexcept {
     // Here, set the time-dependent maps for each distinct combination in
     // a single block. Then, set the maps of the other blocks by cloning
     // the maps from the appropriate block.
-    block_maps[0] = std::make_unique<CubicScaleAndRotationMapForComposition>(
-        domain::push_back(
-            CubicScaleMapForComposition{
-                CubicScaleMap{expansion_map_outer_boundary_,
-                              expansion_function_of_time_names_[0],
-                              expansion_function_of_time_names_[1]}},
-            RotationMapForComposition{RotationMap{
-                RotationMap2D{rotation_about_z_axis_function_of_time_name_},
-                IdentityMap1D{}}}));
-    for (size_t i = 1; i < number_of_blocks_; ++i) {
-      block_maps[i] = block_maps[0]->get_clone();
+
+    // All blocks except possibly blocks 0-5 and 12-17 get the same map, so
+    // initialize the final block with the "base" map (here a composition of an
+    // expansion and a rotation).
+    block_maps[number_of_blocks_ - 1] =
+        std::make_unique<CubicScaleAndRotationMapForComposition>(
+            domain::push_back(
+                CubicScaleMapForComposition{
+                    CubicScaleMap{expansion_map_outer_boundary_,
+                                  expansion_function_of_time_names_[0],
+                                  expansion_function_of_time_names_[1]}},
+                RotationMapForComposition{RotationMap{
+                    RotationMap2D{rotation_about_z_axis_function_of_time_name_},
+                    IdentityMap1D{}}}));
+
+    // Initialize the first block of the layer 1 blocks for each object
+    // (specifically, initialize block 0 and block 12). If excising interior
+    // A or B, the block maps for the coresponding layer 1 blocks (blocks 0-5
+    // for object A, blocks 12-17 for object B) should also include a size map.
+    // If not excising interior A or B, the layer 1 blocks for that object
+    // will have the same map as the final block.
+    if (object_A_.is_excised()) {
+      block_maps[0] = std::make_unique<
+          CompressionAndCubicScaleAndRotationMapForComposition>(
+          domain::push_back(
+              CompressionMapForComposition{
+                  CompressionMap{size_map_function_of_time_names_[0],
+                                 object_A_.inner_radius,
+                                 object_A_.outer_radius,
+                                 {{object_A_.x_coord, 0.0, 0.0}}}},
+              domain::push_back(
+                  CubicScaleMapForComposition{
+                      CubicScaleMap{expansion_map_outer_boundary_,
+                                    expansion_function_of_time_names_[0],
+                                    expansion_function_of_time_names_[1]}},
+                  RotationMapForComposition{RotationMap{
+                      RotationMap2D{
+                          rotation_about_z_axis_function_of_time_name_},
+                      IdentityMap1D{}}})));
+    } else {
+      block_maps[0] = block_maps[number_of_blocks_ - 1]->get_clone();
     }
+    if (object_B_.is_excised()) {
+      block_maps[12] = std::make_unique<
+          CompressionAndCubicScaleAndRotationMapForComposition>(
+          domain::push_back(
+              CompressionMapForComposition{
+                  CompressionMap{size_map_function_of_time_names_[1],
+                                 object_B_.inner_radius,
+                                 object_B_.outer_radius,
+                                 {{object_B_.x_coord, 0.0, 0.0}}}},
+              domain::push_back(
+                  CubicScaleMapForComposition{
+                      CubicScaleMap{expansion_map_outer_boundary_,
+                                    expansion_function_of_time_names_[0],
+                                    expansion_function_of_time_names_[1]}},
+                  RotationMapForComposition{RotationMap{
+                      RotationMap2D{
+                          rotation_about_z_axis_function_of_time_name_},
+                      IdentityMap1D{}}})));
+    } else {
+      block_maps[12] = block_maps[number_of_blocks_ - 1]->get_clone();
+    }
+
+    // Fill in the rest of the block maps by cloning the relevant maps
+    for (size_t block = 1; block < number_of_blocks_ - 1; ++block) {
+      if (block < 6) {
+        block_maps[block] = block_maps[0]->get_clone();
+      } else if (block == 12) {
+        continue;  // block 12 already initialized
+      } else if (block > 12 and block < 18) {
+        block_maps[block] = block_maps[12]->get_clone();
+      } else {
+        block_maps[block] = block_maps[number_of_blocks_ - 1]->get_clone();
+      }
+    }
+
+    // Finally, inject the time dependent maps into the corresponding blocks
     for (size_t block = 0; block < number_of_blocks_; ++block) {
       domain.inject_time_dependent_map_for_block(block,
                                                  std::move(block_maps[block]));
@@ -559,6 +652,25 @@ BinaryCompactObject::functions_of_time() const noexcept {
           std::array<DataVector, 4>{{{initial_rotation_angle_},
                                      {initial_angular_velocity_},
                                      {0.0},
+                                     {0.0}}},
+          initial_expiration_time);
+
+  // CompressionMap FunctionOfTime for object A
+  result[size_map_function_of_time_names_[0]] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time_,
+          std::array<DataVector, 4>{{{initial_size_map_values_[0]},
+                                     {initial_size_map_velocities_[0]},
+                                     {initial_size_map_accelerations_[0]},
+                                     {0.0}}},
+          initial_expiration_time);
+  // CompressionMap FunctionOfTime for object B
+  result[size_map_function_of_time_names_[1]] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time_,
+          std::array<DataVector, 4>{{{initial_size_map_values_[1]},
+                                     {initial_size_map_velocities_[1]},
+                                     {initial_size_map_accelerations_[1]},
                                      {0.0}}},
           initial_expiration_time);
 

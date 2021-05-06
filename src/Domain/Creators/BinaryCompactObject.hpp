@@ -45,6 +45,8 @@ template <size_t VolumeDim>
 class CubicScale;
 template <size_t VolumeDim>
 class Rotation;
+template <bool InteriorMap>
+class SphericalCompression;
 template <typename Map1, typename Map2>
 class ProductOf2Maps;
 }  // namespace TimeDependent
@@ -132,7 +134,11 @@ constexpr bool is_time_dependence_enabled(Metavariables /*meta*/) noexcept {
  * `InitialExpirationDeltaT`, which specify the initial time and the
  * initial updating time interval, respectively, for the FunctionsOfTime
  * controlling the map. The time-dependent map itself consists of a composition
- * of a CubicScale expansion map and a Rotation about the z axis.
+ * of a CubicScale expansion map and a Rotation map about the z axis everywhere
+ * except possibly in layer 1; in that case, if `ObjectA` or `ObjectB` is
+ * excised, then the time-dependent map in the corresponding blocks in
+ * layer 1 is a composition of a SphericalCompression size map, a CubicScale
+ * expansion map, and a Rotation map about the z axis.
  */
 class BinaryCompactObject : public DomainCreator<3> {
  public:
@@ -176,6 +182,13 @@ class BinaryCompactObject : public DomainCreator<3> {
                             CoordinateMaps::Wedge<3>>,
       domain::CoordinateMap<
           Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>,
+      domain::CoordinateMap<
+          Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::SphericalCompression<false>,
           domain::CoordinateMaps::TimeDependent::CubicScale<3>,
           domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
               domain::CoordinateMaps::TimeDependent::Rotation<2>,
@@ -468,6 +481,43 @@ class BinaryCompactObject : public DomainCreator<3> {
     using group = RotationAboutZAxisMap;
   };
 
+  struct SizeMap {
+    static constexpr Options::String help = {
+        "Options for a time-dependent size maps."};
+  };
+
+  /// \brief Initial values for functions of time for size maps for objects A,B.
+  struct InitialSizeMapValues {
+    using type = std::array<double, 2>;
+    static constexpr Options::String help = {
+        "SizeMapA, SizeMapB values at initial time."};
+    using group = SizeMap;
+  };
+  /// \brief Initial velocities for functions of time for size maps for objects
+  /// A,B.
+  struct InitialSizeMapVelocities {
+    using type = std::array<double, 2>;
+    static constexpr Options::String help = {
+        "SizeMapA, SizeMapB initial velocities."};
+    using group = SizeMap;
+  };
+  /// \brief Initial accelerations for functions of time for size maps for
+  /// objects A,B
+  struct InitialSizeMapAccelerations {
+    using type = std::array<double, 2>;
+    static constexpr Options::String help = {
+        "SizeMapA, SizeMapB initial accelerations."};
+    using group = SizeMap;
+  };
+  /// \brief The names of the functions of times to be added to the added to the
+  /// DataBox for the size map.
+  struct SizeMapFunctionOfTimeNames {
+    using type = std::array<std::string, 2>;
+    static constexpr Options::String help = {
+        "Names of SizeMapA, SizeMapB functions of time."};
+    using group = SizeMap;
+  };
+
   template <typename Metavariables>
   using time_independent_options = tmpl::append<
       tmpl::list<ObjectA, ObjectB, RadiusEnvelopingCube, RadiusOuterSphere,
@@ -487,7 +537,9 @@ class BinaryCompactObject : public DomainCreator<3> {
                  ExpansionMapOuterBoundary, InitialExpansion,
                  InitialExpansionVelocity, ExpansionFunctionOfTimeNames,
                  InitialRotationAngle, InitialAngularVelocity,
-                 RotationAboutZAxisFunctionOfTimeName>;
+                 RotationAboutZAxisFunctionOfTimeName, InitialSizeMapValues,
+                 InitialSizeMapVelocities, InitialSizeMapAccelerations,
+                 SizeMapFunctionOfTimeNames>;
 
   template <typename Metavariables>
   using options =
@@ -557,8 +609,12 @@ class BinaryCompactObject : public DomainCreator<3> {
       std::array<double, 2> initial_expansion_velocity,
       std::array<std::string, 2> expansion_function_of_time_names,
       double initial_rotation_angle, double initial_angular_velocity,
-      std::string rotation_about_z_axis_function_of_time_name, Object object_A,
-      Object object_B, double radius_enveloping_cube,
+      std::string rotation_about_z_axis_function_of_time_name,
+      std::array<double, 2> initial_size_map_values,
+      std::array<double, 2> initial_size_map_velocities,
+      std::array<double, 2> initial_size_map_accelerations,
+      std::array<std::string, 2> size_map_function_of_time_names,
+      Object object_A, Object object_B, double radius_enveloping_cube,
       double radius_enveloping_sphere, size_t initial_refinement,
       size_t initial_grid_points_per_dim, bool use_projective_map = true,
       bool use_logarithmic_map_outer_spherical_shell = false,
@@ -619,6 +675,10 @@ class BinaryCompactObject : public DomainCreator<3> {
   double initial_rotation_angle_;
   double initial_angular_velocity_;
   std::string rotation_about_z_axis_function_of_time_name_;
+  std::array<double, 2> initial_size_map_values_;
+  std::array<double, 2> initial_size_map_velocities_;
+  std::array<double, 2> initial_size_map_accelerations_;
+  std::array<std::string, 2> size_map_function_of_time_names_;
 };
 }  // namespace creators
 }  // namespace domain
