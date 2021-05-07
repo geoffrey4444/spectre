@@ -154,6 +154,7 @@ struct GeneralizedHarmonicDefaults {
   static constexpr bool override_cubic_functions_of_time = true;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
+  static constexpr bool enable_time_dependence = true;
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
       GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
