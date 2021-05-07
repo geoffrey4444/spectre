@@ -250,7 +250,7 @@ struct GeneralizedHarmonicDefaults {
 
   static std::string phase_name(Phase phase) noexcept {
     if (phase == Phase::LoadBalancing) {
-        return "LoadBalancing";
+      return "LoadBalancing";
     } else if (phase == Phase::WriteCheckpoint) {
       return "WriteCheckpoint";
     }
@@ -282,8 +282,8 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
   using derived_metavars =
       EvolutionMetavarsDerived<InitialData, BoundaryConditions,
                                BjorhusExternalBoundary>;
-  using GeneralizedHarmonicDefaults::step_choosers;
   using GeneralizedHarmonicDefaults::slab_choosers;
+  using GeneralizedHarmonicDefaults::step_choosers;
   using initial_data = InitialData;
   using boundary_conditions = BoundaryConditions;
   // Only Dirichlet boundary conditions imposed by an analytic solution are
@@ -343,22 +343,22 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
           analytic_solution_tag, normal_dot_numerical_flux, time_stepper_tag,
           Tags::EventsAndTriggers<events, triggers>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           PhaseControl::Tags::PhaseChangeAndTriggers<phase_changes, triggers>,
           Parallel::Tags::WallClockHoursForCheckpointAndExit>,
       tmpl::list<
           normal_dot_numerical_flux, time_stepper_tag,
           Tags::EventsAndTriggers<events, triggers>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           PhaseControl::Tags::PhaseChangeAndTriggers<phase_changes, triggers>,
           Parallel::Tags::WallClockHoursForCheckpointAndExit>>;
 
