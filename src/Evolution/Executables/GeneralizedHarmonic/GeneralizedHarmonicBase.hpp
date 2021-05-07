@@ -336,21 +336,21 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
           analytic_solution_tag, normal_dot_numerical_flux, time_stepper_tag,
           Tags::EventsAndTriggers<events, triggers>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           PhaseControl::Tags::PhaseChangeAndTriggers<phase_changes, triggers>>,
       tmpl::list<
           normal_dot_numerical_flux, time_stepper_tag,
           Tags::EventsAndTriggers<events, triggers>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
-              volume_dim, frame>,
+              volume_dim, Frame::Grid>,
           PhaseControl::Tags::PhaseChangeAndTriggers<phase_changes, triggers>>>;
 
   using dg_registration_list =
