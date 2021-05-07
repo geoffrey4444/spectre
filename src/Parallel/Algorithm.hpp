@@ -728,17 +728,16 @@ AlgorithmImpl<ParallelComponent, tmpl::list<PhaseDepActionListsPack...>>::
     this->setMigratable(true);
   }
   global_cache_proxy_ = global_cache_proxy;
-  box_ = db::create <
-         db::AddSimpleTags<
-             tmpl::flatten<tmpl::list<
-                 Tags::MetavariablesImpl<metavariables>,
-                 tmpl::list<Tags::GlobalCacheProxy<metavariables>,
-                            typename ParallelComponent::initialization_tags>>>,
-             db::AddComputeTags<
-                 Tags::GlobalCacheImplCompute<metavariables>,
-                 db::wrap_tags_in<Tags::FromGlobalCache, all_cache_tags>>>(
-             metavariables{}, global_cache_proxy_,
-             std::move(get<InitializationTags>(initialization_items))...);
+  box_ = db::create<
+      db::AddSimpleTags<tmpl::flatten<tmpl::list<
+          Tags::MetavariablesImpl<metavariables>,
+          tmpl::list<Tags::GlobalCacheProxy<metavariables>,
+                     typename ParallelComponent::initialization_tags>>>>,
+      db::AddComputeTags<
+          Tags::GlobalCacheImplCompute<metavariables>,
+          db::wrap_tags_in<Tags::FromGlobalCache, all_cache_tags>>>(
+      metavariables{}, global_cache_proxy_,
+      std::move(get<InitializationTags>(initialization_items))...);
 }
 
 template <typename ParallelComponent, typename... PhaseDepActionListsPack>
@@ -918,21 +917,24 @@ AlgorithmImpl<ParallelComponent, tmpl::list<PhaseDepActionListsPack...>>::
     }
     using actions_list = typename PhaseDepActions::action_list;
     using this_action = tmpl::at_c<actions_list, iter>;
-    const auto check_if_ready = [this](auto action,
-                                       const auto& check_local_box) noexcept {
-      if constexpr (Algorithm_detail::is_is_ready_callable_t<
-                        decltype(action),
-                        std::decay_t<decltype(check_local_box)>,
-                        tuples::tagged_tuple_from_typelist<inbox_tags_list>,
-                        Parallel::GlobalCache<metavariables>&, array_index>{}) {
-        return decltype(action)::is_ready(
-            check_local_box, std::as_const(inboxes_),
-            *(global_cache_proxy_.ckLocalBranch()),
-            std::as_const(array_index_));
-      } else {
-        return true;
-      }
-    };
+    // GL: comment out because check_if_ready is not used
+    // const auto check_if_ready = [this](auto action,
+    //                                    const auto& check_local_box) noexcept
+    //                                    {
+    //   if constexpr (Algorithm_detail::is_is_ready_callable_t<
+    //                     decltype(action),
+    //                     std::decay_t<decltype(check_local_box)>,
+    //                     tuples::tagged_tuple_from_typelist<inbox_tags_list>,
+    //                     Parallel::GlobalCache<metavariables>&,
+    //                     array_index>{}) {
+    //     return decltype(action)::is_ready(
+    //         check_local_box, std::as_const(inboxes_),
+    //         *(global_cache_proxy_.ckLocalBranch()),
+    //         std::as_const(array_index_));
+    //   } else {
+    //     return true;
+    //   }
+    // };
 
     constexpr size_t phase_index =
         tmpl::index_of<phase_dependent_action_lists, PhaseDepActions>::value;
