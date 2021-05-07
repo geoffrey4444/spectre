@@ -518,7 +518,7 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
           StepChoosers::step_chooser_compute_tags<
               GeneralizedHarmonicTemplateBase>>,
       Initialization::Actions::DiscontinuousGalerkin<derived_metavars>,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using gh_dg_element_array = DgElementArray<
       derived_metavars,
