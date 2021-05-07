@@ -242,6 +242,7 @@ struct GeneralizedHarmonicDefaults {
     InitializeTimeStepperHistory,
     Register,
     LoadBalancing,
+    WriteCheckpoint,
     Evolve,
     Exit
   };
@@ -249,7 +250,9 @@ struct GeneralizedHarmonicDefaults {
   static std::string phase_name(Phase phase) noexcept {
     if (phase == Phase::LoadBalancing) {
         return "LoadBalancing";
-      }
+    } else if (phase == Phase::WriteCheckpoint) {
+      return "WriteCheckpoint";
+    }
       ERROR(
           "Passed phase that should not be used in input file. Integer "
           "corresponding to phase is: "
@@ -319,8 +322,11 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
       observation_events,
       intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>>;
 
-  using phase_changes = tmpl::list<PhaseControl::Registrars::VisitAndReturn<
-      GeneralizedHarmonicTemplateBase, Phase::LoadBalancing>>;
+  using phase_changes =
+      tmpl::list<PhaseControl::Registrars::VisitAndReturn<
+                     GeneralizedHarmonicTemplateBase, Phase::LoadBalancing>,
+                 PhaseControl::Registrars::VisitAndReturn<
+                     GeneralizedHarmonicTemplateBase, Phase::WriteCheckpoint>>;
 
   using initialize_phase_change_decision_data =
       PhaseControl::InitializePhaseChangeDecisionData<phase_changes, triggers>;
