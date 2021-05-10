@@ -487,6 +487,12 @@ class BinaryCompactObject : public DomainCreator<3> {
   };
 
   /// \brief Initial values for functions of time for size maps for objects A,B.
+  ///
+  /// \details If object A is not excised, no size map is applied for object A,
+  /// and this option is ignored for object A. If object B is not excised, no
+  /// size map is applied for object B, and this option is ignored for object B.
+  /// If neither object A nor object B are excised, this option is completely
+  /// ignored.
   struct InitialSizeMapValues {
     using type = std::array<double, 2>;
     static constexpr Options::String help = {
@@ -495,6 +501,12 @@ class BinaryCompactObject : public DomainCreator<3> {
   };
   /// \brief Initial velocities for functions of time for size maps for objects
   /// A,B.
+  ///
+  /// \details If object A is not excised, no size map is applied for object A,
+  /// and this option is ignored for object A. If object B is not excised, no
+  /// size map is applied for object B, and this option is ignored for object B.
+  /// If neither object A nor object B are excised, this option is completely
+  /// ignored.
   struct InitialSizeMapVelocities {
     using type = std::array<double, 2>;
     static constexpr Options::String help = {
@@ -503,6 +515,12 @@ class BinaryCompactObject : public DomainCreator<3> {
   };
   /// \brief Initial accelerations for functions of time for size maps for
   /// objects A,B
+  ///
+  /// \details If object A is not excised, no size map is applied for object A,
+  /// and this option is ignored for object A. If object B is not excised, no
+  /// size map is applied for object B, and this option is ignored for object B.
+  /// If neither object A nor object B are excised, this option is completely
+  /// ignored.
   struct InitialSizeMapAccelerations {
     using type = std::array<double, 2>;
     static constexpr Options::String help = {
@@ -511,6 +529,12 @@ class BinaryCompactObject : public DomainCreator<3> {
   };
   /// \brief The names of the functions of times to be added to the added to the
   /// DataBox for the size map.
+  ///
+  /// \details If object A is not excised, no size map is applied for object A,
+  /// and this option is ignored for object A. If object B is not excised, no
+  /// size map is applied for object B, and this option is ignored for object B.
+  /// If neither object A nor object B are excised, this option is completely
+  /// ignored.
   struct SizeMapFunctionOfTimeNames {
     using type = std::array<std::string, 2>;
     static constexpr Options::String help = {

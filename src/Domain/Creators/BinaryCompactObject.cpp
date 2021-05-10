@@ -622,7 +622,7 @@ BinaryCompactObject::functions_of_time() const noexcept {
 
   const double initial_expiration_time =
       initial_expiration_delta_t_ ? initial_time_ + *initial_expiration_delta_t_
-                                  : std::numeric_limits<double>::max();
+                                  : std::numeric_limits<double>::infinity();
 
   // ExpansionMap FunctionOfTime for the function \f$a(t)\f$ in the
   // domain::CoordinateMaps::TimeDependent::CubicScale map
