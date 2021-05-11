@@ -42,6 +42,7 @@ spectre_target_headers(
   LogicalCoordinates.hpp
   MinimumGridSpacing.hpp
   OptionTags.hpp
+  Protocols.hpp
   SizeOfElement.hpp
   Tags.hpp
   TagsCharacteresticSpeeds.hpp
