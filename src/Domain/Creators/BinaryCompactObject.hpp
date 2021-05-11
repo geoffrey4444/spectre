@@ -74,7 +74,7 @@ CREATE_HAS_STATIC_MEMBER_VARIABLE(enable_time_dependence)
 CREATE_HAS_STATIC_MEMBER_VARIABLE_V(enable_time_dependence)
 
 template <typename Metavariables>
-constexpr bool is_time_dependence_enabled(Metavariables /*meta*/) noexcept {
+constexpr bool is_time_dependence_enabled() noexcept {
   if constexpr (has_enable_time_dependence_v<Metavariables>) {
     return Metavariables::enable_time_dependence;
   } else {
@@ -567,7 +567,7 @@ class BinaryCompactObject : public DomainCreator<3> {
 
   template <typename Metavariables>
   using options =
-      tmpl::conditional_t<Metavariables::enable_time_dependence,
+      tmpl::conditional_t<detail::is_time_dependence_enabled<Metavariables>(),
                           tmpl::append<time_dependent_options,
                                        time_independent_options<Metavariables>>,
                           time_independent_options<Metavariables>>;
