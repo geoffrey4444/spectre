@@ -13,6 +13,7 @@
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Protocols.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "Evolution/Actions/AddMeshVelocityNonconservative.hpp"
@@ -156,7 +157,11 @@ struct GeneralizedHarmonicDefaults {
   static constexpr bool override_cubic_functions_of_time = true;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
-  static constexpr bool enable_time_dependence = true;
+
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = true;
+  };
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
       GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
