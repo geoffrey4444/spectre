@@ -12,6 +12,7 @@
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/MinimumGridSpacing.hpp"
+#include "Domain/Protocols.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "Domain/Tags.hpp"
 #include "Evolution/DiscontinuousGalerkin/DgElementArray.hpp"
@@ -180,7 +181,10 @@ struct Metavariables {
   static constexpr bool local_time_stepping = false;
   // A placeholder system for the domain creators
   struct system {};
-  static constexpr bool enable_time_dependence = EnableTimeDependence;
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = EnableTimeDependence;
+  };
   static constexpr bool override_cubic_functions_of_time = EnableTimeDependence;
 
   using triggers = Triggers::time_triggers;
