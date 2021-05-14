@@ -26,6 +26,7 @@
 #include "Domain/Domain.hpp"
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "Domain/OptionTags.hpp"
+#include "Domain/Protocols.hpp"
 #include "Domain/Structure/BlockNeighbor.hpp"  // IWYU pragma: keep
 #include "Framework/TestCreation.hpp"
 #include "Helpers/Domain/BoundaryConditions/BoundaryCondition.hpp"
@@ -44,7 +45,10 @@ using Excision = domain::creators::BinaryCompactObject::Excision;
 
 template <size_t Dim>
 struct TimeIndependentMetavariablesWithBoundaryCondition {
-  static constexpr bool enable_time_dependence{false};
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr enable_time_dependent_maps = false;
+  };
   using system =
       TestHelpers::domain::BoundaryConditions::SystemWithBoundaryConditions<
           Dim>;
@@ -52,7 +56,10 @@ struct TimeIndependentMetavariablesWithBoundaryCondition {
 
 template <size_t Dim>
 struct TimeDependentMetavariablesWithBoundaryCondition {
-  static constexpr bool enable_time_dependence{true};
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr enable_time_dependent_maps = true;
+  };
   using system =
       TestHelpers::domain::BoundaryConditions::SystemWithBoundaryConditions<
           Dim>;
@@ -60,7 +67,10 @@ struct TimeDependentMetavariablesWithBoundaryCondition {
 
 template <size_t Dim>
 struct TimeIndependentMetavariablesWithoutBoundaryCondition {
-  static constexpr bool enable_time_dependence{false};
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr enable_time_dependent_maps = false;
+  };
   using system =
       TestHelpers::domain::BoundaryConditions::SystemWithoutBoundaryConditions<
           Dim>;
@@ -68,7 +78,10 @@ struct TimeIndependentMetavariablesWithoutBoundaryCondition {
 
 template <size_t Dim>
 struct TimeDependentMetavariablesWithoutBoundaryCondition {
-  static constexpr bool enable_time_dependence{true};
+  struct domain_metavariables
+      : tt::ConformsTo<domain::protocols::Metavariables> {
+    static constexpr enable_time_dependent_maps = true;
+  };
   using system =
       TestHelpers::domain::BoundaryConditions::SystemWithoutBoundaryConditions<
           Dim>;

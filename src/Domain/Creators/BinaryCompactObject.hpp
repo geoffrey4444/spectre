@@ -69,20 +69,6 @@ struct Logical;
 namespace domain {
 namespace creators {
 
-namespace detail {
-CREATE_HAS_STATIC_MEMBER_VARIABLE(enable_time_dependence)
-CREATE_HAS_STATIC_MEMBER_VARIABLE_V(enable_time_dependence)
-
-template <typename Metavariables>
-constexpr bool is_time_dependence_enabled() noexcept {
-  if constexpr (has_enable_time_dependence_v<Metavariables>) {
-    return Metavariables::enable_time_dependence;
-  } else {
-    return false;
-  }
-}
-}  // namespace detail
-
 /*!
  * \ingroup ComputationalDomainGroup
  *
@@ -127,8 +113,11 @@ constexpr bool is_time_dependence_enabled() noexcept {
  * \note The x-coordinate locations of the `ObjectA` and `ObjectB` should be
  * chosen such that the center of mass is located at x=0.
  *
- * \note If the metavariables set `static constexpr bool enable_time_dependence`
- * to `true`, then this domain also includes a time-dependent map, along with
+ * \note When using this domain, the
+ * metavariables struct must contain a struct named `domain_metavariables`
+ * that conforms to domain::protocols::Metavariables. If
+ * domain_metavariables::enable_time_dependent_maps is set to `true`, then
+ * this domain also includes a time-dependent map, along with
  * additional options (and a corresponding constructor) for initializing the
  * time-dependent map. These options include `InitialTime` and
  * `InitialExpirationDeltaT`, which specify the initial time and the
@@ -566,11 +555,11 @@ class BinaryCompactObject : public DomainCreator<3> {
                  SizeMapFunctionOfTimeNames>;
 
   template <typename Metavariables>
-  using options =
-      tmpl::conditional_t<detail::is_time_dependence_enabled<Metavariables>(),
-                          tmpl::append<time_dependent_options,
-                                       time_independent_options<Metavariables>>,
-                          time_independent_options<Metavariables>>;
+  using options = tmpl::conditional_t<
+      Metavariables::domain_metavariables::enable_time_dependent_maps,
+      tmpl::append<time_dependent_options,
+                   time_independent_options<Metavariables>>,
+      time_independent_options<Metavariables>>;
 
   static constexpr Options::String help{
       "The BinaryCompactObject domain is a general domain for two compact "
@@ -612,7 +601,8 @@ class BinaryCompactObject : public DomainCreator<3> {
       "FunctionsOfTime that this domain relies on."};
 
   // Constructor for time-independent version of the domain
-  // (i.e., for when is_time_dependence_enabled() returns false)
+  // (i.e., for when
+  // Metavariables::domain_metavariables::enable_time_dependent_maps == false)
   BinaryCompactObject(
       Object object_A, Object object_B, double radius_enveloping_cube,
       double radius_enveloping_sphere, size_t initial_refinement,
@@ -624,7 +614,8 @@ class BinaryCompactObject : public DomainCreator<3> {
       const Options::Context& context = {});
 
   // Constructor for time-dependent version of the domain
-  // (i.e., for when is_time_dependence_enabled() returns true),
+  // (i.e., for when
+  // Metavariables::domain_metavariables::enable_time_dependent_maps == true),
   // with parameters corresponding to the additional options
   BinaryCompactObject(
       double initial_time, std::optional<double> initial_expiration_delta_t,
