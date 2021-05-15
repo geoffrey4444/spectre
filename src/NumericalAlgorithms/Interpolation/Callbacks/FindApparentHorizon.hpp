@@ -53,19 +53,14 @@ namespace callbacks {
 ///
 /// Assumes that InterpolationTargetTag contains an additional
 /// struct called `post_horizon_find_callback`, which has a function
-///```
-///  static void apply(const db::DataBox<DbTags>&,
-///                    const Parallel::GlobalCache<Metavariables>&,
-///                    const TemporalId& temporal_id) noexcept;
-///```
+///
+/// \snippet ApparentHorizons/Test_ApparentHorizonFinder.cpp post_horizon_find_callback_example
+///
 /// that is called if the FastFlow iteration has converged, and an additional
 /// struct called `horizon_find_failure_callback`, which has a function
-///```
-///  static void apply(const db::DataBox<DbTags>&,
-///                    const Parallel::GlobalCache<Metavariables>&,
-///                    const TemporalId& temporal_id,
-///                    const FastFlow::Status failure_reason) noexcept;
-///```
+///
+/// \snippet ApparentHorizons/Test_ApparentHorizonFinder.cpp horizon_find_failure_callback_example
+///
 /// that is called if the FastFlow iteration or the interpolation has
 /// failed.
 ///

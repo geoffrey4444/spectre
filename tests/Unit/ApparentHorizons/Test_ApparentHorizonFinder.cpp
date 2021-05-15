@@ -93,15 +93,33 @@ class DataBox;
 
 namespace {
 
+// This struct is here to generate a snippet for the dox.
+// Otherwise, we would just call ErrorOfFailedApparentHorizon directly.
+struct TestHorizonFindFailureCallback {
+  // [horizon_find_failure_callback_example]
+  template <typename InterpolationTargetTag, typename DbTags,
+            typename Metavariables, typename TemporalId>
+  static void apply(const db::DataBox<DbTags>& box,
+                    const Parallel::GlobalCache<Metavariables>& cache,
+                    const TemporalId& temporal_id,
+                    const FastFlow::Status failure_reason) noexcept {
+    // [horizon_find_failure_callback_example]
+    intrp::callbacks::ErrorOnFailedApparentHorizon::template apply<
+        InterpolationTargetTag>(box, cache, temporal_id, failure_reason);
+  }
+};
+
 // Counter to ensure that this function is called
 size_t test_schwarzschild_horizon_called = 0;
 struct TestSchwarzschildHorizon {
   using observation_types = tmpl::list<>;
+  // [post_horizon_find_callback_example]
   template <typename DbTags, typename Metavariables>
   static void apply(const db::DataBox<DbTags>& box,
                     const Parallel::GlobalCache<Metavariables>& /*cache*/,
                     const typename Metavariables::temporal_id::
                         type& /*temporal_id*/) noexcept {
+    // [post_horizon_find_callback_example]
     const auto& horizon_radius =
         get<StrahlkorperTags::Radius<Frame::Inertial>>(box);
     const auto expected_radius =
@@ -218,8 +236,7 @@ struct MockMetavariables {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Inertial>;
     using post_horizon_find_callback = PostHorizonFindCallback;
-    using horizon_find_failure_callback =
-        intrp::callbacks::ErrorOnFailedApparentHorizon;
+    using horizon_find_failure_callback = TestHorizonFindFailureCallback;
   };
   using interpolator_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<3, Frame::Inertial>,
