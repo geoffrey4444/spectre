@@ -263,7 +263,7 @@ struct FindApparentHorizon {
                      previous_strahlkorper) noexcept {
           if (horizon_finder_failed) {
             // Don't keep a partially-converged strahlkorper in the DataBox.
-            // Reset to the previous value, including if that previous value
+            // Reset to the previous value, even if that previous value
             // is the original initial guess.
             *strahlkorper = *previous_strahlkorper;
           } else {
