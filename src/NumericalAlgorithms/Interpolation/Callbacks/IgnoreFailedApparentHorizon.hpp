@@ -5,14 +5,22 @@
 
 #include "ApparentHorizons/FastFlow.hpp"
 #include "DataStructures/DataBox/DataBox.hpp"
-#include "Parallel/GlobalCache.hpp"
+#include "Informer/Tags.hpp"
 #include "Parallel/Printf.hpp"
 #include "Utilities/PrettyType.hpp"
 
+/// \cond
+namespace Parallel {
+template <typename Metavariables>
+class GlobalCache;
+}  // namespace Parallel
+/// \endcond
+
 namespace intrp::callbacks {
 
-/// \brief horizon_find_failure_callback that prints a message
-/// and goes on.
+/// \brief Callback for a failed apparent horizon find that prints a
+/// message (if sufficient Verbosity is enabled) but does not
+/// terminate the executable.
 struct IgnoreFailedApparentHorizon {
   template <typename InterpolationTargetTag, typename DbTags,
             typename Metavariables, typename TemporalId>
