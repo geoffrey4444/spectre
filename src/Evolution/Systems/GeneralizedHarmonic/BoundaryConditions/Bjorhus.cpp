@@ -16,6 +16,7 @@
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/IndexManipulation.hpp"
 #include "PointwiseFunctions/GeneralRelativity/InterfaceNullNormal.hpp"
+#include "PointwiseFunctions/GeneralRelativity/InverseSpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ProjectionOperators.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
@@ -39,8 +40,7 @@ template <typename T>
 void set_bc_corr_zero_when_char_speed_is_positive(
     const gsl::not_null<T*> dt_v_corr,
     const DataVector& char_speed_u) noexcept {
-  auto it = dt_v_corr->begin();
-  for (; it != dt_v_corr->end(); ++it) {
+  for (auto it = dt_v_corr->begin(); it != dt_v_corr->end(); ++it) {
     for (size_t i = 0; i < it->size(); ++i) {
       if (char_speed_u[i] > 0.) {
         (*it)[i] = 0.;
@@ -374,7 +374,6 @@ void ConstraintPreservingBjorhus<Dim>::compute_intermediate_vars(
                         ::Tags::Tempia<0, Dim, Frame::Inertial, DataVector>>>
       local_buffer(get_size(get<0>(normal_covector)));
 
-  //   auto& lapse = get<::Tags::TempScalar<0, DataVector>>(local_buffer);
   auto& shift =
       get<::Tags::TempI<0, Dim, Frame::Inertial, DataVector>>(local_buffer);
   auto& spatial_metric =
@@ -384,14 +383,14 @@ void ConstraintPreservingBjorhus<Dim>::compute_intermediate_vars(
   auto& two_index_constraint =
       get<::Tags::Tempia<0, Dim, Frame::Inertial, DataVector>>(local_buffer);
 
-  *inverse_spacetime_metric = determinant_and_inverse(spacetime_metric).second;
   gr::spatial_metric(make_not_null(&spatial_metric), spacetime_metric);
   *inverse_spatial_metric = determinant_and_inverse(spatial_metric).second;
   raise_or_lower_index(unit_interface_normal_vector, normal_covector,
                        *inverse_spatial_metric);
-
   gr::shift(make_not_null(&shift), spacetime_metric, *inverse_spatial_metric);
-  //   gr::lapse(make_not_null(&lapse), shift, spacetime_metric);
+  gr::inverse_spacetime_metric(inverse_spacetime_metric, lapse, shift,
+                               *inverse_spatial_metric);
+
   gr::spacetime_normal_vector(spacetime_unit_normal_vector, lapse, shift);
   gr::spacetime_normal_one_form(make_not_null(&spacetime_unit_normal_one_form),
                                 lapse);

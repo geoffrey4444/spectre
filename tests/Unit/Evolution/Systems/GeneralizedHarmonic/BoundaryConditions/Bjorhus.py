@@ -241,13 +241,13 @@ def compute_intermediate_vars(face_mesh_velocity, normal_covector, pi, phi,
                               spacetime_deriv_gauge_source, dt_pi, dt_phi,
                               dt_spacetime_metric, d_pi, d_phi,
                               d_spacetime_metric):
-    inverse_spacetime_metric = np.linalg.inv(spacetime_metric)
     spatial_metric = spacetime_metric[1:, 1:]
     inverse_spatial_metric = np.linalg.inv(spatial_metric)
     unit_interface_normal_vector = np.einsum('i,ij->j', normal_covector,
                                              inverse_spatial_metric)
     shift = gr.shift(spacetime_metric, inverse_spatial_metric)
-    # lapse = gr.lapse(shift, spacetime_metric)
+    inverse_spacetime_metric = gr.inverse_spacetime_metric(
+        lapse, shift, inverse_spatial_metric)
     spacetime_unit_normal_vector = gr.spacetime_normal_vector(lapse, shift)
     spacetime_unit_normal_one_form = spacetime_unit_normal_vector * 0
     spacetime_unit_normal_one_form[0] = -lapse
