@@ -132,8 +132,7 @@ void add_gauge_sommerfeld_terms_to_dt_v_minus(
     inertial_radius_or_scalar_factor += square(inertial_coords.get(i));
   }
   inertial_radius_or_scalar_factor =
-      get(gamma2) -
-      gauge_bc_coeff * (1. / sqrt(inertial_radius_or_scalar_factor));
+      get(gamma2) - (gauge_bc_coeff / sqrt(inertial_radius_or_scalar_factor));
 
   // add in gauge BC
   for (size_t a = 0; a <= VolumeDim; ++a) {
@@ -222,7 +221,7 @@ void add_constraint_dependent_terms_to_dt_v_minus(
 }
 
 template <size_t VolumeDim, typename DataType>
-void add_physical_dof_terms_to_dt_v_minus(
+void add_physical_terms_to_dt_v_minus(
     const gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,
@@ -478,7 +477,7 @@ void add_physical_dof_terms_to_dt_v_minus(
 }  // namespace detail
 
 template <size_t VolumeDim, typename DataType>
-void add_constraint_preserving_terms_to_dt_v_minus(
+void constraint_preserving_bjorhus_corrections_dt_v_minus(
     const gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,
@@ -500,9 +499,7 @@ void add_constraint_preserving_terms_to_dt_v_minus(
         constraint_char_zero_minus,
     const std::array<DataType, 4>& char_speeds) noexcept {
   if (UNLIKELY(get_size(get<0, 0>(*bc_dt_v_minus)) != get_size(get(gamma2)))) {
-    *bc_dt_v_minus =
-        make_with_value<tnsr::aa<DataType, VolumeDim, Frame::Inertial>>(gamma2,
-                                                                        0.);
+    destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
   }
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
@@ -521,7 +518,7 @@ void add_constraint_preserving_terms_to_dt_v_minus(
 }
 
 template <size_t VolumeDim, typename DataType>
-void add_constraint_preserving_physical_terms_to_dt_v_minus(
+void constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
     const gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,
@@ -560,9 +557,7 @@ void add_constraint_preserving_physical_terms_to_dt_v_minus(
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds) noexcept {
   if (UNLIKELY(get_size(get<0, 0>(*bc_dt_v_minus)) != get_size(get(gamma2)))) {
-    *bc_dt_v_minus =
-        make_with_value<tnsr::aa<DataType, VolumeDim, Frame::Inertial>>(gamma2,
-                                                                        0.);
+    destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
   }
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
@@ -574,7 +569,7 @@ void add_constraint_preserving_physical_terms_to_dt_v_minus(
       outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
       constraint_char_zero_plus, constraint_char_zero_minus,
       char_projected_rhs_dt_v_minus, char_speeds);
-  detail::add_physical_dof_terms_to_dt_v_minus(
+  detail::add_physical_terms_to_dt_v_minus(
       bc_dt_v_minus, gamma2, unit_interface_normal_one_form,
       unit_interface_normal_vector, spacetime_unit_normal_vector, projection_ab,
       projection_Ab, projection_AB, inverse_spatial_metric, extrinsic_curvature,
@@ -657,7 +652,7 @@ void add_constraint_preserving_physical_terms_to_dt_v_minus(
               char_projected_rhs_dt_v_minus,                                \
           const std::array<DTYPE(data), 4>& char_speeds) noexcept;          \
   template void GeneralizedHarmonic::BoundaryConditions::Bjorhus::detail::  \
-      add_physical_dof_terms_to_dt_v_minus(                                 \
+      add_physical_terms_to_dt_v_minus(                                     \
           const gsl::not_null<                                              \
               tnsr::aa<DTYPE(data), DIM(data), Frame::Inertial>*>           \
               bc_dt_v_minus,                                                \
@@ -691,7 +686,7 @@ void add_constraint_preserving_physical_terms_to_dt_v_minus(
           const tnsr::iaa<DTYPE(data), DIM(data), Frame::Inertial>& d_pi,   \
           const std::array<DTYPE(data), 4>& char_speeds) noexcept;          \
   template void GeneralizedHarmonic::BoundaryConditions::Bjorhus::          \
-      add_constraint_preserving_terms_to_dt_v_minus(                        \
+      constraint_preserving_bjorhus_corrections_dt_v_minus(                 \
           const gsl::not_null<                                              \
               tnsr::aa<DTYPE(data), DIM(data), Frame::Inertial>*>           \
               bc_dt_v_minus,                                                \
@@ -722,7 +717,7 @@ void add_constraint_preserving_physical_terms_to_dt_v_minus(
               constraint_char_zero_minus,                                   \
           const std::array<DTYPE(data), 4>& char_speeds) noexcept;          \
   template void GeneralizedHarmonic::BoundaryConditions::Bjorhus::          \
-      add_constraint_preserving_physical_terms_to_dt_v_minus(               \
+      constraint_preserving_physical_bjorhus_corrections_dt_v_minus(        \
           const gsl::not_null<                                              \
               tnsr::aa<DTYPE(data), DIM(data), Frame::Inertial>*>           \
               bc_dt_v_minus,                                                \

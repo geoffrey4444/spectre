@@ -11,13 +11,13 @@ import PointwiseFunctions.GeneralRelativity.WeylPropagating as wp
 
 
 def constraint_preserving_bjorhus_corrections_dt_v_psi(
-        unit_interface_normal_vector, three_index_constraint, char_speeds):
+    unit_interface_normal_vector, three_index_constraint, char_speeds):
     return (char_speeds[0] * np.einsum(
         'i,iab->ab', unit_interface_normal_vector, three_index_constraint))
 
 
 def constraint_preserving_bjorhus_corrections_dt_v_zero(
-        unit_interface_normal_vector, four_index_constraint, char_speeds):
+    unit_interface_normal_vector, four_index_constraint, char_speeds):
     spatial_dim = len(unit_interface_normal_vector)
     result = np.zeros([spatial_dim, 1 + spatial_dim, 1 + spatial_dim])
 
@@ -43,9 +43,9 @@ def constraint_preserving_bjorhus_corrections_dt_v_zero(
 
 
 def add_gauge_sommerfeld_terms_to_dt_v_minus(
-        gamma2, inertial_coords, incoming_null_one_form,
-        outgoing_null_one_form, incoming_null_vector, outgoing_null_vector,
-        projection_Ab, char_projected_rhs_dt_v_psi):
+    gamma2, inertial_coords, incoming_null_one_form, outgoing_null_one_form,
+    incoming_null_vector, outgoing_null_vector, projection_Ab,
+    char_projected_rhs_dt_v_psi):
     gauge_bc_coeff = 1.
     inertial_radius = np.sum(inertial_coords**2)**0.5
     prefac = 0.5 * (gamma2 - gauge_bc_coeff / inertial_radius)
@@ -67,10 +67,10 @@ def add_gauge_sommerfeld_terms_to_dt_v_minus(
 
 
 def add_constraint_dependent_terms_to_dt_v_minus(
-        incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
-        outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
-        constraint_char_zero_plus, constraint_char_zero_minus,
-        char_projected_rhs_dt_v_minus, char_speeds):
+    incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
+    outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
+    constraint_char_zero_plus, constraint_char_zero_minus,
+    char_projected_rhs_dt_v_minus, char_speeds):
     mu = 0.0  # hard-coded value from SpEC Bbh input file Mu = 0
 
     t1_ = np.einsum('c,d,a,b,cd->ab', incoming_null_vector,
@@ -102,11 +102,11 @@ def add_constraint_dependent_terms_to_dt_v_minus(
 
 
 def add_physical_dof_terms_to_dt_v_minus(
-        gamma2, unit_interface_normal_one_form, unit_interface_normal_vector,
-        spacetime_unit_normal_vector, projection_ab, projection_Ab,
-        projection_AB, inverse_spatial_metric, extrinsic_curvature,
-        spacetime_metric, inverse_spacetime_metric, three_index_constraint,
-        char_projected_rhs_dt_v_minus, phi, d_phi, d_pi, char_speeds):
+    gamma2, unit_interface_normal_one_form, unit_interface_normal_vector,
+    spacetime_unit_normal_vector, projection_ab, projection_Ab, projection_AB,
+    inverse_spatial_metric, extrinsic_curvature, spacetime_metric,
+    inverse_spacetime_metric, three_index_constraint,
+    char_projected_rhs_dt_v_minus, phi, d_phi, d_pi, char_speeds):
     mu_phys = 0
     adjust_phys_using_c4 = True
     gamma2_in_phys = True
@@ -175,12 +175,11 @@ def add_physical_dof_terms_to_dt_v_minus(
     return t1_ + t2_
 
 
-def add_constraint_preserving_terms_to_dt_v_minus(
-        gamma2, inertial_coords, incoming_null_one_form,
-        outgoing_null_one_form, incoming_null_vector, outgoing_null_vector,
-        projection_ab, projection_Ab, projection_AB,
-        char_projected_rhs_dt_v_psi, char_projected_rhs_dt_v_minus,
-        constraint_char_zero_plus, constraint_char_zero_minus, char_speeds):
+def constraint_preserving_bjorhus_corrections_dt_v_minus(
+    gamma2, inertial_coords, incoming_null_one_form, outgoing_null_one_form,
+    incoming_null_vector, outgoing_null_vector, projection_ab, projection_Ab,
+    projection_AB, char_projected_rhs_dt_v_psi, char_projected_rhs_dt_v_minus,
+    constraint_char_zero_plus, constraint_char_zero_minus, char_speeds):
     return add_constraint_dependent_terms_to_dt_v_minus(
         incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
         outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
@@ -193,16 +192,16 @@ def add_constraint_preserving_terms_to_dt_v_minus(
             char_projected_rhs_dt_v_psi) - char_projected_rhs_dt_v_minus
 
 
-def add_constraint_preserving_physical_terms_to_dt_v_minus(
-        gamma2, inertial_coords, unit_interface_normal_one_form,
-        unit_interface_normal_vector, spacetime_unit_normal_vector,
-        incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
-        outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
-        inverse_spatial_metric, extrinsic_curvature, spacetime_metric,
-        inverse_spacetime_metric, three_index_constraint,
-        char_projected_rhs_dt_v_psi, char_projected_rhs_dt_v_minus,
-        constraint_char_zero_plus, constraint_char_zero_minus, phi, d_phi,
-        d_pi, char_speeds):
+def constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
+    gamma2, inertial_coords, unit_interface_normal_one_form,
+    unit_interface_normal_vector, spacetime_unit_normal_vector,
+    incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
+    outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
+    inverse_spatial_metric, extrinsic_curvature, spacetime_metric,
+    inverse_spacetime_metric, three_index_constraint,
+    char_projected_rhs_dt_v_psi, char_projected_rhs_dt_v_minus,
+    constraint_char_zero_plus, constraint_char_zero_minus, phi, d_phi, d_pi,
+    char_speeds):
     return add_constraint_dependent_terms_to_dt_v_minus(
         incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
         outgoing_null_vector, projection_ab, projection_Ab, projection_AB,

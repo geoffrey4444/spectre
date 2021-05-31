@@ -9,8 +9,8 @@
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Utilities/ContainerHelpers.hpp"
 
-    /// \cond
-    class DataVector;
+/// \cond
+class DataVector;
 namespace gsl {
 template <class T>
 class not_null;
@@ -168,7 +168,7 @@ void constraint_preserving_bjorhus_corrections_dt_v_zero(
  * where \f$q^a\f$ is the future-directed spacetime normal vector.
  */
 template <size_t VolumeDim, typename DataType>
-void add_constraint_preserving_terms_to_dt_v_minus(
+void constraint_preserving_bjorhus_corrections_dt_v_minus(
     gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,
@@ -191,7 +191,7 @@ void add_constraint_preserving_terms_to_dt_v_minus(
     const std::array<DataType, 4>& char_speeds) noexcept;
 
 template <size_t VolumeDim, typename DataType>
-void add_constraint_preserving_physical_terms_to_dt_v_minus(
+void constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
     gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,
@@ -265,7 +265,7 @@ void add_constraint_dependent_terms_to_dt_v_minus(
     const std::array<DataType, 4>& char_speeds) noexcept;
 
 template <size_t VolumeDim, typename DataType>
-void add_physical_dof_terms_to_dt_v_minus(
+void add_physical_terms_to_dt_v_minus(
     const gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame::Inertial>*>
         bc_dt_v_minus,
     const Scalar<DataType>& gamma2,

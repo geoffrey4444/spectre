@@ -17,6 +17,7 @@
 #include "Framework/SetupLocalPythonEnvironment.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "Utilities/ContainerHelpers.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeWithValue.hpp"
 #include "Utilities/TMPL.hpp"
@@ -366,9 +367,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       slice_grid_points, std::numeric_limits<double>::signaling_NaN());
   tnsr::I<DataVector, VolumeDim, frame> local_inertial_coords(
       slice_grid_points, std::numeric_limits<double>::signaling_NaN());
-  const auto& lic0 = get<0>(local_inertial_coords);
-  const auto& lic1 = get<1>(local_inertial_coords);
-  const auto& lic2 = get<2>(local_inertial_coords);
+  const auto& local_inertial_coords_x = get<0>(local_inertial_coords);
+  const auto& local_inertial_coords_y = get<1>(local_inertial_coords);
+  const auto& local_inertial_coords_z = get<2>(local_inertial_coords);
   Scalar<DataVector> local_constraint_gamma2(
       slice_grid_points, std::numeric_limits<double>::signaling_NaN());
 
@@ -503,9 +504,13 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       std::array<double, 9> spec_vals{};
       bool not_initialized = true;
 
-      if ((lic0[i] == 299. or lic0[i] == 299.5 or lic0[i] == 300.) and
-          lic1[i] == 0.5 and
-          (lic2[i] == -0.5 or lic2[i] == 0. or lic2[i] == 0.5)) {
+      if ((local_inertial_coords_x[i] == 299. or
+           local_inertial_coords_x[i] == 299.5 or
+           local_inertial_coords_x[i] == 300.) and
+          local_inertial_coords_y[i] == 0.5 and
+          (local_inertial_coords_z[i] == -0.5 or
+           local_inertial_coords_z[i] == 0. or
+           local_inertial_coords_z[i] == 0.5)) {
         spec_vals = {{200.2198037251189, 266.7930716334918, 333.3663395418648,
                       266.7930716334918, 333.3663395418648, 399.9396074502377,
                       333.3663395418648, 399.9396074502377, 466.5128753586106}};
@@ -513,8 +518,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       }
 
       if (not_initialized) {
-        ASSERT(true,
-               "Not checking the correct face, coordinates not recognized");
+        ERROR("Not checking the correct face, coordinates not recognized");
       }
       for (size_t j = 0; j < VolumeDim; ++j) {
         for (size_t k = 0; k < VolumeDim; ++k) {
@@ -662,63 +666,81 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       std::array<double, 4> spec_vals2{};
       bool not_initialized = true;
 
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{3722388974.799386, -16680127.68747905, -22991565.68745775,
                       -29394198.68743645}};
         spec_vals2 = {{3866802572.424386, -19802442.06247905,
                        -19496408.06245775, -19257249.06243645}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{1718287695.133032, -35082292.16184025, -44420849.32723039,
                       -53850596.45928719}};
         spec_vals2 = {{1866652790.548975, -38170999.90741873,
                        -40892085.07280888, -43680040.20486567}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{1718299060.415949, -35082089.27527188, -44420613.14790046,
                       -53850326.98725116}};
         spec_vals2 = {{1866664134.129611, -38170797.39904065,
                        -40891849.27166924, -43679771.11101994}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{1718276282.501221, -35082495.89577083, -44421086.49296889,
                       -53850867.05677793}};
         spec_vals2 = {{1866641399.709844, -38171203.26157932,
                        -40892321.85877737, -43680310.4225864}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{1718287685.660846, -35082292.33093269, -44420849.52407002,
                       -53850596.68387395}};
         spec_vals2 = {{1866652781.094877, -38171000.07619599,
                        -40892085.26933331, -43680040.42913724}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{1718299050.990844, -35082089.44352208, -44420613.34375966,
                       -53850327.21071925}};
         spec_vals2 = {{1866664124.722503, -38170797.56697725,
                        -40891849.46721483, -43679771.33417442}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{1718276292.082241, -35082495.72473276, -44421086.29386414,
                       -53850866.82960649}};
         spec_vals2 = {{1866641409.272568, -38171203.09086005,
                        -40892321.65999144, -43680310.19573379}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{1718287695.194063, -35082292.16074976, -44420849.32596073,
                       -53850596.45783833}};
         spec_vals2 = {{1866652790.609889, -38170999.90633029,
                        -40892085.07154126, -43680040.20341886}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{1718299060.476573, -35082089.27418864, -44420613.14663924,
                       -53850326.98581193}};
         spec_vals2 = {{1866664134.190119, -38170797.39795944,
@@ -726,8 +748,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
         not_initialized = false;
       }
       if (not_initialized) {
-        ASSERT(true,
-               "Not checking the correct face, coordinates not recognized");
+        ERROR("Not checking the correct face, coordinates not recognized");
       }
       for (size_t j = 0; j <= VolumeDim; ++j) {
         local_constraint_char_zero_plus.get(j)[i] = gsl::at(spec_vals, j);
@@ -743,7 +764,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
   {
     // Compute the new boundary corrections for dt<vminus>
     GeneralizedHarmonic::BoundaryConditions::Bjorhus::
-        add_constraint_preserving_terms_to_dt_v_minus(
+        constraint_preserving_bjorhus_corrections_dt_v_minus(
             make_not_null(&local_bc_dt_v_minus), local_constraint_gamma2,
             local_inertial_coords, local_incoming_null_one_form,
             local_outgoing_null_one_form, local_incoming_null_vector,
@@ -769,7 +790,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       std::array<double, 16> spec_vals{};
       bool not_initialized = true;
 
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{-22857869555.93848, 330934979077.5689, 242482973593.2169,
                       507808643438.4713, 330934979077.5689, 690190606335.8783,
                       600780523621.8837, 868984678067.689, 242482973593.2169,
@@ -778,7 +801,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       1054439575483.625}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{6085210488.394159, 167380193629.8459, 127052654518.3203,
                       248004925243.5957, 167380193629.8459, 332680231531.8318,
                       291581334988.8124, 414851930920.4022, 127052654518.3203,
@@ -787,7 +812,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501009779843.9042}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{6084984067.712499, 167381093626.4053, 127053272910.3827,
                       248006388447.6548, 167381093626.4053, 332682261170.2852,
                       291583083105.2007, 414854523601.7003, 127053272910.3827,
@@ -796,7 +823,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501012947925.7576}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{6085437853.704128, 167379289884.4027, 127052033550.7529,
                       248003455943.9015, 167379289884.4027, 332678193437.6569,
                       291579579589.7132, 414849327437.366, 127052033550.7529,
@@ -805,7 +834,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501006598562.8735}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{6085210677.100476, 167380192879.7604, 127052654002.9328,
                       248004924024.1152, 167380192879.7604, 332680229840.2671,
                       291581333531.8772, 414851928759.5795, 127052654002.9328,
@@ -814,7 +845,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501009777203.5247}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{6084984255.479748, 167381092880.0475, 127053272397.5563,
                       248006387234.2355, 167381092880.0475, 332682259487.1282,
                       291583081655.5068, 414854521451.6181, 127053272397.5563,
@@ -823,7 +856,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501012945298.5021}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{6085437662.827703, 167379290643.1056, 127052034072.0609,
                       248003457177.3931, 167379290643.1056, 332678195148.6575,
                       291579581063.3884, 414849329623.0162, 127052034072.0609,
@@ -832,7 +867,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501006601233.5914}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{6085210487.177534, 167380193634.6784, 127052654521.6405,
                       248004925251.4529, 167380193634.6784, 332680231542.7307,
                       291581334998.1996, 414851930934.3248, 127052654521.6405,
@@ -841,7 +878,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       501009779860.9169}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{6084984066.503965, 167381093631.2057, 127053272913.6808,
                       248006388455.4596, 167381093631.2057, 332682261181.1116,
                       291583083114.5252, 414854523615.53, 127053272913.6808,
@@ -851,8 +890,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
         not_initialized = false;
       }
       if (not_initialized) {
-        ASSERT(true,
-               "Not checking the correct face, coordinates not recognized");
+        ERROR("Not checking the correct face, coordinates not recognized");
       }
       for (size_t a = 0; a <= VolumeDim; ++a) {
         for (size_t b = a; b <= VolumeDim; ++b) {
@@ -868,7 +906,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
 
   {  // Compute the new boundary corrections for dt<vminus>
     GeneralizedHarmonic::BoundaryConditions::Bjorhus::
-        add_constraint_preserving_physical_terms_to_dt_v_minus(
+        constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
             make_not_null(&local_bc_dt_v_minus), local_constraint_gamma2,
             local_inertial_coords, local_unit_interface_normal_one_form,
             local_unit_interface_normal_vector,
@@ -898,7 +936,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
       std::array<double, 16> spec_vals{};
       bool not_initialized = true;
 
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{7.122948293721196e+19, 7.122948329100482e+19,
                       7.122948320255282e+19, 7.122948346787851e+19,
                       7.122948329100482e+19, 7.639071460057165e+19,
@@ -909,7 +949,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256111738503e+19, 9.445502329090969e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{7.122948296615504e+19, 7.122948312745003e+19,
                       7.122948308712251e+19, 7.122948320807479e+19,
                       7.122948312745003e+19, 7.639071424306128e+19,
@@ -920,7 +962,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071059056e+19, 9.445502273747989e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == -0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == -0.5) {
         spec_vals = {{7.122948296615481e+19, 7.122948312745094e+19,
                       7.122948308712312e+19, 7.122948320807626e+19,
                       7.122948312745094e+19, 7.639071424306332e+19,
@@ -931,7 +975,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071059287e+19, 9.445502273748306e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{7.122948296615527e+19, 7.122948312744913e+19,
                       7.122948308712188e+19, 7.122948320807332e+19,
                       7.122948312744913e+19, 7.639071424305924e+19,
@@ -942,7 +988,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071058824e+19, 9.445502273747671e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{7.122948296615504e+19, 7.122948312745003e+19,
                       7.122948308712251e+19, 7.122948320807479e+19,
                       7.122948312745003e+19, 7.639071424306128e+19,
@@ -953,7 +1001,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071059056e+19, 9.445502273747989e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.) {
         spec_vals = {{7.122948296615482e+19, 7.122948312745094e+19,
                       7.122948308712312e+19, 7.122948320807626e+19,
                       7.122948312745094e+19, 7.63907142430633e+19,
@@ -964,7 +1014,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071059287e+19, 9.445502273748306e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 299. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{7.122948296615527e+19, 7.122948312744913e+19,
                       7.122948308712188e+19, 7.122948320807332e+19,
                       7.122948312744913e+19, 7.639071424305924e+19,
@@ -975,7 +1027,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071058824e+19, 9.445502273747671e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 299.5 and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 299.5 and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{7.122948296615504e+19, 7.122948312745003e+19,
                       7.122948308712251e+19, 7.122948320807479e+19,
                       7.122948312745003e+19, 7.639071424306128e+19,
@@ -986,7 +1040,9 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
                       8.413256071059056e+19, 9.445502273747989e+19}};
         not_initialized = false;
       }
-      if (lic0[i] == 300. and lic1[i] == 0.5 and lic2[i] == 0.5) {
+      if (local_inertial_coords_x[i] == 300. and
+          local_inertial_coords_y[i] == 0.5 and
+          local_inertial_coords_z[i] == 0.5) {
         spec_vals = {{7.122948296615481e+19, 7.122948312745094e+19,
                       7.122948308712312e+19, 7.122948320807626e+19,
                       7.122948312745094e+19, 7.639071424306332e+19,
@@ -998,8 +1054,7 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
         not_initialized = false;
       }
       if (not_initialized) {
-        ASSERT(true,
-               "Not checking the correct face, coordinates not recognized");
+        ERROR("Not checking the correct face, coordinates not recognized");
       }
       for (size_t a = 0; a <= VolumeDim; ++a) {
         for (size_t b = a; b <= VolumeDim; ++b) {
@@ -1107,7 +1162,8 @@ tnsr::aa<DataVector, VolumeDim, Frame::Inertial> wrapper_func_cp_v_minus(
       make_with_value<tnsr::aa<DataVector, VolumeDim, Frame::Inertial>>(
           get(gamma2), 0.);
   GeneralizedHarmonic::BoundaryConditions::Bjorhus::
-      add_constraint_preserving_terms_to_dt_v_minus<VolumeDim, DataVector>(
+      constraint_preserving_bjorhus_corrections_dt_v_minus<VolumeDim,
+                                                           DataVector>(
           make_not_null(&dt_v_minus), gamma2, inertial_coords,
           incoming_null_one_form, outgoing_null_one_form, incoming_null_vector,
           outgoing_null_vector, projection_ab, projection_Ab, projection_AB,
@@ -1163,8 +1219,8 @@ tnsr::aa<DataVector, VolumeDim, Frame::Inertial> wrapper_func_cpp_v_minus(
       make_with_value<tnsr::aa<DataVector, VolumeDim, Frame::Inertial>>(
           get(gamma2), 0.);
   GeneralizedHarmonic::BoundaryConditions::Bjorhus::
-      add_constraint_preserving_physical_terms_to_dt_v_minus<VolumeDim,
-                                                             DataVector>(
+      constraint_preserving_physical_bjorhus_corrections_dt_v_minus<VolumeDim,
+                                                                    DataVector>(
           make_not_null(&dt_v_minus), gamma2, inertial_coords,
           unit_interface_normal_one_form, unit_interface_normal_vector,
           spacetime_unit_normal_vector, incoming_null_one_form,
@@ -1178,23 +1234,23 @@ tnsr::aa<DataVector, VolumeDim, Frame::Inertial> wrapper_func_cpp_v_minus(
 }
 
 template <size_t VolumeDim>
-void test_add_constraint_preserving_terms_to_dt_v_minus(
+void test_constraint_preserving_bjorhus_corrections_dt_v_minus(
     const size_t grid_size_each_dimension) noexcept {
   pypp::check_with_random_values<1>(
       &wrapper_func_cp_v_minus<VolumeDim>,
       "Evolution.Systems.GeneralizedHarmonic.BoundaryConditions.Bjorhus",
-      "add_constraint_preserving_terms_to_dt_v_minus", {{{-1., 1.}}},
+      "constraint_preserving_bjorhus_corrections_dt_v_minus", {{{-1., 1.}}},
       DataVector(grid_size_each_dimension));
 }
 
 template <size_t VolumeDim>
-void test_add_constraint_preserving_physical_terms_to_dt_v_minus(
+void test_constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
     const size_t grid_size_each_dimension) noexcept {
   pypp::check_with_random_values<1>(
       &wrapper_func_cpp_v_minus<VolumeDim>,
       "Evolution.Systems.GeneralizedHarmonic.BoundaryConditions.Bjorhus",
-      "add_constraint_preserving_physical_terms_to_dt_v_minus", {{{-1., 1.}}},
-      DataVector(grid_size_each_dimension));
+      "constraint_preserving_physical_bjorhus_corrections_dt_v_minus",
+      {{{-1., 1.}}}, DataVector(grid_size_each_dimension));
 }
 }  // namespace
 
@@ -1237,12 +1293,15 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.BCBjorhus.VMinus",
   const size_t grid_size = 3;
 
   // Python tests
-  test_add_constraint_preserving_terms_to_dt_v_minus<1>(grid_size);
-  test_add_constraint_preserving_terms_to_dt_v_minus<2>(grid_size);
-  test_add_constraint_preserving_terms_to_dt_v_minus<3>(grid_size);
-  test_add_constraint_preserving_physical_terms_to_dt_v_minus<1>(grid_size);
-  test_add_constraint_preserving_physical_terms_to_dt_v_minus<2>(grid_size);
-  test_add_constraint_preserving_physical_terms_to_dt_v_minus<3>(grid_size);
+  test_constraint_preserving_bjorhus_corrections_dt_v_minus<1>(grid_size);
+  test_constraint_preserving_bjorhus_corrections_dt_v_minus<2>(grid_size);
+  test_constraint_preserving_bjorhus_corrections_dt_v_minus<3>(grid_size);
+  test_constraint_preserving_physical_bjorhus_corrections_dt_v_minus<1>(
+      grid_size);
+  test_constraint_preserving_physical_bjorhus_corrections_dt_v_minus<2>(
+      grid_size);
+  test_constraint_preserving_physical_bjorhus_corrections_dt_v_minus<3>(
+      grid_size);
 
   // Piece-wise tests with SpEC output in 3D
   const std::array<double, 3> lower_bound{{299., -0.5, -0.5}};
