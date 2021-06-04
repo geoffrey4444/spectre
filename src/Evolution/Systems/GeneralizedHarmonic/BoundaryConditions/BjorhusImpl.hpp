@@ -95,14 +95,13 @@ void constraint_preserving_bjorhus_corrections_dt_v_zero(
  *                              + T^{\mathrm P}_{ab}.
  * \f}
  *
- * These terms are given by the following expressions from
- * \cite Lindblom2005qh :
+ * These terms are given by Eq. (64) of \cite Lindblom2005qh :
  *
  * \f{eqnarray}
- * T^{\mathrm C}_{ab} &=& \frac{1}{4}
- *      \left(k^c k^d l_a l_b - k^c l_b P^d_a - k^c l_a P^d_b - k^d l_b P^c_a
- *            - k^d l_a P^c_b + 2 P^{cd} P_{ab}\right) \partial_t v^{-}_{cd}\\
- *     &&+ \frac{1}{2} \lambda_{-}c^{\hat{0}-}_c \left(\frac{1}{2} l_a l_b k^c +
+ * T^{\mathrm C}_{ab} &=& \frac{1}{2}
+ *      \left(2 k^c k^d l_a l_b - k^c l_b P^d_a - k^c l_a P^d_b - k^d l_b P^c_a
+ *            - k^d l_a P^c_b + P^{cd} P_{ab}\right) \partial_t v^{-}_{cd}\\
+ *     &&+ \frac{1}{\sqrt{2}} \lambda_{-}c^{\hat{0}-}_c \left(l_a l_b k^c +
  *          P_{ab} l^c - P^c_b l_a - P^c_a l_b \right) \nonumber
  * \f}
  *
@@ -124,9 +123,9 @@ void constraint_preserving_bjorhus_corrections_dt_v_zero(
  * outer boundary.
  *
  * \f{align}
- * T^{\mathrm G}_{ab} = \frac{1}{2}
- *     \left(k_a P^c_b l^d + k_b P^c_a l_d - \frac{1}{2}
- *          \left(k_a l_b k^c l^d + k_b l^a k_c l^d + k_a k_b l^c l^d
+ * T^{\mathrm G}_{ab} =
+ *     \left(k_a P^c_b l^d + k_b P^c_a l^d -
+ *          \left(k_a l_b k^c l^d + k_b l_a k_c l^d + k_a k_b l^c l^d
  *          \right) \right) \left(\gamma_2 - \frac{1}{r}
  *                          \right) \partial_t v^{\psi}_{cd}
  * \f}
@@ -135,7 +134,8 @@ void constraint_preserving_bjorhus_corrections_dt_v_zero(
  * assumed to be spherical, \f$\gamma_2\f$ is a GH constraint damping parameter,
  * and \f$\partial_t v^{\psi}_{ab}\f$ is the characteristic projected time
  * derivative of evolved variables (corresponding to the \f$v^{\psi}\f$ field).
- * Finally,
+ * Finally, we constrain physical degrees of freedom using corrections from
+ * Eq. (68) of \cite Lindblom2005qh :
  *
  * \f{align}
  * T^{\mathrm P}_{ab} = \left( P^c_a P^d_b - \frac{1}{2} P_{ab} P^{cd} \right)

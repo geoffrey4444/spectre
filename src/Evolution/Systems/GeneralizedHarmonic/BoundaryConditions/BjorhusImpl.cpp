@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/LeviCivitaIterator.hpp"
@@ -134,29 +135,22 @@ void add_gauge_sommerfeld_terms_to_dt_v_minus(
   inertial_radius_or_scalar_factor =
       get(gamma2) - (gauge_bc_coeff / sqrt(inertial_radius_or_scalar_factor));
 
-  // add in gauge BC
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
       for (size_t c = 0; c <= VolumeDim; ++c) {
         for (size_t d = 0; d <= VolumeDim; ++d) {
           bc_dt_v_minus->get(a, b) +=
-              0.5 *
               (incoming_null_one_form.get(a) * projection_Ab.get(c, b) *
                    outgoing_null_vector.get(d) +
                incoming_null_one_form.get(b) * projection_Ab.get(c, a) *
                    outgoing_null_vector.get(d) -
-               0.5 * (incoming_null_one_form.get(a) *
-                          outgoing_null_one_form.get(b) *
-                          incoming_null_vector.get(c) *
-                          outgoing_null_vector.get(d) +
-                      incoming_null_one_form.get(b) *
-                          outgoing_null_one_form.get(a) *
-                          incoming_null_vector.get(c) *
-                          outgoing_null_vector.get(d) +
-                      incoming_null_one_form.get(a) *
-                          incoming_null_one_form.get(b) *
-                          outgoing_null_vector.get(c) *
-                          outgoing_null_vector.get(d))) *
+               (incoming_null_one_form.get(a) * outgoing_null_one_form.get(b) *
+                    incoming_null_vector.get(c) * outgoing_null_vector.get(d) +
+                incoming_null_one_form.get(b) * outgoing_null_one_form.get(a) *
+                    incoming_null_vector.get(c) * outgoing_null_vector.get(d) +
+                incoming_null_one_form.get(a) * incoming_null_one_form.get(b) *
+                    outgoing_null_vector.get(c) *
+                    outgoing_null_vector.get(d))) *
               inertial_radius_or_scalar_factor *
               char_projected_rhs_dt_v_psi.get(c, d);
         }
@@ -183,14 +177,16 @@ void add_constraint_dependent_terms_to_dt_v_minus(
         char_projected_rhs_dt_v_minus,
     const std::array<DataType, 4>& char_speeds) noexcept {
   constexpr double mu = 0.;  // hard-coded value from SpEC Bbh input file Mu = 0
+  const double one_by_sqrt_2 = 1. / sqrt(2.);
 
+  // Add corrections c.f. Eq (64) of gr-qc/0512093
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
       for (size_t c = 0; c <= VolumeDim; ++c) {
         for (size_t d = 0; d <= VolumeDim; ++d) {
           bc_dt_v_minus->get(a, b) +=
-              0.25 *
-              (incoming_null_vector.get(c) * incoming_null_vector.get(d) *
+              0.5 *
+              (2. * incoming_null_vector.get(c) * incoming_null_vector.get(d) *
                    outgoing_null_one_form.get(a) *
                    outgoing_null_one_form.get(b) -
                incoming_null_vector.get(c) * projection_Ab.get(d, a) *
@@ -201,20 +197,33 @@ void add_constraint_dependent_terms_to_dt_v_minus(
                    outgoing_null_one_form.get(b) -
                incoming_null_vector.get(d) * projection_Ab.get(c, b) *
                    outgoing_null_one_form.get(a) +
-               2. * projection_AB.get(c, d) * projection_ab.get(a, b)) *
+               projection_AB.get(c, d) * projection_ab.get(a, b)) *
               char_projected_rhs_dt_v_minus.get(c, d);
         }
       }
-      for (size_t c = 0; c <= VolumeDim; ++c) {
-        bc_dt_v_minus->get(a, b) +=
-            0.5 * char_speeds[3] *
-            (constraint_char_zero_minus.get(c) -
-             mu * constraint_char_zero_plus.get(c)) *
-            (0.5 * outgoing_null_one_form.get(a) *
-                 outgoing_null_one_form.get(b) * incoming_null_vector.get(c) +
-             projection_ab.get(a, b) * outgoing_null_vector.get(c) -
-             projection_Ab.get(c, b) * outgoing_null_one_form.get(a) -
-             projection_Ab.get(c, a) * outgoing_null_one_form.get(b));
+      if constexpr (mu == 0.) {
+        for (size_t c = 0; c <= VolumeDim; ++c) {
+          bc_dt_v_minus->get(a, b) +=
+              one_by_sqrt_2 * char_speeds[3] *
+              constraint_char_zero_minus.get(c) *
+              (outgoing_null_one_form.get(a) * outgoing_null_one_form.get(b) *
+                   incoming_null_vector.get(c) +
+               projection_ab.get(a, b) * outgoing_null_vector.get(c) -
+               projection_Ab.get(c, b) * outgoing_null_one_form.get(a) -
+               projection_Ab.get(c, a) * outgoing_null_one_form.get(b));
+        }
+      } else {
+        for (size_t c = 0; c <= VolumeDim; ++c) {
+          bc_dt_v_minus->get(a, b) +=
+              one_by_sqrt_2 * char_speeds[3] *
+              (constraint_char_zero_minus.get(c) -
+               mu * constraint_char_zero_plus.get(c)) *
+              (outgoing_null_one_form.get(a) * outgoing_null_one_form.get(b) *
+                   incoming_null_vector.get(c) +
+               projection_ab.get(a, b) * outgoing_null_vector.get(c) -
+               projection_Ab.get(c, b) * outgoing_null_one_form.get(a) -
+               projection_Ab.get(c, a) * outgoing_null_one_form.get(b));
+        }
       }
     }
   }
@@ -388,7 +397,20 @@ void add_physical_terms_to_dt_v_minus(
                          spatial_projection_IJ, spatial_projection_ij,
                          spatial_projection_Ij, -1);
 
-    if constexpr (mu_phys != 0.) {
+    if constexpr (mu_phys == 0.) {
+      // No need to compute U3p or weyl_prop_plus in this case
+      for (size_t a = 0; a <= VolumeDim; ++a) {
+        for (size_t b = a; b <= VolumeDim; ++b) {
+          for (size_t i = 0; i < VolumeDim; ++i) {
+            for (size_t j = 0; j < VolumeDim; ++j) {
+              U3m.get(a, b) += 2. * projection_Ab.get(i + 1, a) *
+                               projection_Ab.get(j + 1, b) *
+                               weyl_prop_minus.get(i, j);
+            }
+          }
+        }
+      }
+    } else {
       auto& weyl_prop_plus =
           get<::Tags::Tempii<3, VolumeDim, Frame::Inertial, DataType>>(
               local_buffer);
@@ -412,23 +434,10 @@ void add_physical_terms_to_dt_v_minus(
           }
         }
       }
-    } else {
-      // No need to compute U3p or weyl_prop_plus in this case
-      for (size_t a = 0; a <= VolumeDim; ++a) {
-        for (size_t b = a; b <= VolumeDim; ++b) {
-          for (size_t i = 0; i < VolumeDim; ++i) {
-            for (size_t j = 0; j < VolumeDim; ++j) {
-              U3m.get(a, b) += 2. * projection_Ab.get(i + 1, a) *
-                               projection_Ab.get(j + 1, b) *
-                               weyl_prop_minus.get(i, j);
-            }
-          }
-        }
-      }
     }
   }
 
-  // Impose physical boundary condition
+  // Add physical boundary corrections
   if (gamma2_in_phys) {
     auto& normal_dot_three_index_constraint_gamma2 =
         get(get<::Tags::TempScalar<0, DataType>>(u3_buffer));
@@ -447,13 +456,22 @@ void add_physical_terms_to_dt_v_minus(
             }
             normal_dot_three_index_constraint_gamma2 *= get(gamma2);
 
-            bc_dt_v_minus->get(a, b) +=
-                (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
-                 0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
-                (char_projected_rhs_dt_v_minus.get(c, d) +
-                 char_speeds[3] *
-                     (U3m.get(c, d) - normal_dot_three_index_constraint_gamma2 -
-                      mu_phys * U3p.get(c, d)));
+            if constexpr (mu_phys == 0.) {
+              bc_dt_v_minus->get(a, b) +=
+                  (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
+                   0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
+                  (char_projected_rhs_dt_v_minus.get(c, d) +
+                   char_speeds[3] * (U3m.get(c, d) -
+                                     normal_dot_three_index_constraint_gamma2));
+            } else {
+              bc_dt_v_minus->get(a, b) +=
+                  (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
+                   0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
+                  (char_projected_rhs_dt_v_minus.get(c, d) +
+                   char_speeds[3] * (U3m.get(c, d) -
+                                     normal_dot_three_index_constraint_gamma2 -
+                                     mu_phys * U3p.get(c, d)));
+            }
           }
         }
       }
@@ -463,11 +481,18 @@ void add_physical_terms_to_dt_v_minus(
       for (size_t b = a; b <= VolumeDim; ++b) {
         for (size_t c = 0; c <= VolumeDim; ++c) {
           for (size_t d = 0; d <= VolumeDim; ++d) {
-            bc_dt_v_minus->get(a, b) +=
-                (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
-                 0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
-                (char_projected_rhs_dt_v_minus.get(c, d) +
-                 char_speeds[3] * (U3m.get(c, d) - mu_phys * U3p.get(c, d)));
+            if constexpr (mu_phys == 0.) {
+              (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
+               0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
+                  (char_projected_rhs_dt_v_minus.get(c, d) +
+                   char_speeds[3] * (U3m.get(c, d)));
+            } else {
+              bc_dt_v_minus->get(a, b) +=
+                  (projection_Ab.get(c, a) * projection_Ab.get(d, b) -
+                   0.5 * projection_ab.get(a, b) * projection_AB.get(c, d)) *
+                  (char_projected_rhs_dt_v_minus.get(c, d) +
+                   char_speeds[3] * (U3m.get(c, d) - mu_phys * U3p.get(c, d)));
+            }
           }
         }
       }
@@ -498,9 +523,7 @@ void constraint_preserving_bjorhus_corrections_dt_v_minus(
     const tnsr::a<DataType, VolumeDim, Frame::Inertial>&
         constraint_char_zero_minus,
     const std::array<DataType, 4>& char_speeds) noexcept {
-  if (UNLIKELY(get_size(get<0, 0>(*bc_dt_v_minus)) != get_size(get(gamma2)))) {
-    destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
-  }
+  destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
       bc_dt_v_minus->get(a, b) = -char_projected_rhs_dt_v_minus.get(a, b);
@@ -556,9 +579,7 @@ void constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
     const tnsr::ijaa<DataType, VolumeDim, Frame::Inertial>& d_phi,
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds) noexcept {
-  if (UNLIKELY(get_size(get<0, 0>(*bc_dt_v_minus)) != get_size(get(gamma2)))) {
-    destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
-  }
+  destructive_resize_components(bc_dt_v_minus, get_size(get(gamma2)));
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
       bc_dt_v_minus->get(a, b) = -char_projected_rhs_dt_v_minus.get(a, b);

@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 
@@ -562,33 +563,36 @@ void test_constraint_preserving_physical_bjorhus_v_minus_vs_spec_3d(
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {
       get(local_constraint_gamma2)[i] = 113.;
     }
+    // Note: explicit division by sqrt(2) below for the computation of ui, uI,
+    // vi, vI are left as-is to remind us that SpEC uses these null vectors
+    // and one forms without normalization by sqrt(2).
     // Setting incoming null one_form: ui
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {
-      local_incoming_null_one_form.get(0)[i] = -2.;
-      local_incoming_null_one_form.get(1)[i] = 5.;
-      local_incoming_null_one_form.get(2)[i] = 3.;
-      local_incoming_null_one_form.get(3)[i] = 7.;
+      local_incoming_null_one_form.get(0)[i] = -2. / sqrt(2.);
+      local_incoming_null_one_form.get(1)[i] = 5. / sqrt(2.);
+      local_incoming_null_one_form.get(2)[i] = 3. / sqrt(2.);
+      local_incoming_null_one_form.get(3)[i] = 7. / sqrt(2.);
     }
     // Setting incoming null vector: uI
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {
-      local_incoming_null_vector.get(0)[i] = -1.;
-      local_incoming_null_vector.get(1)[i] = 13.;
-      local_incoming_null_vector.get(2)[i] = 17.;
-      local_incoming_null_vector.get(3)[i] = 19.;
+      local_incoming_null_vector.get(0)[i] = -1. / sqrt(2.);
+      local_incoming_null_vector.get(1)[i] = 13. / sqrt(2.);
+      local_incoming_null_vector.get(2)[i] = 17. / sqrt(2.);
+      local_incoming_null_vector.get(3)[i] = 19. / sqrt(2.);
     }
     // Setting outgoing null one_form: vi
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {
-      local_outgoing_null_one_form.get(0)[i] = -1.;
-      local_outgoing_null_one_form.get(1)[i] = 3.;
-      local_outgoing_null_one_form.get(2)[i] = 2.;
-      local_outgoing_null_one_form.get(3)[i] = 5.;
+      local_outgoing_null_one_form.get(0)[i] = -1. / sqrt(2.);
+      local_outgoing_null_one_form.get(1)[i] = 3. / sqrt(2.);
+      local_outgoing_null_one_form.get(2)[i] = 2. / sqrt(2.);
+      local_outgoing_null_one_form.get(3)[i] = 5. / sqrt(2.);
     }
     // Setting outgoing null vector: vI
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {
-      local_outgoing_null_vector.get(0)[i] = -1.;
-      local_outgoing_null_vector.get(1)[i] = 2.;
-      local_outgoing_null_vector.get(2)[i] = 3.;
-      local_outgoing_null_vector.get(3)[i] = 5.;
+      local_outgoing_null_vector.get(0)[i] = -1. / sqrt(2.);
+      local_outgoing_null_vector.get(1)[i] = 2. / sqrt(2.);
+      local_outgoing_null_vector.get(2)[i] = 3. / sqrt(2.);
+      local_outgoing_null_vector.get(3)[i] = 5. / sqrt(2.);
     }
     // Setting projection Ab
     for (size_t i = 0; i < get<0>(local_inertial_coords).size(); ++i) {

@@ -48,21 +48,21 @@ def add_gauge_sommerfeld_terms_to_dt_v_minus(
     char_projected_rhs_dt_v_psi):
     gauge_bc_coeff = 1.
     inertial_radius = np.sum(inertial_coords**2)**0.5
-    prefac = 0.5 * (gamma2 - gauge_bc_coeff / inertial_radius)
+    prefac = (gamma2 - gauge_bc_coeff / inertial_radius)
 
     t1_ = np.einsum('a,cb,d,cd->ab', incoming_null_one_form, projection_Ab,
                     outgoing_null_vector, char_projected_rhs_dt_v_psi)
     t2_ = np.einsum('b,ca,d,cd->ab', incoming_null_one_form, projection_Ab,
                     outgoing_null_vector, char_projected_rhs_dt_v_psi)
-    t3_ = 0.5 * np.einsum('a,b,c,d,cd->ab', incoming_null_one_form,
-                          outgoing_null_one_form, incoming_null_vector,
-                          outgoing_null_vector, char_projected_rhs_dt_v_psi)
-    t4_ = 0.5 * np.einsum('b,a,c,d,cd->ab', incoming_null_one_form,
-                          outgoing_null_one_form, incoming_null_vector,
-                          outgoing_null_vector, char_projected_rhs_dt_v_psi)
-    t5_ = 0.5 * np.einsum('a,b,c,d,cd->ab', incoming_null_one_form,
-                          incoming_null_one_form, outgoing_null_vector,
-                          outgoing_null_vector, char_projected_rhs_dt_v_psi)
+    t3_ = np.einsum('a,b,c,d,cd->ab', incoming_null_one_form,
+                    outgoing_null_one_form, incoming_null_vector,
+                    outgoing_null_vector, char_projected_rhs_dt_v_psi)
+    t4_ = np.einsum('b,a,c,d,cd->ab', incoming_null_one_form,
+                    outgoing_null_one_form, incoming_null_vector,
+                    outgoing_null_vector, char_projected_rhs_dt_v_psi)
+    t5_ = np.einsum('a,b,c,d,cd->ab', incoming_null_one_form,
+                    incoming_null_one_form, outgoing_null_vector,
+                    outgoing_null_vector, char_projected_rhs_dt_v_psi)
     return prefac * (t1_ + t2_ - t3_ - t4_ - t5_)
 
 
@@ -84,21 +84,21 @@ def add_constraint_dependent_terms_to_dt_v_minus(
                     outgoing_null_one_form, char_projected_rhs_dt_v_minus)
     t5_ = np.einsum('d,cb,a,cd->ab', incoming_null_vector, projection_Ab,
                     outgoing_null_one_form, char_projected_rhs_dt_v_minus)
-    t6_ = 2.0 * np.einsum('cd,ab,cd->ab', projection_AB, projection_ab,
-                          char_projected_rhs_dt_v_minus)
+    t6_ = np.einsum('cd,ab,cd->ab', projection_AB, projection_ab,
+                    char_projected_rhs_dt_v_minus)
 
-    common_term = 0.5 * char_speeds[3] * (constraint_char_zero_minus -
-                                          mu * constraint_char_zero_plus)
-    t7_ = 0.5 * np.einsum('a,b,c,c->ab', outgoing_null_one_form,
-                          outgoing_null_one_form, incoming_null_vector,
-                          common_term)
+    common_term = np.sqrt(0.5) * char_speeds[3] * (
+        constraint_char_zero_minus - mu * constraint_char_zero_plus)
+    t7_ = np.einsum('a,b,c,c->ab', outgoing_null_one_form,
+                    outgoing_null_one_form, incoming_null_vector, common_term)
     t8_ = np.einsum('ab,c,c->ab', projection_ab, outgoing_null_vector,
                     common_term)
     t9_ = np.einsum('cb,a,c->ab', projection_Ab, outgoing_null_one_form,
                     common_term)
     t10_ = np.einsum('ca,b,c->ab', projection_Ab, outgoing_null_one_form,
                      common_term)
-    return 0.25 * (t1_ - t2_ - t3_ - t4_ - t5_ + t6_) + t7_ + t8_ - t9_ - t10_
+    return (0.5 * (2.0 * t1_ - t2_ - t3_ - t4_ - t5_ + t6_) +
+            (t7_ + t8_ - t9_ - t10_))
 
 
 def add_physical_dof_terms_to_dt_v_minus(
