@@ -348,12 +348,12 @@ def dt_corrs_ConstraintPreserving(face_mesh_velocity, normal_covector,
          d_pi, d_phi, d_spacetime_metric)
     if face_mesh_velocity is not None:
         char_speeds = char_speeds - np.dot(normal_covector, face_mesh_velocity)
-    dt_v_psi = add_constraint_preserving_terms_to_dt_v_psi(
+    dt_v_psi = constraint_preserving_bjorhus_corrections_dt_v_psi(
         unit_interface_normal_vector, three_index_constraint, char_speeds)
-    dt_v_zero = add_constraint_preserving_terms_to_dt_v_zero(
+    dt_v_zero = constraint_preserving_bjorhus_corrections_dt_v_zero(
         unit_interface_normal_vector, four_index_constraint, char_speeds)
     dt_v_plus = dt_v_psi * 0
-    dt_v_minus = add_constraint_preserving_terms_to_dt_v_minus(
+    dt_v_minus = constraint_preserving_bjorhus_corrections_dt_v_minus(
         gamma2, coords, incoming_null_one_form, outgoing_null_one_form,
         incoming_null_vector, outgoing_null_vector, projection_ab,
         projection_Ab, projection_AB, char_projected_rhs_dt_v_psi,
@@ -387,12 +387,12 @@ def dt_corrs_ConstraintPreservingPhysical(
          d_pi, d_phi, d_spacetime_metric)
     if face_mesh_velocity is not None:
         char_speeds = char_speeds - np.dot(normal_covector, face_mesh_velocity)
-    dt_v_psi = add_constraint_preserving_terms_to_dt_v_psi(
+    dt_v_psi = constraint_preserving_bjorhus_corrections_dt_v_psi(
         unit_interface_normal_vector, three_index_constraint, char_speeds)
-    dt_v_zero = add_constraint_preserving_terms_to_dt_v_zero(
+    dt_v_zero = constraint_preserving_bjorhus_corrections_dt_v_zero(
         unit_interface_normal_vector, four_index_constraint, char_speeds)
     dt_v_plus = dt_v_psi * 0
-    dt_v_minus = add_constraint_preserving_physical_terms_to_dt_v_minus(
+    dt_v_minus = constraint_preserving_physical_bjorhus_corrections_dt_v_minus(
         gamma2, coords, normal_covector, unit_interface_normal_vector,
         spacetime_unit_normal_vector, incoming_null_one_form,
         outgoing_null_one_form, incoming_null_vector, outgoing_null_vector,
