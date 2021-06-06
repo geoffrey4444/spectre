@@ -145,7 +145,7 @@ struct EvolutionMetavars {
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
-  static constexpr bool use_damped_harmonic_rollon = true;
+  static constexpr bool use_damped_harmonic_rollon = false;
   // Set override_functions_of_time to true to override the
   // 2nd or 3rd order piecewise polynomial functions of time using
   // `read_spec_piecewise_polynomial()`
