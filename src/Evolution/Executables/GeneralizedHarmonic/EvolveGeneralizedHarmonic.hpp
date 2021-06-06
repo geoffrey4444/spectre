@@ -154,6 +154,9 @@ struct EvolutionMetavars {
   static constexpr bool local_time_stepping = false;
   using initial_data = InitialData;
   using analytic_solution_tag = Tags::AnalyticSolution<BoundaryConditions>;
+  struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = EnableTimeDependentMaps;
+  };
 
   using time_stepper_tag = Tags::TimeStepper<
       tmpl::conditional_t<local_time_stepping, LtsTimeStepper, TimeStepper>>;
