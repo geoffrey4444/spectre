@@ -301,10 +301,10 @@ struct EvolutionMetavars {
       evolution::dg::Initialization::Domain<volume_dim,
                                             override_functions_of_time>,
       Initialization::Actions::NonconservativeSystem<system>,
-      tmpl::conditional_t<
-          evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
-          evolution::Initialization::Actions::SetVariables<
-              domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
+      //   tmpl::conditional_t<
+      //       evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
+      //       evolution::Initialization::Actions::SetVariables<
+      //           domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
       Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
       Initialization::Actions::AddComputeTags<tmpl::push_back<
