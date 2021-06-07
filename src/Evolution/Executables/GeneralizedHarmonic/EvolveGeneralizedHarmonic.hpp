@@ -13,6 +13,7 @@
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Protocols/Metavariables.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "Evolution/Actions/AddMeshVelocityNonconservative.hpp"
@@ -157,7 +158,7 @@ struct EvolutionMetavars {
   using initial_data = InitialData;
   using analytic_solution_tag = Tags::AnalyticSolution<BoundaryConditions>;
   struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
-    static constexpr bool enable_time_dependent_maps = EnableTimeDependentMaps;
+    static constexpr bool enable_time_dependent_maps = true;
   };
 
   using time_stepper_tag = Tags::TimeStepper<
