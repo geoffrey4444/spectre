@@ -312,7 +312,7 @@ struct EvolutionMetavars {
           evolution::Tags::AnalyticCompute<volume_dim, analytic_solution_tag,
                                            analytic_solution_fields>>>,
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
-      Initialization::Actions::TerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using initialize_initial_data_dependent_quantities_actions = tmpl::list<
       GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
