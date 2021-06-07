@@ -63,10 +63,10 @@ namespace GeneralizedHarmonic::BoundaryConditions {
  * constraint violations from external faces of the evolution domain, by damping
  * them away on a controlled and short time-scale. These conditions are imposed
  * as corrections to the projections of the right-hand-sides of the GH evolution
- * equations (i.e. using Bjorhus' method \cite Bjorhus1995 ), and are
+ * equations (i.e. using Bjorhus' method \cite Bjorhus1995), and are
  * written down in Eq. (63) - (65) of \cite Lindblom2005qh . The gauge degrees
  * of freedom are controlled by imposing a Sommerfeld-type condition (\f$L=0\f$
- * member of the hierarchy derived in \cite BaylissTurkel ) that allow gauge
+ * member of the hierarchy derived in \cite BaylissTurkel) that allow gauge
  * perturvations to pass through the boundary without strong reflections. These
  * assume a spherical outer boundary, and can be written down as in Eq. (25) of
  * \cite Rinne2007ui . Finally, the physical boundary conditions control the
@@ -74,8 +74,8 @@ namespace GeneralizedHarmonic::BoundaryConditions {
  * boundaries. These are derived by considering the evolution system of the Weyl
  * curvature tensor, and controlling the inward propagating characteristics of
  * the system that are proportional to the Newman-Penrose curvature spinor
- * components \f$\Psi_4\f$ and \f\Psi_0\f$. Here we use Eq. (68) of \cite
- * Lindblom2005qh to control the incoming waves only.
+ * components \f$\Psi_4\f$ and \f$\Psi_0\f$. Here we use Eq. (68) of
+ * \cite Lindblom2005qh to only disallow any incoming waves.
  *
  * This class provides two choices of combinations of the above corrections:
  *  - `ConstraintPreserving` : this imposes the constraint-preserving and
@@ -87,10 +87,12 @@ namespace GeneralizedHarmonic::BoundaryConditions {
  * We refer to `Bjorhus::constraint_preserving_bjorhus_corrections_dt_v_psi()`,
  * `Bjorhus::constraint_preserving_bjorhus_corrections_dt_v_zero()`,
  * `Bjorhus::constraint_preserving_bjorhus_corrections_dt_v_minus()`, and
- * `constraint_preserving_physical_bjorhus_corrections_dt_v_minus()` for
- * the further details on implementation.
+ * `Bjorhus::constraint_preserving_physical_bjorhus_corrections_dt_v_minus()`
+ * for the further details on implementation.
  *
- * \note These boundary conditions assume a spherical outer boundary.
+ * \note These boundary conditions assume a spherical outer boundary. Also, we
+ * do not yet have an option to inject incoming gravitational waves at the outer
+ * boundary.
  */
 template <size_t Dim>
 class ConstraintPreservingBjorhus final : public BoundaryCondition<Dim> {
