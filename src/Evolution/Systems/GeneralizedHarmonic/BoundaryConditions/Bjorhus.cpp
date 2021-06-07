@@ -31,9 +31,8 @@ namespace GeneralizedHarmonic::BoundaryConditions {
 namespace helpers {
 double min_characteristic_speed(
     const std::array<DataVector, 4>& char_speeds) noexcept {
-  std::array<double, 4> min_speeds{
-      {min(char_speeds.at(0)), min(char_speeds.at(1)), min(char_speeds.at(2)),
-       min(char_speeds.at(3))}};
+  std::array<double, 4> min_speeds{{min(char_speeds[0]), min(char_speeds[1]),
+                                    min(char_speeds[2]), min(char_speeds[3])}};
   return *std::min_element(min_speeds.begin(), min_speeds.end());
 }
 template <typename T>
@@ -227,6 +226,14 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
       char_speeds.at(a) -= negative_lambda0;
     }
   }
+  // If the chosen boundary lies inside the apparent horizon, return here
+  if (helpers::min_characteristic_speed(char_speeds) >= 0.) {
+    std::fill(dt_spacetime_metric_correction->begin(),
+              dt_spacetime_metric_correction->end(), 0.);
+    std::fill(dt_pi_correction->begin(), dt_pi_correction->end(), 0.);
+    std::fill(dt_phi_correction->begin(), dt_phi_correction->end(), 0.);
+    return {};
+  }
 
   Bjorhus::constraint_preserving_bjorhus_corrections_dt_v_psi(
       make_not_null(&bc_dt_v_psi), unit_interface_normal_vector,
@@ -263,11 +270,11 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
 
   // Only add corrections at grid points where the char speeds are negative
   helpers::set_bc_corr_zero_when_char_speed_is_positive(
-      make_not_null(&bc_dt_v_psi), char_speeds.at(0));
+      make_not_null(&bc_dt_v_psi), char_speeds[0]);
   helpers::set_bc_corr_zero_when_char_speed_is_positive(
-      make_not_null(&bc_dt_v_zero), char_speeds.at(1));
+      make_not_null(&bc_dt_v_zero), char_speeds[1]);
   helpers::set_bc_corr_zero_when_char_speed_is_positive(
-      make_not_null(&bc_dt_v_minus), char_speeds.at(3));
+      make_not_null(&bc_dt_v_minus), char_speeds[3]);
 
   // Convert corrections to dt<evolved variables>
   auto dt_evolved_vars = evolved_fields_from_characteristic_fields(
@@ -279,18 +286,6 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
   *dt_spacetime_metric_correction =
       get<gr::Tags::SpacetimeMetric<Dim, Frame::Inertial, DataVector>>(
           dt_evolved_vars);
-
-  // Subtract out original dt<vars>
-  //   for (size_t a = 0; a <= Dim; ++a) {
-  //     for (size_t b = a; b <= Dim; ++b) {
-  //       dt_pi_correction->get(a, b) -= dt_pi.get(a, b);
-  //       dt_spacetime_metric_correction->get(a, b) -=
-  //           dt_spacetime_metric.get(a, b);
-  //       for (size_t i = 0; i < Dim; ++i) {
-  //         dt_phi_correction->get(i, a, b) -= dt_phi.get(i, a, b);
-  //       }
-  //     }
-  //   }
 
   if (face_mesh_velocity.has_value()) {
     const auto negative_lambda0 =

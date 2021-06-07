@@ -348,6 +348,8 @@ def dt_corrs_ConstraintPreserving(face_mesh_velocity, normal_covector,
          d_pi, d_phi, d_spacetime_metric)
     if face_mesh_velocity is not None:
         char_speeds = char_speeds - np.dot(normal_covector, face_mesh_velocity)
+    if np.amin(char_speeds) >= 0.:
+        return (pi * 0, phi * 0, pi * 0, pi * 0)
     dt_v_psi = constraint_preserving_bjorhus_corrections_dt_v_psi(
         unit_interface_normal_vector, three_index_constraint, char_speeds)
     dt_v_zero = constraint_preserving_bjorhus_corrections_dt_v_zero(
@@ -387,6 +389,8 @@ def dt_corrs_ConstraintPreservingPhysical(
          d_pi, d_phi, d_spacetime_metric)
     if face_mesh_velocity is not None:
         char_speeds = char_speeds - np.dot(normal_covector, face_mesh_velocity)
+    if np.amin(char_speeds) >= 0.:
+        return (pi * 0, phi * 0, pi * 0, pi * 0)
     dt_v_psi = constraint_preserving_bjorhus_corrections_dt_v_psi(
         unit_interface_normal_vector, three_index_constraint, char_speeds)
     dt_v_zero = constraint_preserving_bjorhus_corrections_dt_v_zero(
