@@ -167,7 +167,7 @@ struct EvolutionMetavars {
   using analytic_solution_fields = typename system::variables_tag::tags_list;
   using observe_fields = tmpl::append<
       tmpl::push_back<
-          analytic_solution_fields,
+          analytic_solution_fields, gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
@@ -215,15 +215,14 @@ struct EvolutionMetavars {
             tmpl::flatten<tmpl::list<
                 Events::Completion,
                 dg::Events::field_observations<volume_dim, Tags::Time,
-                                               observe_fields,
-                                               analytic_solution_fields>,
+                                               observe_fields, tmpl::list<>>,
                 Events::time_events<EvolutionMetavars>,
                 intrp::Events::Interpolate<3, AhA, interpolator_source_vars>>>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
-        tmpl::pair<StepChooser<StepChooserUse::Slab>,
-                   StepChoosers::standard_slab_choosers<system,
-                                                        local_time_stepping>>,
+        tmpl::pair<
+            StepChooser<StepChooserUse::Slab>,
+            StepChoosers::standard_slab_choosers<system, local_time_stepping>>,
         tmpl::pair<StepController, StepControllers::standard_step_controllers>,
         tmpl::pair<Trigger, tmpl::append<Triggers::logical_triggers,
                                          Triggers::time_triggers>>>;
