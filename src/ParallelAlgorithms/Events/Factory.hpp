@@ -8,6 +8,7 @@
 
 #include "ParallelAlgorithms/Events/ObserveErrorNorms.hpp"
 #include "ParallelAlgorithms/Events/ObserveFields.hpp"
+#include "ParallelAlgorithms/Events/ObserveNorms.hpp"
 #include "ParallelAlgorithms/Events/ObserveTimeStep.hpp"
 #include "Time/Actions/ChangeSlabSize.hpp"
 #include "Utilities/TMPL.hpp"
@@ -18,7 +19,7 @@ template <size_t VolumeDim, typename TimeTag, typename Fields,
 using field_observations = tmpl::flatten<tmpl::list<
     ObserveFields<VolumeDim, TimeTag, Fields, SolutionFields>,
     tmpl::conditional_t<std::is_same_v<SolutionFields, tmpl::list<>>,
-                        tmpl::list<>,
+                        ::Events::ObserveNorms<Fields>,
                         ObserveErrorNorms<TimeTag, SolutionFields>>>>;
 }  // namespace dg::Events
 
