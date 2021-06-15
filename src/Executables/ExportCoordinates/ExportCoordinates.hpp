@@ -186,6 +186,7 @@ struct Metavariables {
   static constexpr bool local_time_stepping = false;
   // A placeholder system for the domain creators
   struct system {};
+  static constexpr bool override_functions_of_time = true;
 
   struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
     static constexpr bool enable_time_dependent_maps = EnableTimeDependentMaps;
