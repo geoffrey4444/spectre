@@ -14,6 +14,7 @@
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Protocols/Metavariables.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"
@@ -145,13 +146,13 @@ struct GeneralizedHarmonicDefaults {
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
-  static constexpr bool use_damped_harmonic_rollon = true;
+  static constexpr bool use_damped_harmonic_rollon = false;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
   // Set override_functions_of_time to true to override the
   // 2nd or 3rd order piecewise polynomial functions of time using
   // `read_spec_piecewise_polynomial()`
-  static constexpr bool override_functions_of_time = false;
+  static constexpr bool override_functions_of_time = true;
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
     GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;
@@ -206,6 +207,9 @@ struct GeneralizedHarmonicTemplateBase<
 
   using initial_data = InitialData;
   using analytic_solution_tag = Tags::AnalyticSolution<BoundaryConditions>;
+  struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = true;
+  };
 
   using observe_fields = tmpl::append<
       tmpl::push_back<
@@ -335,7 +339,7 @@ struct GeneralizedHarmonicTemplateBase<
       std::conditional_t<
           evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
           evolution::Initialization::Actions::SetVariables<
-              domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
+              ::domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
       Initialization::Actions::TimeStepperHistory<derived_metavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
       Initialization::Actions::AddComputeTags<tmpl::push_back<
@@ -345,7 +349,7 @@ struct GeneralizedHarmonicTemplateBase<
                                            analytic_solution_fields>>>,
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
       evolution::Actions::InitializeRunEventsAndDenseTriggers,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using gh_dg_element_array = DgElementArray<
       derived_metavars,
