@@ -208,7 +208,7 @@ struct GeneralizedHarmonicTemplateBase<
 
   using observe_fields = tmpl::append<
       tmpl::push_back<
-          analytic_solution_fields,
+          analytic_solution_fields, gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
@@ -222,12 +222,12 @@ struct GeneralizedHarmonicTemplateBase<
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = tmpl::map<
-        tmpl::pair<Event, tmpl::flatten<tmpl::list<
-                              Events::Completion,
-                              dg::Events::field_observations<
-                                  volume_dim, Tags::Time, observe_fields,
-                                  analytic_solution_fields>,
-                              Events::time_events<system>>>>,
+        tmpl::pair<Event,
+                   tmpl::flatten<tmpl::list<Events::Completion,
+                                            dg::Events::field_observations<
+                                                volume_dim, Tags::Time,
+                                                observe_fields, tmpl::list<>>,
+                                            Events::time_events<system>>>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
         tmpl::pair<
