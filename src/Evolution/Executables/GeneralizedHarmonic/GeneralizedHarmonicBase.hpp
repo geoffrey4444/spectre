@@ -209,7 +209,7 @@ struct GeneralizedHarmonicTemplateBase<
 
   using observe_fields = tmpl::append<
       tmpl::push_back<
-          analytic_solution_fields,
+          analytic_solution_fields, gr::Tags::Lapse<DataVector>,
           ::Tags::PointwiseL2Norm<
               GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
           ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
@@ -229,7 +229,7 @@ struct GeneralizedHarmonicTemplateBase<
                               Events::Completion,
                               dg::Events::field_observations<
                                   volume_dim, Tags::Time, observe_fields,
-                                  analytic_solution_fields>,
+                                  tmpl::list<>>,
                               Events::time_events<system>>>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
