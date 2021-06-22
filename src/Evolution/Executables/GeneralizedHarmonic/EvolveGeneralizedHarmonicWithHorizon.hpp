@@ -99,7 +99,7 @@ struct EvolutionMetavars
                 Events::Completion,
                 dg::Events::field_observations<volume_dim, Tags::Time,
                                                observe_fields,
-                                               analytic_solution_fields>,
+                                               tmpl::list<>>,
                 Events::time_events<system>,
                 intrp::Events::Interpolate<3, AhA, interpolator_source_vars>>>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
