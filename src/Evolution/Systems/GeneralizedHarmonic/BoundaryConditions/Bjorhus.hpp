@@ -67,7 +67,7 @@ namespace GeneralizedHarmonic::BoundaryConditions {
  * written down in Eq. (63) - (65) of \cite Lindblom2005qh . The gauge degrees
  * of freedom are controlled by imposing a Sommerfeld-type condition (\f$L=0\f$
  * member of the hierarchy derived in \cite BaylissTurkel) that allow gauge
- * perturvations to pass through the boundary without strong reflections. These
+ * perturbations to pass through the boundary without strong reflections. These
  * assume a spherical outer boundary, and can be written down as in Eq. (25) of
  * \cite Rinne2007ui . Finally, the physical boundary conditions control the
  * influx of inward propagating gravitational-wave solutions from the external
@@ -75,7 +75,9 @@ namespace GeneralizedHarmonic::BoundaryConditions {
  * curvature tensor, and controlling the inward propagating characteristics of
  * the system that are proportional to the Newman-Penrose curvature spinor
  * components \f$\Psi_4\f$ and \f$\Psi_0\f$. Here we use Eq. (68) of
- * \cite Lindblom2005qh to only disallow any incoming waves.
+ * \cite Lindblom2005qh to disallow any incoming waves. It is to be noted that
+ * all the above conditions are also imposed on characteristic modes with speeds
+ * exactly zero.
  *
  * This class provides two choices of combinations of the above corrections:
  *  - `ConstraintPreserving` : this imposes the constraint-preserving and

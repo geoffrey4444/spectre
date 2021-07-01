@@ -272,7 +272,11 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
   helpers::set_bc_corr_zero_when_char_speed_is_positive(
       make_not_null(&bc_dt_v_minus), char_speeds[3]);
 
-  // Convert corrections to dt<evolved variables>
+  // The boundary conditions here are imposed as corrections to the projections
+  // of the right-hand-sides of the GH evolution equations (i.e. using Bjorhus'
+  // method), and are written down in Eq. (63) - (65) of Lindblom et al (2005).
+  // Now that we have calculated those corrections, we project them back as
+  // corrections to dt<evolved variables>
   auto dt_evolved_vars = evolved_fields_from_characteristic_fields(
       gamma2, bc_dt_v_psi, bc_dt_v_zero, bc_dt_v_plus, bc_dt_v_minus,
       normal_covector);
