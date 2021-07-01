@@ -74,3 +74,9 @@ add_generalized_harmonic_no_horizon_executable(
   "${LIBS_TO_LINK};GeneralRelativitySolutions;Importers"
 )
 
+add_generalized_harmonic_no_horizon_executable(
+  Minkowski
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  "${LIBS_TO_LINK};ApparentHorizons;GeneralRelativitySolutions"
+)
