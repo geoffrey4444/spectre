@@ -232,9 +232,10 @@ def error(face_mesh_velocity, normal_covector, normal_vector, pi, phi,
           d_pi, d_phi, d_spacetime_metric):
     if not face_mesh_velocity is None and -np.dot(face_mesh_velocity,
                                                   normal_covector) < 0.0:
-        return ("Incoming characteristic speeds for constraint preserving "
-                "radiation boundary. Its unclear if proper boundary conditions"
-                "are imposed in this case.")
+        return (
+            "We found the mesh velocity to be pointing in the direction of the "
+            "outward normal, i.e. we possibly have an expanding domain. Its "
+            "unclear if proper boundary conditions are imposed in this case.")
     return None
 
 

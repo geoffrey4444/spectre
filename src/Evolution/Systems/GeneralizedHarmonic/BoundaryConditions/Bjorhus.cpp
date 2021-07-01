@@ -292,9 +292,9 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
         dot_product(normal_covector, *face_mesh_velocity);
     if (min(-get(negative_lambda0)) < 0) {
       return {
-          "Incoming characteristic speeds for constraint preserving "
-          "radiation boundary. Its unclear if proper boundary conditions"
-          "are imposed in this case."};
+          "We found the mesh velocity to be pointing in the direction of the "
+          "outward normal, i.e. we possibly have an expanding domain. Its "
+          "unclear if proper boundary conditions are imposed in this case."};
     }
   }
 
