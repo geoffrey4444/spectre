@@ -158,7 +158,7 @@ struct GeneralizedHarmonicDefaults {
   // Set override_functions_of_time to true to override the
   // 2nd or 3rd order piecewise polynomial functions of time using
   // `read_spec_piecewise_polynomial()`
-  static constexpr bool override_functions_of_time = false;
+  static constexpr bool override_functions_of_time = true;
 
   using normal_dot_numerical_flux = Tags::NumericalFlux<
     GeneralizedHarmonic::UpwindPenaltyCorrection<volume_dim>>;

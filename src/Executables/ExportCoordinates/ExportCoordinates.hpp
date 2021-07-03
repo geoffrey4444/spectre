@@ -188,6 +188,7 @@ template <size_t Dim, bool EnableTimeDependentMaps>
 struct Metavariables {
   static constexpr size_t volume_dim = Dim;
   static constexpr bool local_time_stepping = false;
+  static constexpr bool override_functions_of_time = EnableTimeDependentMaps;
   // A placeholder system for the domain creators
   struct system {};
 
