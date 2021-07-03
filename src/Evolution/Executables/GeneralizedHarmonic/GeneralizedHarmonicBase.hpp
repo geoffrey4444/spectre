@@ -152,7 +152,7 @@ struct GeneralizedHarmonicDefaults {
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
-  static constexpr bool use_damped_harmonic_rollon = true;
+  static constexpr bool use_damped_harmonic_rollon = false;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = false;
   // Set override_functions_of_time to true to override the
@@ -352,7 +352,7 @@ struct GeneralizedHarmonicTemplateBase<
                                            analytic_solution_fields>>>,
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
       evolution::Actions::InitializeRunEventsAndDenseTriggers,
-      Initialization::Actions::RemoveOptionsAndTerminatePhase>;
+      Parallel::Actions::TerminatePhase>;
 
   using gh_dg_element_array = DgElementArray<
       derived_metavars,
