@@ -10,9 +10,9 @@
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
 #include "Domain/BoundaryConditions/GetBoundaryConditionsBase.hpp"
 #include "Domain/Creators/DomainCreator.hpp"  // IWYU pragma: keep
-#include "Domain/Creators/TimeDependence/TimeDependence.hpp"
 #include "Domain/Domain.hpp"
 #include "Domain/DomainHelpers.hpp"
+#include "Options/Auto.hpp"
 #include "Options/Options.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -27,11 +27,36 @@ template <typename Map1, typename Map2>
 class ProductOf2Maps;
 template <size_t Dim>
 class Wedge;
+namespace TimeDependent {
+template <bool InteriorMap>
+class SphericalCompression;
+template <size_t VolumeDim>
+class Rotation;
+template <typename Map1, typename Map2>
+class ProductOf2Maps;
+}  // namespace TimeDependent
 }  // namespace CoordinateMaps
 
 template <typename SourceFrame, typename TargetFrame, typename... Maps>
 class CoordinateMap;
 }  // namespace domain
+
+namespace Shell_detail {
+// If `Metavariables` has a `domain_parameters` member struct and
+// `domain_parameters::enable_time_dependent_maps` is `true`, then
+// inherit from `std::true_type`; otherwise, inherit from `std::false_type`.
+template <typename Metavariables, typename = std::void_t<>>
+struct enable_time_dependent_maps : std::false_type {};
+
+template <typename Metavariables>
+struct enable_time_dependent_maps<Metavariables,
+                                  std::void_t<typename Metavariables::domain>>
+    : std::bool_constant<Metavariables::domain::enable_time_dependent_maps> {};
+
+template <typename Metavariables>
+constexpr bool enable_time_dependent_maps_v =
+    enable_time_dependent_maps<Metavariables>::value;
+}  // namespace Shell_detail
 /// \endcond
 
 namespace domain::creators {
@@ -40,14 +65,37 @@ namespace domain::creators {
  * consisting of six wedges.
  *
  * \image html WedgeOrientations.png "The orientation of each wedge in Shell."
+ *
+ * \note When using this domain, the
+ * metavariables struct can contain a struct named `domain`
+ * that conforms to domain::protocols::Metavariables. If
+ * domain::enable_time_dependent_maps is either set to `false`
+ * or not specified in the metavariables, then this domain will be
+ * time-independent. If domain::enable_time_dependent_maps is set
+ * to `true`, then this domain also includes a time-dependent map, along with
+ * additional options (and a corresponding constructor) for initializing the
+ * time-dependent map. These options include `InitialTime` and
+ * `InitialExpirationDeltaT`, which specify the initial time and the
+ * initial updating time interval, respectively, for the FunctionsOfTime
+ * controlling the map. The time-dependent map itself consists of a
+ * Rotation map about the z axis except in the first `NumberOfLayers`
+ * layers, which instead are a composition of a SphericalCompression size map
+ * and a Rotation map about the z axis.
  */
 class Shell : public DomainCreator<3> {
  public:
-  using maps_list = tmpl::list<domain::CoordinateMap<
-      Frame::Logical, Frame::Inertial, CoordinateMaps::Wedge<3>,
-      CoordinateMaps::EquatorialCompression,
-      CoordinateMaps::ProductOf2Maps<CoordinateMaps::Affine,
-                                     CoordinateMaps::Identity<2>>>>;
+  using maps_list = tmpl::list<
+      domain::CoordinateMap<
+          Frame::Logical, Frame::Inertial, CoordinateMaps::Wedge<3>,
+          CoordinateMaps::EquatorialCompression,
+          CoordinateMaps::ProductOf2Maps<CoordinateMaps::Affine,
+                                         CoordinateMaps::Identity<2>>>,
+      domain::CoordinateMap<
+          Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::SphericalCompression<false>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>>;
 
   struct InnerRadius {
     using type = double;
@@ -69,13 +117,6 @@ class Shell : public DomainCreator<3> {
     using type = std::array<size_t, 2>;
     static constexpr Options::String help = {
         "Initial number of grid points in [r,angular]."};
-  };
-
-  struct TimeDependence {
-    using type =
-        std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>;
-    static constexpr Options::String help = {
-        "The time dependence of the moving mesh domain."};
   };
 
   struct UseEquiangularMap {
@@ -140,13 +181,100 @@ class Shell : public DomainCreator<3> {
     using group = BoundaryConditions;
   };
 
+  // The following options are for optional time dependent maps
+  struct TimeDependentMaps {
+    static constexpr Options::String help = {"Options for time-dependent maps"};
+  };
+
+  /// \brief The initial time of the functions of time.
+  struct InitialTime {
+    using type = double;
+    static constexpr Options::String help = {
+        "The initial time of the functions of time"};
+    using group = TimeDependentMaps;
+  };
+  /// \brief The initial time interval for updates of the functions of time.
+  struct InitialExpirationDeltaT {
+    using type = Options::Auto<double>;
+    static constexpr Options::String help = {
+        "The initial time interval for updates of the functions of time. If "
+        "Auto, then the functions of time do not expire, nor can they be "
+        "updated."};
+    using group = TimeDependentMaps;
+  };
+
+  struct RotationAboutZAxisMap {
+    static constexpr Options::String help = {
+        "Options for a time-dependent rotation map about the z axis"};
+    using group = TimeDependentMaps;
+  };
+  /// \brief The initial value of the rotation angle.
+  struct InitialRotationAngle {
+    using type = double;
+    static constexpr Options::String help = {"Rotation angle at initial time."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The angular velocity of the rotation.
+  struct InitialAngularVelocity {
+    using type = double;
+    static constexpr Options::String help = {"The angular velocity."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The name of the function of time to be added to the added to the
+  /// DataBox for the rotation-about-the-z-axis map.
+  struct RotationAboutZAxisFunctionOfTimeName {
+    using type = std::string;
+    static constexpr Options::String help = {"Name of the function of time."};
+    using group = RotationAboutZAxisMap;
+    static std::string name() noexcept { return "FunctionOfTimeName"; }
+  };
+
+  struct SizeMap {
+    static constexpr Options::String help = {
+        "Options for a time-dependent size maps."};
+    using group = TimeDependentMaps;
+  };
+  struct NumberOfCompressionLayers {
+    using type = size_t;
+    static constexpr Options::String help = {
+        "Number of radial layers affected by the spherical compression map."};
+    using group = SizeMap;
+  };
+  struct InitialSizeMapValue {
+    using type = double;
+    static constexpr Options::String help = {"SizeMap value at initial time."};
+    using group = SizeMap;
+    static std::string name() noexcept { return "InitialValue"; }
+  };
+  struct InitialSizeMapVelocity {
+    using type = double;
+    static constexpr Options::String help = {
+        "SizeMap velocity at initial time."};
+    using group = SizeMap;
+    static std::string name() noexcept { return "InitialVelocity"; }
+  };
+  struct InitialSizeMapAcceleration {
+    using type = double;
+    static constexpr Options::String help = {
+        "SizeMap acceleration at initial time."};
+    using group = SizeMap;
+    static std::string name() noexcept { return "InitialAcceleration"; }
+  };
+  struct SizeMapFunctionOfTimeName {
+    using type = std::string;
+    static constexpr Options::String help = {
+        "Names of SizeMap function of time."};
+    using group = SizeMap;
+    static std::string name() noexcept { return "FunctionOfTimeName"; }
+  };
+
   using basic_options =
       tmpl::list<InnerRadius, OuterRadius, InitialRefinement, InitialGridPoints,
                  UseEquiangularMap, AspectRatio, RadialPartitioning,
-                 RadialDistribution, WhichWedges, TimeDependence>;
+                 RadialDistribution, WhichWedges>;
 
   template <typename Metavariables>
-  using options = tmpl::conditional_t<
+  using time_independent_options = tmpl::conditional_t<
       domain::BoundaryConditions::has_boundary_conditions_base_v<
           typename Metavariables::system>,
       tmpl::push_back<
@@ -158,6 +286,20 @@ class Shell : public DomainCreator<3> {
               domain::BoundaryConditions::get_boundary_conditions_base<
                   typename Metavariables::system>>>,
       basic_options>;
+
+  using time_dependent_options =
+      tmpl::list<InitialTime, InitialExpirationDeltaT, InitialRotationAngle,
+                 InitialAngularVelocity, RotationAboutZAxisFunctionOfTimeName,
+                 NumberOfCompressionLayers, InitialSizeMapValue,
+                 InitialSizeMapVelocity, InitialSizeMapAcceleration,
+                 SizeMapFunctionOfTimeName>;
+
+  template <typename Metavariables>
+  using options = tmpl::conditional_t<
+      Shell_detail::enable_time_dependent_maps_v<Metavariables>,
+      tmpl::append<time_dependent_options,
+                   time_independent_options<Metavariables>>,
+      time_independent_options<Metavariables>>;
 
   static constexpr Options::String help{
       "Creates a 3D spherical shell with 6 Blocks. `UseEquiangularMap` has\n"
@@ -177,8 +319,20 @@ class Shell : public DomainCreator<3> {
       "radial distributions specified for N radial partitions. For simple "
       "h-refinement where the number but not the locations of the radial "
       "boundaries are important, the InitialRefinement option should be used "
-      "instead of RadialPartitioning."};
+      "instead of RadialPartitioning. Note that the domain optionally includes "
+      "time-dependent maps; enabling "
+      "the time-dependent maps requires adding a "
+      "struct named domain to the Metavariables, with this "
+      "struct conforming to domain::protocols::Metavariables. To enable the "
+      "time-dependent maps, set "
+      "Metavariables::domain::enable_time_dependent_maps to "
+      "true."};
 
+  // Constructor for time-independent version of the domain
+  // (i.e., for when
+  // Metavariables::domain::enable_time_dependent_maps == false or
+  // when the metavariables do not define
+  // Metavariables::domain::enable_time_dependent_maps)
   Shell(double inner_radius, double outer_radius, size_t initial_refinement,
         std::array<size_t, 2> initial_number_of_grid_points,
         bool use_equiangular_map = true, double aspect_ratio = 1.0,
@@ -186,8 +340,29 @@ class Shell : public DomainCreator<3> {
         std::vector<domain::CoordinateMaps::Distribution> radial_distribution =
             {domain::CoordinateMaps::Distribution::Linear},
         ShellWedges = ShellWedges::All,
-        std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
-            time_dependence = nullptr,
+        std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+            inner_boundary_condition = nullptr,
+        std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+            outer_boundary_condition = nullptr,
+        const Options::Context& context = {});
+
+  // Constructor for time-dependent version of the domain
+  // (i.e., for when
+  // Metavariables::domain::enable_time_dependent_maps == true),
+  // with parameters corresponding to the additional options
+  Shell(double initial_time, std::optional<double> initial_expiration_delta_t,
+        double initial_rotation_angle, double initial_angular_velocity,
+        std::string rotation_about_z_axis_function_of_time_name,
+        size_t number_of_compression_layers, double initial_size_map_value,
+        double initial_size_map_velocity, double initial_size_map_acceleration,
+        std::string size_map_function_of_time_name, double inner_radius,
+        double outer_radius, size_t initial_refinement,
+        std::array<size_t, 2> initial_number_of_grid_points,
+        bool use_equiangular_map = true, double aspect_ratio = 1.0,
+        std::vector<double> radial_partitioning = {},
+        std::vector<domain::CoordinateMaps::Distribution> radial_distribution =
+            {domain::CoordinateMaps::Distribution::Linear},
+        ShellWedges = ShellWedges::All,
         std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
             inner_boundary_condition = nullptr,
         std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -213,6 +388,8 @@ class Shell : public DomainCreator<3> {
       std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>> override;
 
  private:
+  void check_for_parse_errors(const Options::Context& context) const;
+
   double inner_radius_{};
   double outer_radius_{};
   size_t initial_refinement_{};
@@ -222,12 +399,23 @@ class Shell : public DomainCreator<3> {
   std::vector<double> radial_partitioning_ = {};
   std::vector<domain::CoordinateMaps::Distribution> radial_distribution_{};
   ShellWedges which_wedges_ = ShellWedges::All;
-  std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
-      time_dependence_;
   size_t number_of_layers_{};
   std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
       inner_boundary_condition_;
   std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
       outer_boundary_condition_;
+
+  // Variables for FunctionsOfTime options
+  bool enable_time_dependence_;
+  double initial_time_;
+  std::optional<double> initial_expiration_delta_t_;
+  double initial_rotation_angle_;
+  double initial_angular_velocity_;
+  std::string rotation_about_z_axis_function_of_time_name_;
+  size_t number_of_compression_layers_;
+  double initial_size_map_value_;
+  double initial_size_map_velocity_;
+  double initial_size_map_acceleration_;
+  std::string size_map_function_of_time_name_;
 };
 }  // namespace domain::creators
