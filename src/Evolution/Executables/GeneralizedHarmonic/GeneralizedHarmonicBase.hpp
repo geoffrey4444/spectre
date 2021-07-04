@@ -14,6 +14,7 @@
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Protocols/Metavariables.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
 #include "Evolution/Actions/ComputeTimeDerivative.hpp"
@@ -213,6 +214,9 @@ struct GeneralizedHarmonicTemplateBase<
 
   using initial_data = InitialData;
   using analytic_solution_tag = Tags::AnalyticSolution<BoundaryConditions>;
+  struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = true;
+  };
 
   using observe_fields = tmpl::append<
       tmpl::push_back<
@@ -342,7 +346,7 @@ struct GeneralizedHarmonicTemplateBase<
       std::conditional_t<
           evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
           evolution::Initialization::Actions::SetVariables<
-              domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
+              ::domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
       Initialization::Actions::TimeStepperHistory<derived_metavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
       Initialization::Actions::AddComputeTags<tmpl::push_back<
