@@ -18,6 +18,8 @@ namespace gr {
 namespace Solutions {
 template <size_t Dim>
 struct GaugeWave;
+template <size_t Dim>
+struct Minkowski;
 }  // namespace Solutions
 }  // namespace gr
 namespace evolution {
