@@ -62,6 +62,13 @@ add_generalized_harmonic_executable(
 )
 
 add_generalized_harmonic_no_horizon_executable(
+  Minkowski
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  "${LIBS_TO_LINK};GeneralRelativitySolutions"
+)
+
+add_generalized_harmonic_no_horizon_executable(
   GaugeWave
   GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::GaugeWave<3>>
   GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::GaugeWave<3>>
