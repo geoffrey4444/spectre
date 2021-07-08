@@ -32,6 +32,8 @@ template <bool InteriorMap>
 class SphericalCompression;
 template <size_t VolumeDim>
 class CubicScale;
+template <size_t VolumeDim>
+class Rotation;
 template <typename Map1, typename Map2>
 class ProductOf2Maps;
 }  // namespace TimeDependent
@@ -92,8 +94,17 @@ class Shell : public DomainCreator<3> {
                                          CoordinateMaps::Identity<2>>>,
       domain::CoordinateMap<
           Frame::Grid, Frame::Inertial,
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>,
+      domain::CoordinateMap<
+          Frame::Grid, Frame::Inertial,
           domain::CoordinateMaps::TimeDependent::SphericalCompression<false>,
-          domain::CoordinateMaps::TimeDependent::CubicScale<3>>>;
+          domain::CoordinateMaps::TimeDependent::CubicScale<3>,
+          domain::CoordinateMaps::TimeDependent::ProductOf2Maps<
+              domain::CoordinateMaps::TimeDependent::Rotation<2>,
+              domain::CoordinateMaps::Identity<1>>>>;
 
   struct InnerRadius {
     using type = double;
@@ -253,6 +264,32 @@ class Shell : public DomainCreator<3> {
     static std::string name() noexcept { return "FunctionOfTimeName"; }
   };
 
+  struct RotationAboutZAxisMap {
+    static constexpr Options::String help = {
+        "Options for a time-dependent rotation map about the z axis"};
+    using group = TimeDependentMaps;
+  };
+  /// \brief The initial value of the rotation angle.
+  struct InitialRotationAngle {
+    using type = double;
+    static constexpr Options::String help = {"Rotation angle at initial time."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The angular velocity of the rotation.
+  struct InitialAngularVelocity {
+    using type = double;
+    static constexpr Options::String help = {"The angular velocity."};
+    using group = RotationAboutZAxisMap;
+  };
+  /// \brief The name of the function of time to be added to the added to the
+  /// DataBox for the rotation-about-the-z-axis map.
+  struct RotationAboutZAxisFunctionOfTimeName {
+    using type = std::string;
+    static constexpr Options::String help = {"Name of the function of time."};
+    using group = RotationAboutZAxisMap;
+    static std::string name() noexcept { return "FunctionOfTimeName"; }
+  };
+
   struct SizeMap {
     static constexpr Options::String help = {
         "Options for a time-dependent size maps."};
@@ -311,14 +348,14 @@ class Shell : public DomainCreator<3> {
                   typename Metavariables::system>>>,
       basic_options>;
 
-  using time_dependent_options =
-      tmpl::list<InitialTime, InitialExpirationDeltaT,
-                 ExpansionMapOuterBoundary, InitialExpansion,
-                 InitialExpansionVelocity, AsymptoticVelocityOuterBoundary,
-                 DecayTimescaleOuterBoundaryVelocity,
-                 ExpansionFunctionOfTimeName, NumberOfCompressionLayers,
-                 InitialSizeMapValue, InitialSizeMapVelocity,
-                 InitialSizeMapAcceleration, SizeMapFunctionOfTimeName>;
+  using time_dependent_options = tmpl::list<
+      InitialTime, InitialExpirationDeltaT, ExpansionMapOuterBoundary,
+      InitialExpansion, InitialExpansionVelocity,
+      AsymptoticVelocityOuterBoundary, DecayTimescaleOuterBoundaryVelocity,
+      ExpansionFunctionOfTimeName, InitialRotationAngle, InitialAngularVelocity,
+      RotationAboutZAxisFunctionOfTimeName, NumberOfCompressionLayers,
+      InitialSizeMapValue, InitialSizeMapVelocity, InitialSizeMapAcceleration,
+      SizeMapFunctionOfTimeName>;
 
   template <typename Metavariables>
   using options = tmpl::conditional_t<
@@ -382,6 +419,8 @@ class Shell : public DomainCreator<3> {
         double asymptotic_velocity_outer_boundary,
         double decay_timescale_outer_boundary_velocity,
         std::string expansion_function_of_time_name,
+        double initial_rotation_angle, double initial_angular_velocity,
+        std::string rotation_about_z_axis_function_of_time_name,
         size_t number_of_compression_layers, double initial_size_map_value,
         double initial_size_map_velocity, double initial_size_map_acceleration,
         std::string size_map_function_of_time_name, double inner_radius,
@@ -444,6 +483,9 @@ class Shell : public DomainCreator<3> {
   double asymptotic_velocity_outer_boundary_;
   double decay_timescale_outer_boundary_velocity_;
   std::string expansion_function_of_time_name_;
+  double initial_rotation_angle_;
+  double initial_angular_velocity_;
+  std::string rotation_about_z_axis_function_of_time_name_;
   size_t number_of_compression_layers_;
   double initial_size_map_value_;
   double initial_size_map_velocity_;

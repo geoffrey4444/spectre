@@ -14,6 +14,9 @@
 #include "Domain/CoordinateMaps/CoordinateMap.tpp"
 #include "Domain/CoordinateMaps/Identity.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/CubicScale.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/TimeDependent/Rotation.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/SphericalCompression.hpp"
 #include "Domain/Creators/DomainCreator.hpp"  // IWYU pragma: keep
 #include "Domain/Domain.hpp"
@@ -151,6 +154,9 @@ Shell::Shell(
       decay_timescale_outer_boundary_velocity_(
           std::numeric_limits<double>::signaling_NaN()),
       expansion_function_of_time_name_({}),
+      initial_rotation_angle_(std::numeric_limits<double>::signaling_NaN()),
+      initial_angular_velocity_(std::numeric_limits<double>::signaling_NaN()),
+      rotation_about_z_axis_function_of_time_name_({}),
       number_of_compression_layers_(0),
       initial_size_map_value_(std::numeric_limits<double>::signaling_NaN()),
       initial_size_map_velocity_(std::numeric_limits<double>::signaling_NaN()),
@@ -169,7 +175,9 @@ Shell::Shell(
     double initial_expansion_velocity,
     double asymptotic_velocity_outer_boundary,
     double decay_timescale_outer_boundary_velocity,
-    std::string expansion_function_of_time_name,
+    std::string expansion_function_of_time_name, double initial_rotation_angle,
+    double initial_angular_velocity,
+    std::string rotation_about_z_axis_function_of_time_name,
     size_t number_of_compression_layers, double initial_size_map_value,
     double initial_size_map_velocity, double initial_size_map_acceleration,
     std::string size_map_function_of_time_name, double inner_radius,
@@ -205,6 +213,10 @@ Shell::Shell(
       decay_timescale_outer_boundary_velocity_(
           decay_timescale_outer_boundary_velocity),
       expansion_function_of_time_name_(expansion_function_of_time_name),
+      initial_rotation_angle_(initial_rotation_angle),
+      initial_angular_velocity_(initial_angular_velocity),
+      rotation_about_z_axis_function_of_time_name_(
+          std::move(rotation_about_z_axis_function_of_time_name)),
       number_of_compression_layers_(number_of_compression_layers),
       initial_size_map_value_(initial_size_map_value),
       initial_size_map_velocity_(initial_size_map_velocity),
@@ -262,14 +274,26 @@ Domain<3> Shell::create_domain() const noexcept {
     using CubicScaleMapForComposition =
         domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap>;
 
+    using IdentityMap1D = domain::CoordinateMaps::Identity<1>;
+    using RotationMap2D = domain::CoordinateMaps::TimeDependent::Rotation<2>;
+    using RotationMap =
+        domain::CoordinateMaps::TimeDependent::ProductOf2Maps<RotationMap2D,
+                                                              IdentityMap1D>;
+    using RotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, RotationMap>;
+
+    using CubicScaleAndRotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap,
+                              RotationMap>;
+
     using CompressionMap =
         domain::CoordinateMaps::TimeDependent::SphericalCompression<false>;
     using CompressionMapForComposition =
         domain::CoordinateMap<Frame::Grid, Frame::Inertial, CompressionMap>;
 
-    using CompressionAndCubicScaleMapForComposition =
+    using CompressionAndCubicScaleAndRotationMapForComposition =
         domain::CoordinateMap<Frame::Grid, Frame::Inertial, CompressionMap,
-                              CubicScaleMap>;
+                              CubicScaleMap, RotationMap>;
 
     size_t blocks_per_layer = 6;
     if (UNLIKELY(which_wedges_ == ShellWedges::FourOnEquator)) {
@@ -286,28 +310,37 @@ Domain<3> Shell::create_domain() const noexcept {
 
     // The outermost shell is never deformed by the size map.
     block_maps[number_of_blocks - 1] =
-        std::make_unique<CubicScaleMapForComposition>(
-            CubicScaleMapForComposition{CubicScaleMap{
-                expansion_map_outer_boundary_, expansion_function_of_time_name_,
-                expansion_function_of_time_name_ + "OuterBoundary"s}});
+        std::make_unique<CubicScaleAndRotationMapForComposition>(
+            domain::push_back(
+                CubicScaleMapForComposition{CubicScaleMap{
+                    expansion_map_outer_boundary_,
+                    expansion_function_of_time_name_,
+                    expansion_function_of_time_name_ + "OuterBoundary"s}},
+                RotationMapForComposition{RotationMap{
+                    RotationMap2D{rotation_about_z_axis_function_of_time_name_},
+                    IdentityMap1D{}}}));
 
     // If the number of shells included in the spherical compression is
     // greater than zero, some blocks will instead have a block map that
     // is a composition of a compression map and an expansion map
     if (number_of_compression_layers_ > 0) {
-      block_maps[0] =
-          std::make_unique<CompressionAndCubicScaleMapForComposition>(
+      block_maps[0] = std::make_unique<
+          CompressionAndCubicScaleAndRotationMapForComposition>(
+          domain::push_back(
+              CompressionMapForComposition{CompressionMap{
+                  size_map_function_of_time_name_,
+                  inner_radius_,
+                  radial_partitioning_.at(number_of_compression_layers_ - 1),
+                  {{0.0, 0.0, 0.0}}}},
               domain::push_back(
-                  CompressionMapForComposition{CompressionMap{
-                      size_map_function_of_time_name_,
-                      inner_radius_,
-                      radial_partitioning_.at(number_of_compression_layers_ -
-                                              1),
-                      {{0.0, 0.0, 0.0}}}},
                   CubicScaleMapForComposition{CubicScaleMap{
                       expansion_map_outer_boundary_,
                       expansion_function_of_time_name_,
-                      expansion_function_of_time_name_ + "OuterBoundary"s}}));
+                      expansion_function_of_time_name_ + "OuterBoundary"s}},
+                  RotationMapForComposition{RotationMap{
+                      RotationMap2D{
+                          rotation_about_z_axis_function_of_time_name_},
+                      IdentityMap1D{}}})));
     } else {
       block_maps[0] = block_maps[number_of_blocks - 1]->get_clone();
     }
@@ -382,6 +415,17 @@ Shell::functions_of_time() const noexcept {
       std::make_unique<FunctionsOfTime::FixedSpeedCubic>(
           1.0, initial_time_, asymptotic_velocity_outer_boundary_,
           decay_timescale_outer_boundary_velocity_);
+
+  // RotationAboutZAxisMap FunctionOfTime for the rotation angle about the z
+  // axis \f$\phi\f$.
+  result[rotation_about_z_axis_function_of_time_name_] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time_,
+          std::array<DataVector, 4>{{{initial_rotation_angle_},
+                                     {initial_angular_velocity_},
+                                     {0.0},
+                                     {0.0}}},
+          initial_expiration_time);
 
   // CompressionMap FunctionOfTime
   result[size_map_function_of_time_name_] =
