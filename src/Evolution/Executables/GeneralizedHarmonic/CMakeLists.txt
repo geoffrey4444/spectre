@@ -23,6 +23,17 @@ function(add_generalized_harmonic_no_horizon_executable
     )
 endfunction(add_generalized_harmonic_no_horizon_executable)
 
+function(add_generalized_harmonic_binary_black_hole_executable
+    INITIAL_DATA_NAME INITIAL_DATA BOUNDARY_CONDITIONS LIBS_TO_LINK)
+  add_spectre_parallel_executable(
+    "EvolveGh${INITIAL_DATA_NAME}"
+    EvolveBinaryBlackHole
+    Evolution/Executables/GeneralizedHarmonic
+    "EvolutionMetavars<${INITIAL_DATA}, ${BOUNDARY_CONDITIONS}>"
+    "${LIBS_TO_LINK}"
+    )
+endfunction(add_generalized_harmonic_binary_black_hole_executable)
+
 set(LIBS_TO_LINK
   CoordinateMaps
   DiscontinuousGalerkin
@@ -75,3 +86,9 @@ add_generalized_harmonic_no_horizon_executable(
   "${LIBS_TO_LINK};GeneralRelativitySolutions;Importers"
 )
 
+add_generalized_harmonic_binary_black_hole_executable(
+  BinaryBlackHole
+  evolution::NumericInitialData
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>
+  "${LIBS_TO_LINK};GeneralRelativitySolutions;Importers"
+)
