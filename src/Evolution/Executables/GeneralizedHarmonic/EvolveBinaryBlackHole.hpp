@@ -51,6 +51,37 @@ struct EvolutionMetavars
     static constexpr bool enable_time_dependent_maps = true;
   };
 
+  using observe_fields = tmpl::append<tmpl::push_back<
+      tmpl::list<>, gr::Tags::Lapse<DataVector>,
+      ::Tags::PointwiseL2Norm<
+          GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
+      ::Tags::PointwiseL2Norm<
+          GeneralizedHarmonic::Tags::ThreeIndexConstraint<volume_dim, frame>>>>;
+  struct factory_creation
+      : tt::ConformsTo<Options::protocols::FactoryCreation> {
+    using factory_classes = tmpl::map<
+        tmpl::pair<DenseTrigger, DenseTriggers::standard_dense_triggers>,
+        tmpl::pair<DomainCreator<volume_dim>, domain_creators<volume_dim>>,
+        tmpl::pair<Event,
+                   tmpl::flatten<tmpl::list<Events::Completion,
+                                            dg::Events::field_observations<
+                                                volume_dim, Tags::Time,
+                                                observe_fields, tmpl::list<>>,
+                                            Events::time_events<system>>>>,
+        tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
+                   StepChoosers::standard_step_choosers<system>>,
+        tmpl::pair<
+            StepChooser<StepChooserUse::Slab>,
+            StepChoosers::standard_slab_choosers<system, local_time_stepping>>,
+        tmpl::pair<StepController, StepControllers::standard_step_controllers>,
+        tmpl::pair<TimeSequence<double>,
+                   TimeSequences::all_time_sequences<double>>,
+        tmpl::pair<TimeSequence<std::uint64_t>,
+                   TimeSequences::all_time_sequences<std::uint64_t>>,
+        tmpl::pair<Trigger, tmpl::append<Triggers::logical_triggers,
+                                         Triggers::time_triggers>>>;
+  };
+
   using phase_changes =
       tmpl::list<PhaseControl::Registrars::VisitAndReturn<
                      GeneralizedHarmonicTemplateBase<
