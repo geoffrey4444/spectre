@@ -14,6 +14,8 @@
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RegisterDerivedWithCharm.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryCorrections/RegisterDerived.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/RegisterDerivedWithCharm.hpp"
+#include "NumericalAlgorithms/LinearOperators/ExponentialFilter.hpp"
+#include "NumericalAlgorithms/LinearOperators/FilterAction.hpp"
 #include "Options/Options.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
 #include "Parallel/PhaseControl/PhaseControlTags.hpp"
@@ -75,6 +77,26 @@ struct EvolutionMetavars
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
       evolution::Actions::InitializeRunEventsAndDenseTriggers,
       Parallel::Actions::TerminatePhase>;
+
+  using step_actions = tmpl::list<
+      evolution::dg::Actions::ComputeTimeDerivative<
+          EvolutionMetavars<InitialData, BoundaryConditions>>,
+      evolution::dg::Actions::ApplyBoundaryCorrections<
+          EvolutionMetavars<InitialData, BoundaryConditions>>,
+      tmpl::conditional_t<
+          local_time_stepping, tmpl::list<>,
+          tmpl::list<
+              Actions::RecordTimeStepperData<>,
+              evolution::Actions::RunEventsAndDenseTriggers<>,
+              Actions::UpdateU<>,
+              dg::Actions::Filter<
+                  Filters::Exponential<0>,
+                  tmpl::list<gr::Tags::SpacetimeMetric<
+                                 volume_dim, Frame::Inertial, DataVector>,
+                             GeneralizedHarmonic::Tags::Pi<volume_dim,
+                                                           Frame::Inertial>,
+                             GeneralizedHarmonic::Tags::Phi<
+                                 volume_dim, Frame::Inertial>>>>>>;
 
   static constexpr Options::String help{
       "Evolve a binary black hole using the Generalized Harmonic "
