@@ -35,9 +35,6 @@ struct EvolutionMetavars
     : public virtual GeneralizedHarmonicDefaults,
       public GeneralizedHarmonicTemplateBase<
           EvolutionMetavars<InitialData, BoundaryConditions>> {
-  using const_global_cache_tags =
-      typename GeneralizedHarmonicTemplateBase<EvolutionMetavars<
-          InitialData, BoundaryConditions>>::const_global_cache_tags;
   using observed_reduction_data_tags =
       typename GeneralizedHarmonicTemplateBase<EvolutionMetavars<
           InitialData, BoundaryConditions>>::observed_reduction_data_tags;
@@ -54,6 +51,25 @@ struct EvolutionMetavars
     static constexpr bool enable_time_dependent_maps = true;
   };
 
+  using phase_changes =
+      tmpl::list<PhaseControl::Registrars::VisitAndReturn<
+                     GeneralizedHarmonicTemplateBase<
+                         EvolutionMetavars<InitialData, BoundaryConditions>>,
+                     Phase::LoadBalancing>,
+                 PhaseControl::Registrars::CheckpointAndExitAfterWallclock<
+                     GeneralizedHarmonicTemplateBase<
+                         EvolutionMetavars<InitialData, BoundaryConditions>>>>;
+
+  using const_global_cache_tags = tmpl::list<
+      Tags::AnalyticSolution<BoundaryConditions>, Tags::EventsAndTriggers,
+      GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
+          volume_dim, Frame::Grid>,
+      GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
+          volume_dim, Frame::Grid>,
+      GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
+          volume_dim, Frame::Grid>,
+      PhaseControl::Tags::PhaseChangeAndTriggers<phase_changes>>;
+
   using initialization_actions = tmpl::list<
       Actions::SetupDataBox,
       Initialization::Actions::TimeAndTimeStep<
@@ -67,7 +83,8 @@ struct EvolutionMetavars
               ::domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
       Initialization::Actions::TimeStepperHistory<
           EvolutionMetavars<InitialData, BoundaryConditions>>,
-      GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
+      GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim,
+                                                                   Frame::Grid>,
       Initialization::Actions::AddComputeTags<tmpl::push_back<
           StepChoosers::step_chooser_compute_tags<
               EvolutionMetavars<InitialData, BoundaryConditions>>,

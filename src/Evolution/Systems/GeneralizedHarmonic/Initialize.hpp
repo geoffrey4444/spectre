@@ -88,7 +88,7 @@ struct InitializeConstraints {
   }
 };
 
-template <size_t Dim>
+template <size_t Dim, typename DampingFrame = Frame::Inertial>
 struct InitializeGhAnd3Plus1Variables {
   using frame = Frame::Inertial;
   using compute_tags = db::AddComputeTags<
@@ -101,17 +101,17 @@ struct InitializeGhAnd3Plus1Variables {
       gr::Tags::SpacetimeNormalVectorCompute<Dim, frame, DataVector>,
       gr::Tags::InverseSpacetimeMetricCompute<Dim, frame, DataVector>,
       GeneralizedHarmonic::Tags::ThreeIndexConstraintCompute<Dim, frame>,
-      ConstraintDamping::Tags::ConstraintGamma0Compute<Dim, frame>,
-      ConstraintDamping::Tags::ConstraintGamma1Compute<Dim, frame>,
-      ConstraintDamping::Tags::ConstraintGamma2Compute<Dim, frame>>;
+      ConstraintDamping::Tags::ConstraintGamma0Compute<Dim, DampingFrame>,
+      ConstraintDamping::Tags::ConstraintGamma1Compute<Dim, DampingFrame>,
+      ConstraintDamping::Tags::ConstraintGamma2Compute<Dim, DampingFrame>>;
 
   using const_global_cache_tags = tmpl::list<
       GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
-          Dim, frame>,
+          Dim, DampingFrame>,
       GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
-          Dim, frame>,
+          Dim, DampingFrame>,
       GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma2<
-          Dim, frame>>;
+          Dim, DampingFrame>>;
 
   template <typename DbTagsList, typename... InboxTags, typename Metavariables,
             typename ArrayIndex, typename ActionList,
