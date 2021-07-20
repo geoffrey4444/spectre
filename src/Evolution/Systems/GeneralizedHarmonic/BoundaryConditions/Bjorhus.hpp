@@ -236,6 +236,8 @@ class ConstraintPreservingBjorhus final : public BoundaryCondition<Dim> {
       gsl::not_null<tnsr::iaa<DataVector, Dim, Frame::Inertial>*>
           char_projected_rhs_dt_v_zero,
       gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
+          char_projected_rhs_dt_v_plus,
+      gsl::not_null<tnsr::aa<DataVector, Dim, Frame::Inertial>*>
           char_projected_rhs_dt_v_minus,
       gsl::not_null<tnsr::a<DataVector, Dim, Frame::Inertial>*>
           constraint_char_zero_plus,
