@@ -10,7 +10,7 @@
 #include "ApparentHorizons/Tags.hpp"
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Tag.hpp"
-#include "Domain/Creators/Factory3D.hpp"
+#include "Domain/Creators/Factory2D.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
@@ -140,7 +140,7 @@ class CProxy_GlobalCache;
 /// \endcond
 
 struct GeneralizedHarmonicDefaults {
-  static constexpr size_t volume_dim = 3;
+  static constexpr size_t volume_dim = 2;
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
