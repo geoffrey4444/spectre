@@ -39,6 +39,14 @@ add_spectre_parallel_executable(
   )
 
 add_spectre_parallel_executable(
+  ExportTimeDependentCoordinates2D
+  ExportCoordinates
+  Executables/ExportCoordinates
+  Metavariables<2,true>
+  "${LIBS_TO_LINK}"
+  )
+
+add_spectre_parallel_executable(
   ExportTimeDependentCoordinates3D
   ExportCoordinates
   Executables/ExportCoordinates
