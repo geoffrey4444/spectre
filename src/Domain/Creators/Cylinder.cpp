@@ -13,10 +13,15 @@
 
 #include "Domain/BoundaryConditions/None.hpp"
 #include "Domain/BoundaryConditions/Periodic.hpp"
+#include "Domain/CoordinateMaps/Identity.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/TimeDependent/Rotation.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
 #include "Domain/Creators/ExpandOverBlocks.hpp"
 #include "Domain/Domain.hpp"
 #include "Domain/DomainHelpers.hpp"
+#include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "Utilities/GetOutput.hpp"
 #include "Utilities/MakeArray.hpp"
 
@@ -26,25 +31,10 @@ struct Inertial;
 }  // namespace Frame
 
 namespace domain::creators {
-Cylinder::Cylinder(
-    const double inner_radius, const double outer_radius,
-    const double lower_bound, const double upper_bound,
-    const bool is_periodic_in_z,
+void Cylinder::check_for_parse_errors_and_init(
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_number_of_grid_points,
-    const bool use_equiangular_map, std::vector<double> radial_partitioning,
-    std::vector<double> height_partitioning,
-    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
-    const Options::Context& context)
-    : inner_radius_(inner_radius),
-      outer_radius_(outer_radius),
-      lower_bound_(lower_bound),
-      upper_bound_(upper_bound),
-      is_periodic_in_z_(is_periodic_in_z),
-      use_equiangular_map_(use_equiangular_map),
-      radial_partitioning_(std::move(radial_partitioning)),
-      height_partitioning_(std::move(height_partitioning)),
-      radial_distribution_(std::move(radial_distribution)) {
+    const Options::Context& context) {
   if (inner_radius_ > outer_radius_) {
     PARSE_ERROR(context,
                 "Inner radius must be smaller than outer radius, but inner "
@@ -170,30 +160,7 @@ Cylinder::Cylinder(
   }
 }
 
-Cylinder::Cylinder(
-    const double inner_radius, const double outer_radius,
-    const double lower_bound, const double upper_bound,
-    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
-        lower_boundary_condition,
-    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
-        upper_boundary_condition,
-    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
-        mantle_boundary_condition,
-    const typename InitialRefinement::type& initial_refinement,
-    const typename InitialGridPoints::type& initial_number_of_grid_points,
-    const bool use_equiangular_map, std::vector<double> radial_partitioning,
-    std::vector<double> height_partitioning,
-    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
-    const Options::Context& context)
-    : Cylinder(inner_radius, outer_radius, lower_bound, upper_bound, false,
-               initial_refinement, initial_number_of_grid_points,
-               use_equiangular_map, std::move(radial_partitioning),
-               std::move(height_partitioning), std::move(radial_distribution),
-               context) {
-  lower_boundary_condition_ = std::move(lower_boundary_condition);
-  upper_boundary_condition_ = std::move(upper_boundary_condition);
-  mantle_boundary_condition_ = std::move(mantle_boundary_condition);
-
+void Cylinder::check_bc_parse_errors(const Options::Context& context) {
   using domain::BoundaryConditions::is_periodic;
   if (is_periodic(lower_boundary_condition_) xor
       is_periodic(upper_boundary_condition_)) {
@@ -229,6 +196,130 @@ Cylinder::Cylinder(
         "Boundary conditions must not be 'nullptr'. Use the other constructor "
         "to specify 'is_periodic_in_z' instead of boundary conditions.");
   }
+}
+
+// Time-independent constructors
+Cylinder::Cylinder(
+    const double inner_radius, const double outer_radius,
+    const double lower_bound, const double upper_bound,
+    const bool is_periodic_in_z,
+    const typename InitialRefinement::type& initial_refinement,
+    const typename InitialGridPoints::type& initial_number_of_grid_points,
+    const bool use_equiangular_map, std::vector<double> radial_partitioning,
+    std::vector<double> height_partitioning,
+    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
+    const Options::Context& context)
+    : inner_radius_(inner_radius),
+      outer_radius_(outer_radius),
+      lower_bound_(lower_bound),
+      upper_bound_(upper_bound),
+      is_periodic_in_z_(is_periodic_in_z),
+      use_equiangular_map_(use_equiangular_map),
+      radial_partitioning_(std::move(radial_partitioning)),
+      height_partitioning_(std::move(height_partitioning)),
+      radial_distribution_(std::move(radial_distribution)),
+      enable_time_dependence_(false),
+      initial_time_(std::numeric_limits<double>::signaling_NaN()),
+      initial_expiration_delta_t_(std::numeric_limits<double>::signaling_NaN()),
+      initial_rotation_angle_(std::numeric_limits<double>::signaling_NaN()),
+      initial_angular_velocity_(std::numeric_limits<double>::signaling_NaN()),
+      rotation_about_z_axis_function_of_time_name_({}) {
+  check_for_parse_errors_and_init(initial_refinement,
+                                  initial_number_of_grid_points, context);
+}
+
+Cylinder::Cylinder(
+    const double inner_radius, const double outer_radius,
+    const double lower_bound, const double upper_bound,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        lower_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        upper_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        mantle_boundary_condition,
+    const typename InitialRefinement::type& initial_refinement,
+    const typename InitialGridPoints::type& initial_number_of_grid_points,
+    const bool use_equiangular_map, std::vector<double> radial_partitioning,
+    std::vector<double> height_partitioning,
+    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
+    const Options::Context& context)
+    : Cylinder(inner_radius, outer_radius, lower_bound, upper_bound, false,
+               initial_refinement, initial_number_of_grid_points,
+               use_equiangular_map, std::move(radial_partitioning),
+               std::move(height_partitioning), std::move(radial_distribution),
+               context) {
+  lower_boundary_condition_ = std::move(lower_boundary_condition);
+  upper_boundary_condition_ = std::move(upper_boundary_condition);
+  mantle_boundary_condition_ = std::move(mantle_boundary_condition);
+
+  check_bc_parse_errors(context);
+}
+
+// Time-dependent constructors
+Cylinder::Cylinder(
+    double initial_time, std::optional<double> initial_expiration_delta_t,
+    double initial_rotation_angle, double initial_angular_velocity,
+    std::string rotation_about_z_axis_function_of_time_name,
+    const double inner_radius, const double outer_radius,
+    const double lower_bound, const double upper_bound,
+    const bool is_periodic_in_z,
+    const typename InitialRefinement::type& initial_refinement,
+    const typename InitialGridPoints::type& initial_number_of_grid_points,
+    const bool use_equiangular_map, std::vector<double> radial_partitioning,
+    std::vector<double> height_partitioning,
+    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
+    const Options::Context& context)
+    : inner_radius_(inner_radius),
+      outer_radius_(outer_radius),
+      lower_bound_(lower_bound),
+      upper_bound_(upper_bound),
+      is_periodic_in_z_(is_periodic_in_z),
+      use_equiangular_map_(use_equiangular_map),
+      radial_partitioning_(std::move(radial_partitioning)),
+      height_partitioning_(std::move(height_partitioning)),
+      radial_distribution_(std::move(radial_distribution)),
+      enable_time_dependence_(true),
+      initial_time_(initial_time),
+      initial_expiration_delta_t_(initial_expiration_delta_t),
+      initial_rotation_angle_(initial_rotation_angle),
+      initial_angular_velocity_(initial_angular_velocity),
+      rotation_about_z_axis_function_of_time_name_(
+          rotation_about_z_axis_function_of_time_name) {
+  check_for_parse_errors_and_init(initial_refinement,
+                                  initial_number_of_grid_points, context);
+}
+
+Cylinder::Cylinder(
+    double initial_time, std::optional<double> initial_expiration_delta_t,
+    double initial_rotation_angle, double initial_angular_velocity,
+    std::string rotation_about_z_axis_function_of_time_name,
+    const double inner_radius, const double outer_radius,
+    const double lower_bound, const double upper_bound,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        lower_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        upper_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        mantle_boundary_condition,
+    const typename InitialRefinement::type& initial_refinement,
+    const typename InitialGridPoints::type& initial_number_of_grid_points,
+    const bool use_equiangular_map, std::vector<double> radial_partitioning,
+    std::vector<double> height_partitioning,
+    std::vector<domain::CoordinateMaps::Distribution> radial_distribution,
+    const Options::Context& context)
+    : Cylinder(initial_time, initial_expiration_delta_t, initial_rotation_angle,
+               initial_angular_velocity,
+               rotation_about_z_axis_function_of_time_name, inner_radius,
+               outer_radius, lower_bound, upper_bound, false,
+               initial_refinement, initial_number_of_grid_points,
+               use_equiangular_map, std::move(radial_partitioning),
+               std::move(height_partitioning), std::move(radial_distribution),
+               context) {
+  lower_boundary_condition_ = std::move(lower_boundary_condition);
+  upper_boundary_condition_ = std::move(upper_boundary_condition);
+  mantle_boundary_condition_ = std::move(mantle_boundary_condition);
+
+  check_bc_parse_errors(context);
 }
 
 Domain<3> Cylinder::create_domain() const noexcept {
@@ -300,13 +391,46 @@ Domain<3> Cylinder::create_domain() const noexcept {
     }
   }
 
-  return Domain<3>{cyl_wedge_coordinate_maps<Frame::Inertial>(
+  Domain<3> domain{cyl_wedge_coordinate_maps<Frame::Inertial>(
                        inner_radius_, outer_radius_, lower_bound_, upper_bound_,
                        use_equiangular_map_, radial_partitioning_,
                        height_partitioning_, radial_distribution_),
                    corners_for_cylindrical_layered_domains(number_of_shells,
                                                            number_of_discs),
                    pairs_of_faces, std::move(boundary_conditions_all_blocks)};
+
+  // Inject the hard-coded time-dependence
+  if (enable_time_dependence_) {
+    using IdentityMap1D = domain::CoordinateMaps::Identity<1>;
+    using RotationMap2D = domain::CoordinateMaps::TimeDependent::Rotation<2>;
+    using RotationMap =
+        domain::CoordinateMaps::TimeDependent::ProductOf2Maps<RotationMap2D,
+                                                              IdentityMap1D>;
+    using RotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, RotationMap>;
+
+    const size_t number_of_blocks{(1 + 4 * number_of_shells) * number_of_discs};
+    std::vector<std::unique_ptr<
+        domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, 3>>>
+        block_maps{number_of_blocks};
+    block_maps[0] = std::make_unique<RotationMapForComposition>(
+        RotationMapForComposition{RotationMap{
+            RotationMap2D{rotation_about_z_axis_function_of_time_name_},
+            IdentityMap1D{}}});
+
+    // Fill in the rest of the block maps by cloning the relevant maps
+    for (size_t block = 1; block < number_of_blocks; ++block) {
+      block_maps[block] = block_maps[0]->get_clone();
+    }
+
+    // Finally, inject the time dependent maps into the corresponding blocks
+    for (size_t block = 0; block < number_of_blocks; ++block) {
+      domain.inject_time_dependent_map_for_block(block,
+                                                 std::move(block_maps[block]));
+    }
+  }
+
+  return domain;
 }
 
 std::vector<std::array<size_t, 3>> Cylinder::initial_extents() const noexcept {
@@ -316,5 +440,31 @@ std::vector<std::array<size_t, 3>> Cylinder::initial_extents() const noexcept {
 std::vector<std::array<size_t, 3>> Cylinder::initial_refinement_levels() const
     noexcept {
   return initial_refinement_;
+}
+
+auto Cylinder::functions_of_time() const noexcept -> std::unordered_map<
+    std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>> {
+  std::unordered_map<std::string,
+                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+      result{};
+  if (not enable_time_dependence_) {
+    return result;
+  }
+  const double initial_expiration_time =
+      initial_expiration_delta_t_ ? initial_time_ + *initial_expiration_delta_t_
+                                  : std::numeric_limits<double>::infinity();
+
+  // RotationAboutZAxisMap FunctionOfTime for the rotation angle about the z
+  // axis \f$\phi\f$.
+  result[rotation_about_z_axis_function_of_time_name_] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
+          initial_time_,
+          std::array<DataVector, 4>{{{initial_rotation_angle_},
+                                     {initial_angular_velocity_},
+                                     {0.0},
+                                     {0.0}}},
+          initial_expiration_time);
+
+  return result;
 }
 }  // namespace domain::creators
