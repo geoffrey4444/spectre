@@ -13,6 +13,7 @@
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
+#include "Domain/Protocols/Metavariables.hpp"
 #include "Domain/Tags.hpp"
 #include "Evolution/Actions/RunEventsAndDenseTriggers.hpp"
 #include "Evolution/ComputeTags.hpp"
@@ -34,6 +35,7 @@
 #include "Evolution/Systems/ScalarWave/Equations.hpp"
 #include "Evolution/Systems/ScalarWave/Initialize.hpp"
 #include "Evolution/Systems/ScalarWave/System.hpp"
+#include "Evolution/Systems/ScalarWave/Tags.hpp"
 #include "Evolution/TypeTraits.hpp"
 #include "IO/Observer/Actions/RegisterEvents.hpp"
 #include "IO/Observer/Helpers.hpp"            // IWYU pragma: keep
@@ -126,23 +128,33 @@ struct EvolutionMetavars {
 
   using observe_fields = typename system::variables_tag::tags_list;
   using analytic_solution_fields = observe_fields;
+  struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = true;
+  };
 
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = tmpl::map<
         tmpl::pair<DenseTrigger, DenseTriggers::standard_dense_triggers>,
         tmpl::pair<DomainCreator<volume_dim>, domain_creators<volume_dim>>,
-        tmpl::pair<Event, tmpl::flatten<tmpl::list<
-                              Events::Completion,
-                              dg::Events::field_observations<
-                                  volume_dim, Tags::Time, observe_fields,
-                                  analytic_solution_fields>,
-                              Events::time_events<system>>>>,
         tmpl::pair<
-            StepChooser<StepChooserUse::LtsStep>,
-            tmpl::push_back<
-                StepChoosers::standard_step_choosers<system>,
-                StepChoosers::ByBlock<StepChooserUse::LtsStep, volume_dim>>>,
+            Event,
+            tmpl::flatten<tmpl::list<
+                Events::Completion,
+                dg::Events::field_observations<
+                    volume_dim, Tags::Time,
+                    tmpl::push_back<
+                        observe_fields,
+                        ::Tags::PointwiseL2Norm<
+                            ScalarWave::Tags::OneIndexConstraint<volume_dim>>,
+                        ::Tags::PointwiseL2Norm<
+                            ScalarWave::Tags::TwoIndexConstraint<volume_dim>>>,
+                    tmpl::list<>>,
+                Events::time_events<system>>>>,
+        tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
+                   tmpl::push_back<StepChoosers::standard_step_choosers<system>,
+                                   StepChoosers::ByBlock<
+                                       StepChooserUse::LtsStep, volume_dim>>>,
         tmpl::pair<StepChooser<StepChooserUse::Slab>,
                    tmpl::push_back<StepChoosers::standard_slab_choosers<
                                        system, local_time_stepping>,
@@ -227,7 +239,7 @@ struct EvolutionMetavars {
                  evolution::dg::Initialization::Domain<volume_dim>,
                  Initialization::Actions::NonconservativeSystem<system>,
                  evolution::Initialization::Actions::SetVariables<
-                     domain::Tags::Coordinates<Dim, Frame::Logical>>,
+                     ::domain::Tags::Coordinates<Dim, Frame::Logical>>,
                  Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
                  ScalarWave::Actions::InitializeConstraints<volume_dim>,
                  Initialization::Actions::AddComputeTags<tmpl::push_back<
