@@ -421,14 +421,6 @@ class BinaryCompactObject : public DomainCreator<3> {
     static constexpr Options::String help = {
         "The initial time of the functions of time"};
   };
-  /// \brief The initial time interval for updates of the functions of time.
-  struct InitialExpirationDeltaT {
-    using type = Options::Auto<double>;
-    static constexpr Options::String help = {
-        "The initial time interval for updates of the functions of time. If "
-        "Auto, then the functions of time do not expire, nor can they be "
-        "updated."};
-  };
 
   struct ExpansionMap {
     static constexpr Options::String help = {
@@ -526,6 +518,33 @@ class BinaryCompactObject : public DomainCreator<3> {
         "Names of SizeMapA, SizeMapB functions of time."};
     using group = SizeMap;
   };
+  /// \brief The initial time interval for updates of the expansion map.
+  struct InitialExpansionExpirationDeltaT {
+    using type = Options::Auto<double>;
+    static constexpr Options::String help = {
+        "The initial time interval for updates of the functions of time. If "
+        "Auto, then the functions of time do not expire, nor can they be "
+        "updated."};
+    using group = ExpansionMap;
+  };
+  /// \brief The initial time interval for updates of the expansion map.
+  struct InitialSizeMapExpirationDeltaT {
+    using type = Options::Auto<double>;
+    static constexpr Options::String help = {
+        "The initial time interval for updates of the functions of time. If "
+        "Auto, then the functions of time do not expire, nor can they be "
+        "updated."};
+    using group = SizeMap;
+  };
+  /// \brief The initial time interval for updates of the expansion map.
+  struct InitialRotationExpirationDeltaT {
+    using type = Options::Auto<double>;
+    static constexpr Options::String help = {
+        "The initial time interval for updates of the functions of time. If "
+        "Auto, then the functions of time do not expire, nor can they be "
+        "updated."};
+    using group = RotationAboutZAxisMap;
+  };
 
   using time_independent_options =
       tmpl::list<ObjectA, ObjectB, RadiusEnvelopingCube, RadiusOuterSphere,
@@ -533,13 +552,14 @@ class BinaryCompactObject : public DomainCreator<3> {
                  UseLogarithmicMapOuterSphericalShell,
                  AdditionToOuterLayerRadialRefinementLevel>;
   using time_dependent_options =
-      tmpl::list<InitialTime, InitialExpirationDeltaT,
-                 ExpansionMapOuterBoundary, InitialExpansion,
-                 InitialExpansionVelocity, ExpansionFunctionOfTimeNames,
-                 InitialRotationAngle, InitialAngularVelocity,
-                 RotationAboutZAxisFunctionOfTimeName, InitialSizeMapValues,
-                 InitialSizeMapVelocities, InitialSizeMapAccelerations,
-                 SizeMapFunctionOfTimeNames>;
+      tmpl::list<InitialTime, InitialExpansionExpirationDeltaT,
+                 InitialSizeMapExpirationDeltaT,
+                 InitialRotationExpirationDeltaT, ExpansionMapOuterBoundary,
+                 InitialExpansion, InitialExpansionVelocity,
+                 ExpansionFunctionOfTimeNames, InitialRotationAngle,
+                 InitialAngularVelocity, RotationAboutZAxisFunctionOfTimeName,
+                 InitialSizeMapValues, InitialSizeMapVelocities,
+                 InitialSizeMapAccelerations, SizeMapFunctionOfTimeNames>;
 
   template <typename Metavariables>
   using options = tmpl::conditional_t<
@@ -589,7 +609,9 @@ class BinaryCompactObject : public DomainCreator<3> {
 
   BinaryCompactObject(
       typename InitialTime::type initial_time,
-      std::optional<double> initial_expiration_delta_t,
+      std::optional<double> initial_expansion_expiration_delta_t,
+      std::optional<double> initial_size_map_expiration_delta_t,
+      std::optional<double> initial_rotation_expiration_delta_t,
       typename ExpansionMapOuterBoundary::type expansion_map_outer_boundary,
       typename InitialExpansion::type initial_expansion,
       typename InitialExpansionVelocity::type initial_expansion_velocity,
@@ -657,7 +679,9 @@ class BinaryCompactObject : public DomainCreator<3> {
   // Variables for FunctionsOfTime options
   bool enable_time_dependence_;
   typename InitialTime::type initial_time_;
-  std::optional<double> initial_expiration_delta_t_;
+  std::optional<double> initial_expansion_expiration_delta_t_;
+  std::optional<double> initial_size_map_expiration_delta_t_;
+  std::optional<double> initial_rotation_expiration_delta_t_;
   typename ExpansionMapOuterBoundary::type expansion_map_outer_boundary_;
   typename InitialExpansion::type initial_expansion_;
   typename InitialExpansionVelocity::type initial_expansion_velocity_;
