@@ -655,6 +655,9 @@ class BinaryCompactObject : public DomainCreator<3> {
       std::string,
       std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>> override;
 
+  double xcoord_object_a() const noexcept { return object_A_.x_coord; }
+  double xcoord_object_b() const noexcept { return object_B_.x_coord; }
+
  private:
   void check_for_parse_errors(const Options::Context& context) const;
   void initialize_calculated_member_variables() noexcept;
