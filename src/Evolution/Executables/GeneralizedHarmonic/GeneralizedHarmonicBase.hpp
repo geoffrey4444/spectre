@@ -208,7 +208,44 @@ struct GeneralizedHarmonicDefaults {
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
   };
 
-  using interpolation_target_tags = tmpl::list<AhA>;
+  struct AhB {
+    using tags_to_observe =
+        tmpl::list<StrahlkorperGr::Tags::AreaCompute<frame>>;
+    using compute_items_on_source = tmpl::list<
+        gr::Tags::SpatialMetricCompute<volume_dim, frame, DataVector>,
+        ah::Tags::InverseSpatialMetricCompute<volume_dim, frame>,
+        ah::Tags::ExtrinsicCurvatureCompute<volume_dim, frame>,
+        ah::Tags::SpatialChristoffelSecondKindCompute<volume_dim, frame>>;
+    using vars_to_interpolate_to_target =
+        tmpl::list<gr::Tags::SpatialMetric<volume_dim, frame, DataVector>,
+                   gr::Tags::InverseSpatialMetric<volume_dim, frame>,
+                   gr::Tags::ExtrinsicCurvature<volume_dim, frame>,
+                   gr::Tags::SpatialChristoffelSecondKind<volume_dim, frame>>;
+    // Add horizon centers as compute item.
+    using compute_items_on_target = tmpl::append<
+        tmpl::list<StrahlkorperTags::CenterCompute<frame>,
+                   StrahlkorperGr::Tags::AreaElementCompute<frame>>,
+        tags_to_observe>;
+    using compute_target_points =
+        intrp::TargetPoints::ApparentHorizon<AhB, ::Frame::Inertial>;
+    using post_interpolation_callback =
+        intrp::callbacks::FindApparentHorizon<AhB, ::Frame::Inertial>;
+    using post_horizon_find_callback =
+        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhB, AhB>;
+
+    // The other post_horizon_find_callback is intended to interface with
+    // observation. I want a callback that does forward to a different component
+    // and doesn't do any observation. I'm not sure what exactly I need to
+    // change to integrate the observation/sending infrastructure so I'm adding
+    // this explicitly
+    using tags_to_forward = tmpl::list<StrahlkorperTags::Center<frame>>;
+    using post_horizon_find_callback2 =
+         Actions::ForwardToControlSystem<AhB, tags_to_forward>;
+  };
+
+  using OtherHorizon = tmpl::map<tmpl::pair<AhA, AhB>, tmpl::pair<AhB, AhA>>;
+
+  using interpolation_target_tags = tmpl::list<AhA, AhB>;
   using interpolator_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<volume_dim, frame>,
                  GeneralizedHarmonic::Tags::Pi<volume_dim, frame>,
@@ -288,7 +325,8 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
   // Events include the observation events and finding the horizon
   using events = tmpl::push_back<
       observation_events,
-      intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>>;
+      intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>,
+      intrp::Events::Registrars::Interpolate<3, AhB, interpolator_source_vars>>;
 
   // A tmpl::list of tags to be added to the GlobalCache by the
   // metavariables
@@ -313,7 +351,8 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
 
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
       tmpl::push_back<typename Event<observation_events>::creatable_classes,
-                      typename AhA::post_horizon_find_callback>>;
+                      typename AhA::post_horizon_find_callback,
+                      typename AhB::post_horizon_find_callback>>;
 
   template <typename... Tags>
   static Phase determine_next_phase(
@@ -503,6 +542,7 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
       observers::ObserverWriter<derived_metavars>,
       intrp::Interpolator<derived_metavars>,
       intrp::InterpolationTarget<derived_metavars, AhA>,
+      intrp::InterpolationTarget<derived_metavars, AhB>,
       std::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
                          importers::ElementDataReader<derived_metavars>,
                          tmpl::list<>>,
