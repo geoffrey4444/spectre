@@ -123,6 +123,9 @@
 
 #include "Utilities/TmplDebugging.hpp"
 
+#include "ControlSystem/Component.hpp"
+#include "ControlSystem/ControlErrorTags.hpp"
+
 /// \cond
 namespace Frame {
 // IWYU pragma: no_forward_declare MathFunction
@@ -137,6 +140,9 @@ class CProxy_GlobalCache;
 struct GeneralizedHarmonicDefaults {
   static constexpr int volume_dim = 3;
   static constexpr bool enable_time_dependence = true;
+  // Control system deriv order needs to be exposed
+  static constexpr size_t deriv_order = 2;
+
   using frame = Frame::Inertial;
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
@@ -198,7 +204,8 @@ struct GeneralizedHarmonicDefaults {
                    gr::Tags::ExtrinsicCurvature<volume_dim, frame>,
                    gr::Tags::SpatialChristoffelSecondKind<volume_dim, frame>>;
     using compute_items_on_target = tmpl::append<
-        tmpl::list<StrahlkorperGr::Tags::AreaElementCompute<frame>>,
+        tmpl::list<StrahlkorperTags::CenterCompute<frame>,
+                   StrahlkorperGr::Tags::AreaElementCompute<frame>>,
         tags_to_observe>;
     using compute_target_points =
         intrp::TargetPoints::ApparentHorizon<AhA, ::Frame::Inertial>;
@@ -206,6 +213,13 @@ struct GeneralizedHarmonicDefaults {
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Inertial>;
     using post_horizon_find_callback =
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
+
+    // Used to forward to control systm
+    using tags_to_forward = tmpl::list<StrahlkorperTags::Center<frame>>;
+    // This was my hack until there is a tmpl::list of
+    // post_horizon_find_callbacks
+    using post_horizon_find_callback2 =
+        Actions::ForwardToControlSystem<AhA, tags_to_forward>;
   };
 
   struct AhB {
@@ -240,7 +254,7 @@ struct GeneralizedHarmonicDefaults {
     // this explicitly
     using tags_to_forward = tmpl::list<StrahlkorperTags::Center<frame>>;
     using post_horizon_find_callback2 =
-         Actions::ForwardToControlSystem<AhB, tags_to_forward>;
+        Actions::ForwardToControlSystem<AhB, tags_to_forward>;
   };
 
   using OtherHorizon = tmpl::map<tmpl::pair<AhA, AhB>, tmpl::pair<AhB, AhA>>;
@@ -327,6 +341,9 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
       observation_events,
       intrp::Events::Registrars::Interpolate<3, AhA, interpolator_source_vars>,
       intrp::Events::Registrars::Interpolate<3, AhB, interpolator_source_vars>>;
+
+  using control_systems_list =
+      tmpl::list<ControlSystem::Expansion<derived_metavars>>;
 
   // A tmpl::list of tags to be added to the GlobalCache by the
   // metavariables
@@ -543,6 +560,7 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
       intrp::Interpolator<derived_metavars>,
       intrp::InterpolationTarget<derived_metavars, AhA>,
       intrp::InterpolationTarget<derived_metavars, AhB>,
+      ControlComponent<derived_metavars>,
       std::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
                          importers::ElementDataReader<derived_metavars>,
                          tmpl::list<>>,
