@@ -123,6 +123,7 @@
 
 #include "Utilities/TmplDebugging.hpp"
 
+#include "ControlSystem/Actions.hpp"
 #include "ControlSystem/Component.hpp"
 #include "ControlSystem/ControlErrorTags.hpp"
 
@@ -552,8 +553,11 @@ struct GeneralizedHarmonicTemplateBase<EvolutionMetavarsDerived<
                          Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Phase, Phase::Evolve,
-              tmpl::list<Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
-                         step_actions, Actions::AdvanceTime>>>>>;
+              tmpl::list<
+                  Actions::CheckValidityOfFunctionsOfTimeAndSendControlData<
+                      Actions::SendHorizonData>,
+                  Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
+                  step_actions, Actions::AdvanceTime>>>>>;
   using component_list = tmpl::flatten<tmpl::list<
       observers::Observer<derived_metavars>,
       observers::ObserverWriter<derived_metavars>,
