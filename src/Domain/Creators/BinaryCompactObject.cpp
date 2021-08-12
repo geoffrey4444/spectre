@@ -1,4 +1,4 @@
- // Distributed under the MIT License.
+// Distributed under the MIT License.
 // See LICENSE.txt for details.
 
 #include "Domain/Creators/BinaryCompactObject.hpp"
@@ -50,11 +50,11 @@ bool BinaryCompactObject::Object::is_excised() const noexcept {
 
 void BinaryCompactObject::check_for_parse_errors(
     const Options::Context& context) const {
-   if (object_A_.x_coord >= 0.0) {
-     PARSE_ERROR(
-         context,
-         "The x-coordinate of ObjectA's center is expected to be negative.");
-   }
+  if (object_A_.x_coord >= 0.0) {
+    PARSE_ERROR(
+        context,
+        "The x-coordinate of ObjectA's center is expected to be negative.");
+  }
 
   if (object_B_.x_coord <= 0.0) {
     PARSE_ERROR(
@@ -140,7 +140,12 @@ BinaryCompactObject::BinaryCompactObject(
           addition_to_outer_layer_radial_refinement_level),  // NOLINT
       enable_time_dependence_(false),
       initial_time_(std::numeric_limits<double>::signaling_NaN()),
-      initial_expiration_delta_t_(std::numeric_limits<double>::signaling_NaN()),
+      initial_expansion_expiration_delta_t_(
+          std::numeric_limits<double>::signaling_NaN()),
+      initial_size_map_expiration_delta_t_(
+          std::numeric_limits<double>::signaling_NaN()),
+      initial_rotation_expiration_delta_t_(
+          std::numeric_limits<double>::signaling_NaN()),
       expansion_map_outer_boundary_(
           std::numeric_limits<double>::signaling_NaN()),
       initial_expansion_({}),
@@ -159,7 +164,9 @@ BinaryCompactObject::BinaryCompactObject(
 
 BinaryCompactObject::BinaryCompactObject(
     typename InitialTime::type initial_time,
-    std::optional<double> initial_expiration_delta_t,
+    std::optional<double> initial_expansion_expiration_delta_t,
+    std::optional<double> initial_size_map_expiration_delta_t,
+    std::optional<double> initial_rotation_expiration_delta_t,
     typename ExpansionMapOuterBoundary::type expansion_map_outer_boundary,
     typename InitialExpansion::type initial_expansion,
     typename InitialExpansionVelocity::type initial_expansion_velocity,
@@ -200,7 +207,12 @@ BinaryCompactObject::BinaryCompactObject(
           addition_to_outer_layer_radial_refinement_level),  // NOLINT
       enable_time_dependence_(true),
       initial_time_(initial_time),
-      initial_expiration_delta_t_(std::move(initial_expiration_delta_t)),
+      initial_expansion_expiration_delta_t_(
+          std::move(initial_expansion_expiration_delta_t)),
+      initial_size_map_expiration_delta_t_(
+          std::move(initial_size_map_expiration_delta_t)),
+      initial_rotation_expiration_delta_t_(
+          std::move(initial_rotation_expiration_delta_t)),
       expansion_map_outer_boundary_(expansion_map_outer_boundary),
       initial_expansion_(initial_expansion),
       initial_expansion_velocity_(initial_expansion_velocity),
@@ -531,9 +543,18 @@ BinaryCompactObject::functions_of_time() const noexcept {
     return result;
   }
 
-  const double initial_expiration_time =
-      initial_expiration_delta_t_ ? initial_time_ + *initial_expiration_delta_t_
-                                  : std::numeric_limits<double>::max();
+  const double initial_expansion_expiration_time =
+      initial_expansion_expiration_delta_t_
+          ? initial_time_ + *initial_expansion_expiration_delta_t_
+          : std::numeric_limits<double>::max();
+  const double initial_size_map_expiration_time =
+      initial_size_map_expiration_delta_t_
+          ? initial_time_ + *initial_size_map_expiration_delta_t_
+          : std::numeric_limits<double>::max();
+  const double initial_rotation_expiration_time =
+      initial_rotation_expiration_delta_t_
+          ? initial_time_ + *initial_rotation_expiration_delta_t_
+          : std::numeric_limits<double>::max();
 
   // SizeMap FunctionsOfTime
   result[size_map_function_of_time_names_[0]] =
@@ -543,7 +564,7 @@ BinaryCompactObject::functions_of_time() const noexcept {
                                      {initial_size_map_velocities_[0]},
                                      {initial_size_map_accelerations_[0]},
                                      {0.0}}},
-          initial_expiration_time);
+          initial_size_map_expiration_time);
   result[size_map_function_of_time_names_[1]] =
       std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time_,
@@ -551,7 +572,7 @@ BinaryCompactObject::functions_of_time() const noexcept {
                                      {initial_size_map_velocities_[1]},
                                      {initial_size_map_accelerations_[1]},
                                      {0.0}}},
-          initial_expiration_time);
+          initial_size_map_expiration_time);
 
   // ExpansionMap FunctionsOfTime
   // Use a 3rd deriv function of time so that it can be used with a control
@@ -562,14 +583,16 @@ BinaryCompactObject::functions_of_time() const noexcept {
           std::array<DataVector, 3>{{{initial_expansion_[0]},
                                      {initial_expansion_velocity_[0]},
                                      {0.0}}},
-          initial_expiration_time);
+          initial_expansion_expiration_time);
+  // Set unity to never expire
   result[expansion_function_of_time_names_[1]] =
       std::make_unique<FunctionsOfTime::PiecewisePolynomial<2>>(
           initial_time_,
           std::array<DataVector, 3>{{{initial_expansion_[1]},
                                      {initial_expansion_velocity_[1]},
                                      {0.0}}},
-          initial_expiration_time);
+          // initial_expansion_expiration_time
+          std::numeric_limits<double>::max());
 
   // RotationAboutZAxisMap FunctionOfTime
   // Use a 3rd deriv function of time so that it can be used with a control
@@ -581,7 +604,7 @@ BinaryCompactObject::functions_of_time() const noexcept {
                                      {initial_angular_velocity_},
                                      {0.0},
                                      {0.0}}},
-          initial_expiration_time);
+          initial_rotation_expiration_time);
 
   return result;
 }

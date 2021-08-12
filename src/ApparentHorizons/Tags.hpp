@@ -157,6 +157,25 @@ struct RadiusCompute : Radius<Frame>, db::ComputeTag {
 // }@
 
 // @{
+/// Approximate physical center of the strahlkorper
+template <typename Frame>
+struct Center : db::SimpleTag {
+  using type = std::array<double, 3>;
+};
+
+template <typename Frame>
+struct CenterCompute : Center<Frame>, db::ComputeTag {
+  using base = Center<Frame>;
+  using return_type = std::array<double, 3>;
+
+  static void function(gsl::not_null<std::array<double, 3>*> center,
+                       const ::Strahlkorper<Frame>& strahlkorper) noexcept;
+
+  using argument_tags = tmpl::list<Strahlkorper<Frame>>;
+};
+// }@
+
+// @{
 /// `CartesianCoords(i)` is \f$x_{\rm surf}^i\f$,
 /// the vector of \f$(x,y,z)\f$ coordinates of each point
 /// on the surface.
