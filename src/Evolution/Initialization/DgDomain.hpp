@@ -10,6 +10,9 @@
 #include <utility>
 #include <vector>
 
+// TODO: Merge include or remove include if not using this tag
+#include "ControlSystem/Tags.hpp"
+
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/CoordinateMaps/Identity.hpp"
@@ -86,8 +89,16 @@ struct Domain {
   using initialization_tags =
       tmpl::list<::domain::Tags::InitialExtents<Dim>,
                  ::domain::Tags::InitialRefinementLevels<Dim>,
-                 evolution::dg::Tags::Quadrature>;
-  using const_global_cache_tags = tmpl::list<::domain::Tags::Domain<Dim>>;
+                 evolution::dg::Tags::Quadrature,
+                 ::Tags::LastMeasuredTimescales>;
+
+  using initialization_tags_to_keep =
+      tmpl::list<::Tags::LastMeasuredTimescales,
+                 ::Tags::MeasurementTimeScaleOverExpirationDeltaT>;
+
+  using const_global_cache_tags =
+      tmpl::list<::domain::Tags::Domain<Dim>,
+                 ::Tags::MeasurementTimeScaleOverExpirationDeltaT>;
 
   using mutable_global_cache_tags = tmpl::list<::domain::Tags::FunctionsOfTime>;
 
@@ -119,7 +130,9 @@ struct Domain {
                                             Frame::Inertial>,
       ::domain::Tags::InertialMeshVelocityCompute<Dim>,
       evolution::domain::Tags::DivMeshVelocityCompute<Dim>,
-      // Compute tags for other mesh quantities
+      // TODO: Probably move this elsewhere. This is the measurement timescale,
+      ::Tags::MeasurementTimescalesCompute,
+
       ::domain::Tags::MinimumGridSpacingCompute<Dim, Frame::Inertial>>;
 
   template <
