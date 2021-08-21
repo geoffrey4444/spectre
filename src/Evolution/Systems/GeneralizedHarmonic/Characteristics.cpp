@@ -176,11 +176,25 @@ evolved_fields_from_characteristic_fields(
 
 template <size_t Dim, typename Frame>
 void Tags::ComputeLargestCharacteristicSpeed<Dim, Frame>::function(
-    const gsl::not_null<double*> speed,
-    const Scalar<DataVector>& gamma_1, const Scalar<DataVector>& lapse,
+    const gsl::not_null<double*> speed, const Scalar<DataVector>& gamma_1,
+    const Scalar<DataVector>& lapse,
     const tnsr::I<DataVector, Dim, Frame>& shift,
-    const tnsr::ii<DataVector, Dim, Frame>& spatial_metric) noexcept {
-  const auto shift_magnitude = magnitude(shift, spatial_metric);
+    const tnsr::ii<DataVector, Dim, Frame>& spatial_metric,
+    const std::optional<tnsr::I<DataVector, Dim, Frame>>&
+        mesh_velocity) noexcept {
+  // replace with ternary operator and tensor expression once implemented
+  tnsr::I<DataVector, Dim, Frame> shift_minus_mesh_velocity(lapse.size());
+  if (mesh_velocity.has_value()) {
+    for (size_t i = 0; i < Dim; ++i) {
+      shift_minus_mesh_velocity.get(i) = shift.get(i) - mesh_velocity->get(i);
+    }
+  } else {
+    for (size_t i = 0; i < Dim; ++i) {
+      shift_minus_mesh_velocity.get(i) = shift.get(i);
+    }
+  }
+  const auto shift_magnitude =
+      magnitude(shift_minus_mesh_velocity, spatial_metric);
   *speed = std::max(max(abs(1. + get(gamma_1)) * get(shift_magnitude)),
                     max(get(shift_magnitude) + get(lapse)));
 }
