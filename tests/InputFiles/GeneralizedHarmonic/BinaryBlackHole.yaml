@@ -63,12 +63,6 @@ DomainCreator:
 
 EventsAndDenseTriggers:
 
-AnalyticSolution:
-  KerrSchild:
-    Mass: 1.0
-    Spin: [0.0, 0.0, 0.0]
-    Center: [1.e16, 0.0, 0.0]
-
 # Set gauge and constraint damping parameters.
 # The values here are chosen empirically based on values that proved
 # sucessful in SpEC evolutions of binary black holes.

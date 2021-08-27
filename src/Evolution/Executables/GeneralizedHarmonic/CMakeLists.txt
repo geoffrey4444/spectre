@@ -89,7 +89,6 @@ add_spectre_parallel_executable(
   "EvolveGhBinaryBlackHole"
   EvolveBinaryBlackHole
   Evolution/Executables/GeneralizedHarmonic
-  "EvolutionMetavars<3, evolution::NumericInitialData,\
-   GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>>"
+  "EvolutionMetavars"
   "${LIBS_TO_LINK};GeneralRelativitySolutions;Importers"
 )

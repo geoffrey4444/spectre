@@ -33,7 +33,6 @@
 #include "Evolution/Initialization/DiscontinuousGalerkin.hpp"
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
-#include "Evolution/Initialization/SetVariables.hpp"
 #include "Evolution/NumericInitialData.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Factory.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RegisterDerivedWithCharm.hpp"
@@ -150,16 +149,10 @@ class CProxy_GlobalCache;
 }  // namespace Parallel
 /// \endcond
 
-// Second template parameter specifies the source of the initial data, which
-// could be an analytic solution, analytic data, or imported numerical data.
-// Third template parameter specifies the analytic solution used when imposing
-// dirichlet boundary conditions or against which to compute error norms.
-template <size_t VolumeDim, typename InitialData, typename BoundaryConditions>
 struct EvolutionMetavars {
-  static constexpr size_t volume_dim = VolumeDim;
+  static constexpr size_t volume_dim = 3;
   static constexpr bool use_damped_harmonic_rollon = false;
-  using initial_data = InitialData;
-  using frame = Frame::Inertial;
+  using initial_data = evolution::NumericInitialData;
   using system = GeneralizedHarmonic::System<volume_dim>;
   static constexpr dg::Formulation dg_formulation =
       dg::Formulation::StrongInertial;
@@ -175,7 +168,6 @@ struct EvolutionMetavars {
 
   using time_stepper_tag = Tags::TimeStepper<
       std::conditional_t<local_time_stepping, LtsTimeStepper, TimeStepper>>;
-  using analytic_solution_fields = typename system::variables_tag::tags_list;
 
   using initialize_initial_data_dependent_quantities_actions = tmpl::list<
       GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
@@ -185,36 +177,31 @@ struct EvolutionMetavars {
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& /*p*/) noexcept {}
-  using analytic_solution_tag = Tags::AnalyticSolution<BoundaryConditions>;
   struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
     static constexpr bool enable_time_dependent_maps = true;
   };
 
-  using observe_fields = tmpl::append<
-      tmpl::push_back<
-          analytic_solution_fields, gr::Tags::Lapse<DataVector>,
-          ::Tags::PointwiseL2Norm<
-              GeneralizedHarmonic::Tags::GaugeConstraint<volume_dim, frame>>,
-          ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::
-                                      ThreeIndexConstraint<volume_dim, frame>>>,
-      std::conditional_t<volume_dim == 3,
-                         tmpl::list<::Tags::PointwiseL2Norm<
-                             GeneralizedHarmonic::Tags::FourIndexConstraint<
-                                 volume_dim, frame>>>,
-                         tmpl::list<>>>;
+  using observe_fields = tmpl::list<
+      gr::Tags::Lapse<DataVector>,
+      ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::GaugeConstraint<
+          volume_dim, Frame::Inertial>>,
+      ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::ThreeIndexConstraint<
+          volume_dim, Frame::Inertial>>,
+      ::Tags::PointwiseL2Norm<GeneralizedHarmonic::Tags::FourIndexConstraint<
+          volume_dim, Frame::Inertial>>>;
 
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = tmpl::map<
         tmpl::pair<DenseTrigger, DenseTriggers::standard_dense_triggers>,
         tmpl::pair<DomainCreator<volume_dim>, domain_creators<volume_dim>>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       Events::Completion, Events::ObserveNorms<observe_fields>,
-                       dg::Events::field_observations<volume_dim, Tags::Time,
-                                                      observe_fields,
-                                                      analytic_solution_fields>,
-                       Events::time_events<system>>>>,
+        tmpl::pair<
+            Event,
+            tmpl::flatten<tmpl::list<
+                Events::Completion, Events::ObserveNorms<observe_fields>,
+                dg::Events::field_observations<volume_dim, Tags::Time,
+                                               observe_fields, tmpl::list<>>,
+                Events::time_events<system>>>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
         tmpl::pair<
@@ -249,6 +236,8 @@ struct EvolutionMetavars {
   static std::string phase_name(Phase phase) noexcept {
     if (phase == Phase::LoadBalancing) {
       return "LoadBalancing";
+    } else if (phase == Phase::WriteCheckpoint) {
+      return "WriteCheckpoint";
     }
     ERROR(
         "Passed phase that should not be used in input file. Integer "
@@ -259,6 +248,8 @@ struct EvolutionMetavars {
   using phase_changes =
       tmpl::list<PhaseControl::Registrars::VisitAndReturn<EvolutionMetavars,
                                                           Phase::LoadBalancing>,
+                 PhaseControl::Registrars::VisitAndReturn<
+                     EvolutionMetavars, Phase::WriteCheckpoint>,
                  PhaseControl::Registrars::CheckpointAndExitAfterWallclock<
                      EvolutionMetavars>>;
 
@@ -271,7 +262,7 @@ struct EvolutionMetavars {
   // A tmpl::list of tags to be added to the GlobalCache by the
   // metavariables
   using const_global_cache_tags = tmpl::list<
-      analytic_solution_tag, Tags::EventsAndTriggers,
+      Tags::EventsAndTriggers,
       GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma0<
           volume_dim, Frame::Grid>,
       GeneralizedHarmonic::ConstraintDamping::Tags::DampingFunctionGamma1<
@@ -298,9 +289,7 @@ struct EvolutionMetavars {
     }
     switch (current_phase) {
       case Phase::Initialization:
-        return evolution::is_numeric_initial_data_v<initial_data>
-                   ? Phase::RegisterWithElementDataReader
-                   : Phase::InitializeInitialDataDependentQuantities;
+        return Phase::RegisterWithElementDataReader;
       case Phase::RegisterWithElementDataReader:
         return Phase::ImportInitialData;
       case Phase::ImportInitialData:
@@ -352,16 +341,10 @@ struct EvolutionMetavars {
       evolution::dg::Initialization::Domain<volume_dim,
                                             override_functions_of_time>,
       Initialization::Actions::NonconservativeSystem<system>,
-      std::conditional_t<
-          evolution::is_numeric_initial_data_v<initial_data>, tmpl::list<>,
-          evolution::Initialization::Actions::SetVariables<
-              ::domain::Tags::Coordinates<volume_dim, Frame::Logical>>>,
       Initialization::Actions::TimeStepperHistory<EvolutionMetavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
       Initialization::Actions::AddComputeTags<tmpl::push_back<
-          StepChoosers::step_chooser_compute_tags<EvolutionMetavars>,
-          evolution::Tags::AnalyticCompute<volume_dim, analytic_solution_tag,
-                                           analytic_solution_fields>>>,
+          StepChoosers::step_chooser_compute_tags<EvolutionMetavars>>>,
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
       evolution::Actions::InitializeRunEventsAndDenseTriggers,
       Initialization::Actions::RemoveOptionsAndTerminatePhase>;
@@ -371,24 +354,19 @@ struct EvolutionMetavars {
       tmpl::flatten<tmpl::list<
           Parallel::PhaseActions<Phase, Phase::Initialization,
                                  initialization_actions>,
-          tmpl::conditional_t<
-              evolution::is_numeric_initial_data_v<initial_data>,
-              tmpl::list<
-                  Parallel::PhaseActions<
-                      Phase, Phase::RegisterWithElementDataReader,
-                      tmpl::list<
-                          importers::Actions::RegisterWithElementDataReader,
-                          Parallel::Actions::TerminatePhase>>,
-                  Parallel::PhaseActions<
-                      Phase, Phase::ImportInitialData,
-                      tmpl::list<importers::Actions::ReadVolumeData<
-                                     evolution::OptionTags::NumericInitialData,
-                                     typename system::variables_tag::tags_list>,
-                                 importers::Actions::ReceiveVolumeData<
-                                     evolution::OptionTags::NumericInitialData,
-                                     typename system::variables_tag::tags_list>,
-                                 Parallel::Actions::TerminatePhase>>>,
-              tmpl::list<>>,
+          Parallel::PhaseActions<
+              Phase, Phase::RegisterWithElementDataReader,
+              tmpl::list<importers::Actions::RegisterWithElementDataReader,
+                         Parallel::Actions::TerminatePhase>>,
+          Parallel::PhaseActions<
+              Phase, Phase::ImportInitialData,
+              tmpl::list<importers::Actions::ReadVolumeData<
+                             evolution::OptionTags::NumericInitialData,
+                             typename system::variables_tag::tags_list>,
+                         importers::Actions::ReceiveVolumeData<
+                             evolution::OptionTags::NumericInitialData,
+                             typename system::variables_tag::tags_list>,
+                         Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Phase, Phase::InitializeInitialDataDependentQuantities,
               initialize_initial_data_dependent_quantities_actions>,
@@ -412,13 +390,11 @@ struct EvolutionMetavars {
         dg_registration_list, tmpl::list<>>;
   };
 
-  using component_list = tmpl::flatten<tmpl::list<
-      observers::Observer<EvolutionMetavars>,
-      observers::ObserverWriter<EvolutionMetavars>,
-      std::conditional_t<evolution::is_numeric_initial_data_v<initial_data>,
-                         importers::ElementDataReader<EvolutionMetavars>,
-                         tmpl::list<>>,
-      gh_dg_element_array>>;
+  using component_list =
+      tmpl::flatten<tmpl::list<observers::Observer<EvolutionMetavars>,
+                               observers::ObserverWriter<EvolutionMetavars>,
+                               importers::ElementDataReader<EvolutionMetavars>,
+                               gh_dg_element_array>>;
 
   static constexpr Options::String help{
       "Evolve a binary black hole using the Generalized Harmonic "
