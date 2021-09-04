@@ -20,7 +20,12 @@ endif(${DEBUG_SYMBOLS})
 
 # Always compile only for the current architecture. This can be overridden
 # by passing `-D OVERRIDE_ARCH=THE_ARCHITECTURE` to CMake
-if(NOT "${OVERRIDE_ARCH}" STREQUAL "OFF")
+if("${OVERRIDE_ARCH}" STREQUAL "apple_silicon")
+  set_property(TARGET SpectreFlags
+      APPEND PROPERTY
+      INTERFACE_COMPILE_OPTIONS
+      $<$<COMPILE_LANGUAGE:CXX>:>)
+elseif(NOT "${OVERRIDE_ARCH}" STREQUAL "OFF")
   set_property(TARGET SpectreFlags
       APPEND PROPERTY
       INTERFACE_COMPILE_OPTIONS
