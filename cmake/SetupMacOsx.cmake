@@ -6,6 +6,7 @@ if(APPLE)
   if(DEFINED MACOSX_MIN)
     set(SPECTRE_MACOSX_MIN "${MACOSX_MIN}")
   endif()
+  set(MACOS_SYS_LIB_ROOT "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
   set(MACOS_SYS_LIB_PATH "${MACOS_SYS_LIB_ROOT}/usr/lib")
   message("macOS syslibpath: ${MACOS_SYS_LIB_PATH}")
   set(CMAKE_EXE_LINKER_FLAGS
