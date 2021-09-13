@@ -309,11 +309,7 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
     // moving grids, eg a rotating sphere, with some leeway for
     // floating-point errors.
     if (max(radial_mesh_velocity) > 1.e-10) {
-      return {
-          "We found the radial mesh velocity points in the direction "
-          "of the outward normal, i.e. we possibly have an expanding "
-          "domain. Its unclear if proper boundary conditions are "
-          "imposed in this case."};
+      return {};
     }
   }
 
