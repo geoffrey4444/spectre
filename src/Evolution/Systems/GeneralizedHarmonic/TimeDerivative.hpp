@@ -4,8 +4,10 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 #include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Domain/TagsTimeDependent.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/Tags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/DuDtTempTags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"  // IWYU pragma: keep

@@ -1,6 +1,8 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 
+#include <optional>
+
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/VolumeTermsImpl.tpp"
@@ -50,8 +52,9 @@ namespace evolution::dg::Actions::detail {
       const Scalar<DataVector>& gamma0, const Scalar<DataVector>& gamma1,     \
       const Scalar<DataVector>& gamma2,                                       \
       const tnsr::a<DataVector, DIM(data)>& gauge_function,                   \
-      const tnsr::ab<DataVector, DIM(data)>&                                  \
-          spacetime_deriv_gauge_function) noexcept;
+      const tnsr::ab<DataVector, DIM(data)>& spacetime_deriv_gauge_function,  \
+      const std::optional<tnsr::I<DataVector, DIM(data)>>&                    \
+          mesh_velocity_2) noexcept;
 
 GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
 
