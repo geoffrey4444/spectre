@@ -45,6 +45,7 @@ template void volume_terms<::grmhd::GhValenciaDivClean::TimeDerivativeTerms>(
     const Scalar<DataVector>& gamma2,
     const tnsr::a<DataVector, 3>& gauge_function,
     const tnsr::ab<DataVector, 3>& spacetime_deriv_gauge_function,
+    const std::optional<tnsr::I<DataVector, 3>>& mesh_velocity_gh_arg,
     // GRMHD argument tags
     const Scalar<DataVector>& tilde_d, const Scalar<DataVector>& tilde_tau,
     const tnsr::i<DataVector, 3, Frame::Inertial>& tilde_s,

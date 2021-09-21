@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <random>
 
 #include "DataStructures/DataVector.hpp"
@@ -663,7 +664,8 @@ void test_compute_dudt(const gsl::not_null<Generator*> generator) noexcept {
           &get<gr::Tags::DerivativesOfSpacetimeMetric<Dim, Frame::Inertial,
                                                       DataVector>>(buffer)),
       d_spacetime_metric, d_pi, d_phi, spacetime_metric, pi, phi, gamma0,
-      gamma1, gamma2, gauge_function, spacetime_deriv_gauge_function);
+      gamma1, gamma2, gauge_function, spacetime_deriv_gauge_function,
+      std::optional<tnsr::I<DataVector, Dim>>{});
 
   CHECK_ITERABLE_APPROX(
       get<GeneralizedHarmonic::ConstraintDamping::Tags::ConstraintGamma1>(

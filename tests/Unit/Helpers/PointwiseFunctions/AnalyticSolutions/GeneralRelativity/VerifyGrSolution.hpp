@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 
 #include "DataStructures/DataBox/Prefixes.hpp"  // IWYU pragma: keep
 #include "DataStructures/DataVector.hpp"        // IWYU pragma: keep
@@ -338,7 +339,7 @@ void verify_time_independent_einstein_solution(
           &get<gr::Tags::DerivativesOfSpacetimeMetric<3, Frame::Inertial,
                                                       DataVector>>(buffer)),
       d_psi, d_pi, d_phi, psi, pi, phi, gamma0, gamma1, gamma2, gauge_function,
-      d4_H);
+      d4_H, std::optional<tnsr::I<DataVector, 3>>{});
 
   // Make sure the RHS is zero.
   CHECK_ITERABLE_CUSTOM_APPROX(

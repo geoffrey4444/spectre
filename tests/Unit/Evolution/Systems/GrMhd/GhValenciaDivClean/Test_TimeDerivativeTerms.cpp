@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <random>
+#include <type_traits>
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Variables.hpp"
@@ -123,10 +124,19 @@ SPECTRE_TEST_CASE(
   tmpl::for_each<tmpl::append<gh_arg_tags, valencia_arg_tags>>(
       [&gen, &dist, &arg_variables](auto tag_v) noexcept {
         using tag = typename decltype(tag_v)::type;
-        tuples::get<tag>(arg_variables) =
-            make_with_random_values<typename tag::type>(
-                make_not_null(&gen), make_not_null(&dist),
-                DataVector{element_size});
+        if constexpr (std::is_same<tag, domain::Tags::MeshVelocity<
+                                            3, Frame::Inertial>>::value) {
+          tuples::get<tag>(arg_variables) =
+              std::optional<tnsr::I<DataVector, 3>>{
+                  make_with_random_values<tnsr::I<DataVector, 3>>(
+                      make_not_null(&gen), make_not_null(&dist),
+                      DataVector{element_size})};
+        } else {
+          tuples::get<tag>(arg_variables) =
+              make_with_random_values<typename tag::type>(
+                  make_not_null(&gen), make_not_null(&dist),
+                  DataVector{element_size});
+        }
       });
 
   // ensure that the signature of the metric is correct
