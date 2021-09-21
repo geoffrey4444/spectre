@@ -86,6 +86,14 @@ add_generalized_harmonic_executable_without_horizon(
   "${LIBS_TO_LINK};GeneralRelativitySolutions"
 )
 
+add_generalized_harmonic_executable_without_horizon(
+  Minkowski
+  3
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::Minkowski<3>>
+  "${LIBS_TO_LINK};GeneralRelativitySolutions"
+)
+
 add_spectre_parallel_executable(
   "EvolveGhBinaryBlackHole"
   EvolveGhBinaryBlackHole
