@@ -45,7 +45,8 @@ namespace GeneralizedHarmonic {
  * \f{align}{
  *   \partial_t g_{ab}-
  *   &\left(1+\gamma_1\right)\beta^k\partial_k g_{ab} =
- *     -\alpha \Pi_{ab}-\gamma_1\beta^i\Phi_{iab}, \\
+ *     -\alpha \Pi_{ab}-\gamma_1\beta^i\Phi_{iab}, \notag \\
+ *   & + \gamma_1 v^i_g C_{iab}, \\
  *
  *   \partial_t\Pi_{ab}-
  *   &\beta^k\partial_k\Pi_{ab} + \alpha \gamma^{ki}\partial_k\Phi_{iab}
@@ -63,6 +64,7 @@ namespace GeneralizedHarmonic {
  *     {\epsilon_{5} + 2 n^d \mathcal{C}_d n^e \mathcal{C}_e
  *     + \mathcal{C}_d \mathcal{C}^d} \right) \notag \\
  *   &-\gamma_1\gamma_2 \beta^i\Phi_{iab} \notag \\
+ *   &-\gamma_1\gamma_2 v^i_g C_{iab} \notag \\
  *   &-16\pi \alpha \left(T_{ab} - \frac{1}{2}g_{ab}T^c{}_c\right),\\
  *
  *   \partial_t\Phi_{iab}-
@@ -73,7 +75,8 @@ namespace GeneralizedHarmonic {
  *   &-\alpha \gamma_2\Phi_{iab},
  * \f}
  *
- * where \f$H_a\f$ is the gauge source function and
+ * where \f$H_a\f$ is the gauge source function, \f$v^i_g\f$ is the
+ * grid velocity, \f$C_{iab}\f$ is the three-index constraint, and
  * \f$\mathcal{C}_a=H_a+\Gamma_a\f$ is the gauge constraint. The constraint
  * damping parameters \f$\gamma_0\f$ \f$\gamma_1\f$, \f$\gamma_2\f$,
  * \f$\gamma_3\f$, \f$\gamma_4\f$, and \f$\gamma_5\f$ have units of inverse time
@@ -116,7 +119,8 @@ struct TimeDerivative {
       ::GeneralizedHarmonic::ConstraintDamping::Tags::ConstraintGamma0,
       ::GeneralizedHarmonic::ConstraintDamping::Tags::ConstraintGamma1,
       ::GeneralizedHarmonic::ConstraintDamping::Tags::ConstraintGamma2,
-      Tags::GaugeH<Dim>, Tags::SpacetimeDerivGaugeH<Dim>>;
+      Tags::GaugeH<Dim>, Tags::SpacetimeDerivGaugeH<Dim>,
+      ::domain::Tags::MeshVelocity<Dim>>;
 
   static void apply(
       gsl::not_null<tnsr::aa<DataVector, Dim>*> dt_spacetime_metric,
@@ -162,6 +166,7 @@ struct TimeDerivative {
       const tnsr::iaa<DataVector, Dim>& phi, const Scalar<DataVector>& gamma0,
       const Scalar<DataVector>& gamma1, const Scalar<DataVector>& gamma2,
       const tnsr::a<DataVector, Dim>& gauge_function,
-      const tnsr::ab<DataVector, Dim>& spacetime_deriv_gauge_function) noexcept;
+      const tnsr::ab<DataVector, Dim>& spacetime_deriv_gauge_function,
+      const std::optional<tnsr::I<DataVector, Dim>>& mesh_velocity) noexcept;
 };
 }  // namespace GeneralizedHarmonic
