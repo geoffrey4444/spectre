@@ -357,8 +357,8 @@ struct GeneralizedHarmonicTemplateBase<
               domain::Tags::Coordinates<volume_dim, Frame::ElementLogical>>>,
       Initialization::Actions::AddComputeTags<::Tags::DerivCompute<
           typename system::variables_tag,
-          domain::Tags::InverseJacobian<volume_dim, Frame::ElementLogical,
-                                        Frame::Inertial>,
+          ::domain::Tags::InverseJacobian<volume_dim, Frame::ElementLogical,
+                                          Frame::Inertial>,
           typename system::gradient_variables>>,
       Initialization::Actions::TimeStepperHistory<derived_metavars>,
       GeneralizedHarmonic::Actions::InitializeGhAnd3Plus1Variables<volume_dim>,
