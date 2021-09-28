@@ -232,7 +232,7 @@ void TimeDerivative<Dim>::apply(
       for (size_t m = 0; m < Dim; ++m) {
         dt_spacetime_metric->get(mu, nu) += shift->get(m) * phi.get(m, mu, nu);
         if (mesh_velocity.has_value()) {
-          dt_spacetime_metric->get(mu, nu) +=
+          dt_spacetime_metric->get(mu, nu) -=
               get(gamma1) * (*mesh_velocity).get(m) *
               three_index_constraint->get(m, mu, nu);
         }
@@ -289,7 +289,7 @@ void TimeDerivative<Dim>::apply(
         // DualFrame term
         dt_pi->get(mu, nu) += shift->get(m) * d_pi.get(m, mu, nu);
         if (mesh_velocity.has_value()) {
-          dt_pi->get(mu, nu) += gamma12 * (*mesh_velocity).get(m) *
+          dt_pi->get(mu, nu) -= gamma12 * (*mesh_velocity).get(m) *
                                 three_index_constraint->get(m, mu, nu);
         }
       }
