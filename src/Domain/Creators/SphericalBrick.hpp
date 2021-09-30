@@ -23,9 +23,8 @@
 /// \cond
 namespace domain {
 namespace CoordinateMaps {
-class Affine;
-template <typename Map1, typename Map2, typename Map3>
-class ProductOf3Maps;
+template <size_t Dim>
+class Wedge;
 }  // namespace CoordinateMaps
 
 template <typename SourceFrame, typename TargetFrame, typename... Maps>
@@ -39,23 +38,28 @@ namespace creators {
 /// Create a 3D Domain consisting of a single Block.
 class SphericalBrick : public DomainCreator<3> {
  public:
-  using maps_list = tmpl::list<
-      domain::CoordinateMap<Frame::BlockLogical, Frame::Inertial,
-                            CoordinateMaps::ProductOf3Maps<
-                                CoordinateMaps::Affine, CoordinateMaps::Affine,
-                                CoordinateMaps::Affine>>>;
+  using maps_list =
+      tmpl::list<domain::CoordinateMap<Frame::BlockLogical, Frame::Inertial,
+                                       domain::CoordinateMaps::Wedge<3>>>;
 
-  struct LowerBound {
-    using type = std::array<double, 3>;
-    static constexpr Options::String help = {
-        "Sequence of [x,y,z] for lower bounds."};
+  struct InnerRadius {
+    using type = double;
+    static constexpr Options::String help = {"Inner radius."};
   };
 
-  struct UpperBound {
-    using type = std::array<double, 3>;
-    static constexpr Options::String help = {
-        "Sequence of [x,y,z] for upper bounds."};
+  struct OuterRadius {
+    using type = double;
+    static constexpr Options::String help = {"Outer radius."};
   };
+  struct SphericityInner {
+    using type = double;
+    static constexpr Options::String help = {"Inner sphericity."};
+  };
+  struct SphericityOuter {
+    using type = double;
+    static constexpr Options::String help = {"Outer sphericity."};
+  };
+
   struct IsPeriodicIn {
     using type = std::array<bool, 3>;
     static constexpr Options::String help = {
@@ -90,7 +94,8 @@ class SphericalBrick : public DomainCreator<3> {
   };
 
   using common_options =
-      tmpl::list<LowerBound, UpperBound, InitialRefinement, InitialGridPoints>;
+      tmpl::list<InnerRadius, OuterRadius, SphericityInner, SphericityOuter,
+                 InitialRefinement, InitialGridPoints>;
   using options_periodic = tmpl::list<IsPeriodicIn>;
 
   template <typename Metavariables>
@@ -108,7 +113,8 @@ class SphericalBrick : public DomainCreator<3> {
   static constexpr Options::String help{"Creates a 3D brick."};
 
   SphericalBrick(
-      typename LowerBound::type lower_xyz, typename UpperBound::type upper_xyz,
+      double inner_radius, double outer_radius, double sphericity_inner,
+      double sphericity_outer,
       typename InitialRefinement::type initial_refinement_level_xyz,
       typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
       typename IsPeriodicIn::type is_periodic_in_xyz,
@@ -116,7 +122,8 @@ class SphericalBrick : public DomainCreator<3> {
           time_dependence = nullptr) noexcept;
 
   SphericalBrick(
-      typename LowerBound::type lower_xyz, typename UpperBound::type upper_xyz,
+      double inner_radius, double outer_radius, double sphericity_inner,
+      double sphericity_outer,
       typename InitialRefinement::type initial_refinement_level_xyz,
       typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
       std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -144,8 +151,7 @@ class SphericalBrick : public DomainCreator<3> {
       std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>> override;
 
  private:
-  typename LowerBound::type lower_xyz_{};
-  typename UpperBound::type upper_xyz_{};
+  double inner_radius_, outer_radius_, sphericity_inner_, sphericity_outer_;
   typename IsPeriodicIn::type is_periodic_in_xyz_{};
   typename InitialRefinement::type initial_refinement_level_xyz_{};
   typename InitialGridPoints::type initial_number_of_grid_points_in_xyz_{};

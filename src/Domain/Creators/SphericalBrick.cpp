@@ -10,11 +10,10 @@
 #include "Domain/Block.hpp"  // IWYU pragma: keep
 #include "Domain/BoundaryConditions/None.hpp"
 #include "Domain/BoundaryConditions/Periodic.hpp"
-#include "Domain/CoordinateMaps/Affine.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.tpp"
-#include "Domain/CoordinateMaps/ProductMaps.hpp"
-#include "Domain/CoordinateMaps/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/Distribution.hpp"
+#include "Domain/CoordinateMaps/Wedge.hpp"
 #include "Domain/Creators/DomainCreator.hpp"  // IWYU pragma: keep
 #include "Domain/Creators/TimeDependence/None.hpp"
 #include "Domain/Creators/TimeDependence/TimeDependence.hpp"
@@ -29,15 +28,18 @@ struct Inertial;
 
 namespace domain::creators {
 SphericalBrick::SphericalBrick(
-    typename LowerBound::type lower_xyz, typename UpperBound::type upper_xyz,
+    const double inner_radius, const double outer_radius,
+    const double sphericity_inner, const double sphericity_outer,
     typename InitialRefinement::type initial_refinement_level_xyz,
     typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
     typename IsPeriodicIn::type is_periodic_in_xyz,
     std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
         time_dependence) noexcept
     // clang-tidy: trivially copyable
-    : lower_xyz_(std::move(lower_xyz)),                      // NOLINT
-      upper_xyz_(std::move(upper_xyz)),                      // NOLINT
+    : inner_radius_(inner_radius),                           // NOLINT
+      outer_radius_(outer_radius),                           // NOLINT
+      sphericity_inner_(sphericity_inner),                   // NOLINT
+      sphericity_outer_(sphericity_outer),                   // NOLINT
       is_periodic_in_xyz_(std::move(is_periodic_in_xyz)),    // NOLINT
       initial_refinement_level_xyz_(                         // NOLINT
           std::move(initial_refinement_level_xyz)),          // NOLINT
@@ -52,7 +54,8 @@ SphericalBrick::SphericalBrick(
 }
 
 SphericalBrick::SphericalBrick(
-    typename LowerBound::type lower_xyz, typename UpperBound::type upper_xyz,
+    const double inner_radius, const double outer_radius,
+    const double sphericity_inner, const double sphericity_outer,
     typename InitialRefinement::type initial_refinement_level_xyz,
     typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -61,8 +64,10 @@ SphericalBrick::SphericalBrick(
         time_dependence,
     const Options::Context& context)
     // clang-tidy: trivially copyable
-    : lower_xyz_(std::move(lower_xyz)),  // NOLINT
-      upper_xyz_(std::move(upper_xyz)),  // NOLINT
+    : inner_radius_(inner_radius),          // NOLINT
+      outer_radius_(outer_radius),          // NOLINT
+      sphericity_inner_(sphericity_inner),  // NOLINT
+      sphericity_outer_(sphericity_outer),  // NOLINT
       is_periodic_in_xyz_{{false, false, false}},
       initial_refinement_level_xyz_(                         // NOLINT
           std::move(initial_refinement_level_xyz)),          // NOLINT
@@ -91,8 +96,7 @@ SphericalBrick::SphericalBrick(
 }
 
 Domain<3> SphericalBrick::create_domain() const noexcept {
-  using Affine = CoordinateMaps::Affine;
-  using Affine3D = CoordinateMaps::ProductOf3Maps<Affine, Affine, Affine>;
+  using Wedge = domain::CoordinateMaps::Wedge<3>;
   std::vector<PairOfFaces> identifications{};
   if (is_periodic_in_xyz_[0]) {
     identifications.push_back({{0, 4, 2, 6}, {1, 5, 3, 7}});
@@ -119,9 +123,13 @@ Domain<3> SphericalBrick::create_domain() const noexcept {
 
   Domain<3> domain{
       make_vector_coordinate_map_base<Frame::BlockLogical, Frame::Inertial>(
-          Affine3D{Affine{-1., 1., lower_xyz_[0], upper_xyz_[0]},
-                   Affine{-1., 1., lower_xyz_[1], upper_xyz_[1]},
-                   Affine{-1., 1., lower_xyz_[2], upper_xyz_[2]}}),
+          Wedge{inner_radius_, outer_radius_, sphericity_inner_,
+                sphericity_outer_,
+                OrientationMap<3>(std::array<Direction<3>, 3>{
+                    {Direction<3>::upper_zeta(), Direction<3>::upper_xi(),
+                     Direction<3>::upper_eta()}}),
+                false, Wedge::WedgeHalves::Both,
+                CoordinateMaps::Distribution::Linear}),
       std::vector<std::array<size_t, 8>>{{{0, 1, 2, 3, 4, 5, 6, 7}}},
       identifications, std::move(boundary_conditions_all_blocks)};
 
