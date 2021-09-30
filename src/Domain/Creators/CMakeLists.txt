@@ -24,6 +24,7 @@ spectre_target_sources(
   RotatedRectangles.cpp
   Shell.cpp
   Sphere.cpp
+  SphericalBrick.cpp
   )
 
 spectre_target_headers(
@@ -51,6 +52,7 @@ spectre_target_headers(
   RotatedRectangles.hpp
   Shell.hpp
   Sphere.hpp
+  SphericalBrick.hpp
   )
 
 target_link_libraries(
