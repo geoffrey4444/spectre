@@ -112,7 +112,7 @@ std::array<tt::remove_cvref_wrap_t<T>, Dim> Wedge<Dim>::operator()(
   using ReturnType = tt::remove_cvref_wrap_t<T>;
 
   // Radial coordinate
-  const ReturnType& zeta = source_coords[radial_coord];
+  ReturnType zeta = source_coords[radial_coord];
 
   // Polar angle
   ReturnType xi = source_coords[polar_coord];
@@ -122,6 +122,12 @@ std::array<tt::remove_cvref_wrap_t<T>, Dim> Wedge<Dim>::operator()(
   } else if (halves_to_use_ == WedgeHalves::LowerOnly) {
     xi -= 1.0;
     xi *= 0.5;
+  } else if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+    xi += 1.0;
+    xi *= 0.25;
+    zeta += 1.0;
+    zeta *= 0.25;
+    zeta += 0.5;
   }
 
   std::array<ReturnType, Dim - 1> cap{};
@@ -129,7 +135,11 @@ std::array<tt::remove_cvref_wrap_t<T>, Dim> Wedge<Dim>::operator()(
   ReturnType one_over_rho = 1.0 + square(cap[0]);
   if constexpr (Dim == 3) {
     // Azimuthal angle
-    const ReturnType& eta = source_coords[azimuth_coord];
+    ReturnType eta = source_coords[azimuth_coord];
+    if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+      eta += 1.0;
+      eta *= 0.25;
+    }
     cap[1] = with_equiangular_map_ ? tan(M_PI_4 * eta) : eta;
     one_over_rho += square(cap[1]);
   }
@@ -183,8 +193,8 @@ std::optional<std::array<double, Dim>> Wedge<Dim>::inverse(
   }
   const auto z_zero = (scaled_frustum_zero_ + sphere_zero_ * one_over_rho);
   // Radial coordinate
-  const double zeta = [this, physical_z = physical_coords[radial_coord],
-                       &one_over_rho, &z_zero, &zeta_coefficient]() noexcept {
+  double zeta = [this, physical_z = physical_coords[radial_coord],
+                 &one_over_rho, &z_zero, &zeta_coefficient]() noexcept {
     if (radial_distribution_ == Distribution::Linear) {
       return (physical_z - z_zero) / zeta_coefficient;
     } else if (radial_distribution_ == Distribution::Logarithmic) {
@@ -201,13 +211,23 @@ std::optional<std::array<double, Dim>> Wedge<Dim>::inverse(
   } else if (halves_to_use_ == WedgeHalves::LowerOnly) {
     xi *= 2.0;
     xi += 1.0;
+  } else if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+    xi *= 4.0;
+    xi -= 1.0;
+    zeta -= 0.5;
+    zeta *= 4.0;
+    zeta -= 1.0;
   }
   std::array<double, Dim> logical_coords{};
   logical_coords[radial_coord] = zeta;
   logical_coords[polar_coord] = xi;
   if constexpr (Dim == 3) {
-    logical_coords[azimuth_coord] =
-        with_equiangular_map_ ? atan(cap[1]) / M_PI_4 : cap[1];
+    double eta = with_equiangular_map_ ? atan(cap[1]) / M_PI_4 : cap[1];
+    if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+      eta *= 4.0;
+      eta -= 1.0;
+    }
+    logical_coords[azimuth_coord] = eta;
   }
   return logical_coords;
 }
@@ -219,7 +239,7 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, Dim, Frame::NoFrame> Wedge<Dim>::jacobian(
   using ReturnType = tt::remove_cvref_wrap_t<T>;
 
   // Radial coordinate
-  const ReturnType& zeta = source_coords[radial_coord];
+  ReturnType zeta = source_coords[radial_coord];
 
   // Polar angle
   ReturnType xi = source_coords[polar_coord];
@@ -229,6 +249,12 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, Dim, Frame::NoFrame> Wedge<Dim>::jacobian(
   } else if (halves_to_use_ == WedgeHalves::LowerOnly) {
     xi -= 1.0;
     xi *= 0.5;
+  } else if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+    xi += 1.0;
+    xi *= 0.25;
+    zeta += 1.0;
+    zeta *= 0.25;
+    zeta += 0.5;
   }
   std::array<ReturnType, Dim - 1> cap{};
   std::array<ReturnType, Dim - 1> cap_deriv{};
@@ -238,7 +264,11 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, Dim, Frame::NoFrame> Wedge<Dim>::jacobian(
   ReturnType one_over_rho = 1.0 + square(cap[0]);
   if constexpr (Dim == 3) {
     // Azimuthal angle
-    const ReturnType& eta = source_coords[azimuth_coord];
+    ReturnType eta = source_coords[azimuth_coord];
+    if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+      eta += 1.0;
+      eta *= 0.25;
+    }
     cap[1] = with_equiangular_map_ ? tan(M_PI_4 * eta) : eta;
     cap_deriv[1] = with_equiangular_map_ ? M_PI_4 * (1.0 + square(cap[1]))
                                          : make_with_value<ReturnType>(xi, 1.0);
@@ -330,7 +360,7 @@ Wedge<Dim>::inv_jacobian(
   using ReturnType = tt::remove_cvref_wrap_t<T>;
 
   // Radial coordinate
-  const ReturnType& zeta = source_coords[radial_coord];
+  ReturnType zeta = source_coords[radial_coord];
 
   // Polar angle
   ReturnType xi = source_coords[polar_coord];
@@ -340,6 +370,12 @@ Wedge<Dim>::inv_jacobian(
   } else if (halves_to_use_ == WedgeHalves::LowerOnly) {
     xi -= 1.0;
     xi *= 0.5;
+  } else if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+    xi += 1.0;
+    xi *= 0.25;
+    zeta += 1.0;
+    zeta *= 0.25;
+    zeta += 0.5;
   }
   std::array<ReturnType, Dim> cap{};
   std::array<ReturnType, Dim> cap_deriv{};
@@ -349,7 +385,11 @@ Wedge<Dim>::inv_jacobian(
   ReturnType one_over_rho = 1.0 + square(cap[0]);
   if constexpr (Dim == 3) {
     // Azimuthal angle
-    const ReturnType& eta = source_coords[azimuth_coord];
+    ReturnType eta = source_coords[azimuth_coord];
+    if (halves_to_use_ == WedgeHalves::QuarterOnly) {
+      eta += 1.0;
+      eta *= 0.25;
+    }
     cap[1] = with_equiangular_map_ ? tan(M_PI_4 * eta) : eta;
     cap_deriv[1] = with_equiangular_map_ ? M_PI_4 * (1.0 + square(cap[1]))
                                          : make_with_value<ReturnType>(xi, 1.0);

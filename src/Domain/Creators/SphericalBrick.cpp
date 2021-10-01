@@ -128,7 +128,7 @@ Domain<3> SphericalBrick::create_domain() const noexcept {
                 OrientationMap<3>(std::array<Direction<3>, 3>{
                     {Direction<3>::upper_zeta(), Direction<3>::upper_xi(),
                      Direction<3>::upper_eta()}}),
-                false, Wedge::WedgeHalves::Both,
+                false, Wedge::WedgeHalves::QuarterOnly,
                 CoordinateMaps::Distribution::Linear}),
       std::vector<std::array<size_t, 8>>{{{0, 1, 2, 3, 4, 5, 6, 7}}},
       identifications, std::move(boundary_conditions_all_blocks)};

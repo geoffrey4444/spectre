@@ -261,7 +261,9 @@ class Wedge {
     /// Use only the upper logical half
     UpperOnly,
     /// Use only the lower logical half
-    LowerOnly
+    LowerOnly,
+    /// Use logical quarter,
+    QuarterOnly
   };
 
   /*!
