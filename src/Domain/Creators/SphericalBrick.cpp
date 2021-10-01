@@ -60,6 +60,8 @@ SphericalBrick::SphericalBrick(
     typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
         boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        boundary_condition_upper_xi,
     std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
         time_dependence,
     const Options::Context& context)
@@ -74,7 +76,8 @@ SphericalBrick::SphericalBrick(
       initial_number_of_grid_points_in_xyz_(                 // NOLINT
           std::move(initial_number_of_grid_points_in_xyz)),  // NOLINT
       time_dependence_(std::move(time_dependence)),
-      boundary_condition_(std::move(boundary_condition)) {
+      boundary_condition_(std::move(boundary_condition)),
+      boundary_condition_upper_xi_(std::move(boundary_condition)) {
   if (time_dependence_ == nullptr) {
     time_dependence_ =
         std::make_unique<domain::creators::time_dependence::None<3>>();
@@ -116,8 +119,12 @@ Domain<3> SphericalBrick::create_domain() const noexcept {
                  std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
         boundary_conditions{};
     for (const auto& direction : Direction<3>::all_directions()) {
-      boundary_conditions[direction] = boundary_condition_->get_clone();
-    }
+      if (direction == Direction<3>::upper_xi()) {
+        boundary_conditions[direction] =
+            boundary_condition_upper_xi_->get_clone();
+      } else {
+        boundary_conditions[direction] = boundary_condition_->get_clone();
+      }
     boundary_conditions_all_blocks.push_back(std::move(boundary_conditions));
   }
 

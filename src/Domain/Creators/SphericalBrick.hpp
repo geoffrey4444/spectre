@@ -89,7 +89,15 @@ class SphericalBrick : public DomainCreator<3> {
   struct BoundaryCondition {
     static std::string name() noexcept { return "BoundaryCondition"; }
     static constexpr Options::String help =
-        "The boundary condition to impose on all sides.";
+        "The boundary condition to impose on all sides except xi.";
+    using type = std::unique_ptr<BoundaryConditionsBase>;
+  };
+
+  template <typename BoundaryConditionsBase>
+  struct BoundaryConditionUpperXi {
+    static std::string name() noexcept { return "BoundaryConditionUpperXi"; }
+    static constexpr Options::String help =
+        "The boundary condition to impose on upper xi.";
     using type = std::unique_ptr<BoundaryConditionsBase>;
   };
 
@@ -104,9 +112,13 @@ class SphericalBrick : public DomainCreator<3> {
       tmpl::conditional_t<
           domain::BoundaryConditions::has_boundary_conditions_base_v<
               typename Metavariables::system>,
-          tmpl::list<BoundaryCondition<
-              domain::BoundaryConditions::get_boundary_conditions_base<
-                  typename Metavariables::system>>>,
+          tmpl::list<
+              BoundaryCondition<
+                  domain::BoundaryConditions::get_boundary_conditions_base<
+                      typename Metavariables::system>>,
+              BoundaryConditionUpperXi<
+                  domain::BoundaryConditions::get_boundary_conditions_base<
+                      typename Metavariables::system>>>,
           options_periodic>,
       tmpl::list<TimeDependence>>;
 
@@ -128,6 +140,8 @@ class SphericalBrick : public DomainCreator<3> {
       typename InitialGridPoints::type initial_number_of_grid_points_in_xyz,
       std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
           boundary_condition = nullptr,
+      std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+          boundary_condition_upper_xi = nullptr,
       std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
           time_dependence = nullptr,
       const Options::Context& context = {});
@@ -159,6 +173,8 @@ class SphericalBrick : public DomainCreator<3> {
       time_dependence_;
   std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
       boundary_condition_;
+  std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+      boundary_condition_upper_xi_;
 };
 }  // namespace creators
 }  // namespace domain
