@@ -72,7 +72,11 @@ Domain<VolumeDim>::Domain(
   ASSERT(
       boundary_conditions.size() == maps.size() or boundary_conditions.empty(),
       "There must be either one set of boundary conditions per block or none "
-      "at all specified.");
+      "at all specified, but maps.size() == "
+          << maps.size()
+          << " and boundary_conditions.size() == " << boundary_conditions.size()
+          << " (boundary_conditions.empty() == " << boundary_conditions.empty()
+          << ")");
   std::vector<DirectionMap<VolumeDim, BlockNeighbor<VolumeDim>>>
       neighbors_of_all_blocks;
   set_internal_boundaries<VolumeDim>(&neighbors_of_all_blocks,

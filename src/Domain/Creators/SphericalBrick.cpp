@@ -119,14 +119,14 @@ Domain<3> SphericalBrick::create_domain() const noexcept {
                  std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
         boundary_conditions{};
     for (const auto& direction : Direction<3>::all_directions()) {
-      if (direction == Direction<3>::upper_xi()) {
+      if (direction == Direction<3>::upper_zeta()) {
         boundary_conditions[direction] =
             boundary_condition_upper_xi_->get_clone();
       } else {
         boundary_conditions[direction] = boundary_condition_->get_clone();
       }
-    boundary_conditions_all_blocks.push_back(std::move(boundary_conditions));
     }
+    boundary_conditions_all_blocks.push_back(std::move(boundary_conditions));
   }
 
   Domain<3> domain{
