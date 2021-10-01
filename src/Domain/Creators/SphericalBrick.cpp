@@ -77,7 +77,7 @@ SphericalBrick::SphericalBrick(
           std::move(initial_number_of_grid_points_in_xyz)),  // NOLINT
       time_dependence_(std::move(time_dependence)),
       boundary_condition_(std::move(boundary_condition)),
-      boundary_condition_upper_xi_(std::move(boundary_condition)) {
+      boundary_condition_upper_xi_(std::move(boundary_condition_upper_xi)) {
   if (time_dependence_ == nullptr) {
     time_dependence_ =
         std::make_unique<domain::creators::time_dependence::None<3>>();
@@ -126,6 +126,7 @@ Domain<3> SphericalBrick::create_domain() const noexcept {
         boundary_conditions[direction] = boundary_condition_->get_clone();
       }
     boundary_conditions_all_blocks.push_back(std::move(boundary_conditions));
+    }
   }
 
   Domain<3> domain{
