@@ -18,6 +18,7 @@
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/Tags.hpp"
 #include "Domain/TagsCharacteresticSpeeds.hpp"
+#include "Evolution/Actions/RandomizeInitialFields.hpp"
 #include "Evolution/Actions/RunEventsAndDenseTriggers.hpp"
 #include "Evolution/ComputeTags.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/ApplyBoundaryCorrections.hpp"
@@ -173,6 +174,7 @@ struct GeneralizedHarmonicTemplateBase<
       GeneralizedHarmonic::gauges::Actions::InitializeDampedHarmonic<
           volume_dim, use_damped_harmonic_rollon>,
       GeneralizedHarmonic::Actions::InitializeConstraints<volume_dim>,
+      evolution::Actions::RandomizeInitialFields<system>,
       Parallel::Actions::TerminatePhase>;
 
   // NOLINTNEXTLINE(google-runtime-references)
