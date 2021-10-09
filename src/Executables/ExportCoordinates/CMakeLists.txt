@@ -18,7 +18,7 @@ add_spectre_parallel_executable(
   ExportCoordinates1D
   ExportCoordinates
   Executables/ExportCoordinates
-  Metavariables<1,false>
+  Metavariables<1,false,false>
   "${LIBS_TO_LINK}"
   )
 
@@ -26,7 +26,7 @@ add_spectre_parallel_executable(
   ExportCoordinates2D
   ExportCoordinates
   Executables/ExportCoordinates
-  Metavariables<2,false>
+  Metavariables<2,false,false>
   "${LIBS_TO_LINK}"
   )
 
@@ -34,7 +34,7 @@ add_spectre_parallel_executable(
   ExportCoordinates3D
   ExportCoordinates
   Executables/ExportCoordinates
-  Metavariables<3,false>
+  Metavariables<3,false,false>
   "${LIBS_TO_LINK}"
   )
 
@@ -42,6 +42,14 @@ add_spectre_parallel_executable(
   ExportTimeDependentCoordinates3D
   ExportCoordinates
   Executables/ExportCoordinates
-  Metavariables<3,true>
+  Metavariables<3,true,false>
   "${LIBS_TO_LINK}"
   )
+
+  add_spectre_parallel_executable(
+    ExportTimeDependentCoordinatesOverrideFuncsOfTime3D
+    ExportCoordinates
+    Executables/ExportCoordinates
+    Metavariables<3,true,true>
+    "${LIBS_TO_LINK}"
+    )

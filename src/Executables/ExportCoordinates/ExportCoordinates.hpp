@@ -183,12 +183,14 @@ struct FindGlobalMinimumGridSpacing {
 };
 }  // namespace Actions
 
-template <size_t Dim, bool EnableTimeDependentMaps>
+template <size_t Dim, bool EnableTimeDependentMaps,
+          bool OverrideFunctionsOfTime>
 struct Metavariables {
   static constexpr size_t volume_dim = Dim;
   static constexpr bool local_time_stepping = false;
   // A placeholder system for the domain creators
   struct system {};
+  static constexpr bool override_functions_of_time = OverrideFunctionsOfTime;
 
   struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
     static constexpr bool enable_time_dependent_maps = EnableTimeDependentMaps;
