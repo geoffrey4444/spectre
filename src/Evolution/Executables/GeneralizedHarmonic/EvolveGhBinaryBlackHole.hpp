@@ -241,7 +241,24 @@ struct EvolutionMetavars {
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhB, AhB>;
   };
 
-  using interpolation_target_tags = tmpl::list<AhA,AhB>;
+  struct AhC {
+    using temporal_id = ::Tags::Time;
+    using vars_to_interpolate_to_target =
+        horizons_vars_to_interpolate_to_target;
+    using compute_vars_to_interpolate = ah::ComputeHorizonVolumeQuantities;
+    using tags_to_observe = horizons_tags_to_observe;
+    using compute_items_on_target = horizons_compute_items_on_target;
+    using compute_target_points =
+        intrp::TargetPoints::ApparentHorizon<AhC, ::Frame::Grid>;
+    using post_interpolation_callback =
+        intrp::callbacks::FindApparentHorizon<AhC, ::Frame::Grid>;
+    using horizon_find_failure_callback =
+        intrp::callbacks::ErrorOnFailedApparentHorizon;
+    using post_horizon_find_callback =
+        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhC, AhC>;
+  };
+
+  using interpolation_target_tags = tmpl::list<AhA, AhB, AhC>;
   using interpolator_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<volume_dim, ::Frame::Inertial>,
                  GeneralizedHarmonic::Tags::Pi<volume_dim, ::Frame::Inertial>,
@@ -266,6 +283,7 @@ struct EvolutionMetavars {
             tmpl::flatten<tmpl::list<
                 intrp::Events::Interpolate<3, AhA, interpolator_source_vars>,
                 intrp::Events::Interpolate<3, AhB, interpolator_source_vars>,
+                intrp::Events::Interpolate<3, AhC, interpolator_source_vars>,
                 Events::Completion,
                 Events::ObserveNorms<::Tags::Time, observe_fields>,
                 dg::Events::field_observations<volume_dim, Tags::Time,
@@ -297,7 +315,8 @@ struct EvolutionMetavars {
       observers::collect_reduction_data_tags<tmpl::push_back<
           tmpl::at<typename factory_creation::factory_classes, Event>,
           typename AhA::post_horizon_find_callback,
-          typename AhB::post_horizon_find_callback>>;
+          typename AhB::post_horizon_find_callback,
+          typename AhC::post_horizon_find_callback>>;
 
   enum class Phase {
     Initialization,
@@ -480,7 +499,8 @@ struct EvolutionMetavars {
       importers::ElementDataReader<EvolutionMetavars>,
       intrp::Interpolator<EvolutionMetavars>,
       intrp::InterpolationTarget<EvolutionMetavars, AhA>,
-      intrp::InterpolationTarget<EvolutionMetavars, AhB>, gh_dg_element_array>>;
+      intrp::InterpolationTarget<EvolutionMetavars, AhB>,
+      intrp::InterpolationTarget<EvolutionMetavars, AhC>, gh_dg_element_array>>;
 
   static constexpr Options::String help{
       "Evolve a binary black hole using the Generalized Harmonic "
