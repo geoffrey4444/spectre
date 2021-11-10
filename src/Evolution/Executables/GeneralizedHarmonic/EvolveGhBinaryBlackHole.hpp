@@ -207,6 +207,34 @@ struct EvolutionMetavars {
                  StrahlkorperGr::Tags::SpinFunctionCompute<::Frame::Grid>>,
       horizons_tags_to_observe>;
 
+  // Find both horizons in grid frame.
+  using horizons_vars_to_interpolate_to_target_inertial = tmpl::list<
+      gr::Tags::SpatialMetric<volume_dim, ::Frame::Inertial, DataVector>,
+      gr::Tags::InverseSpatialMetric<volume_dim, ::Frame::Inertial>,
+      gr::Tags::ExtrinsicCurvature<volume_dim, ::Frame::Inertial>,
+      gr::Tags::SpatialChristoffelSecondKind<volume_dim, ::Frame::Inertial>>;
+  // Observe both horizons in grid frame too.
+  using horizons_tags_to_observe_inertial = tmpl::list<
+      StrahlkorperGr::Tags::AreaCompute<::Frame::Inertial>,
+      StrahlkorperGr::Tags::IrreducibleMassCompute<::Frame::Inertial>>;
+  using horizons_compute_items_on_target_inertial = tmpl::append<
+      tmpl::list<
+          StrahlkorperGr::Tags::AreaElementCompute<::Frame::Inertial>,
+          StrahlkorperTags::ThetaPhiCompute<::Frame::Inertial>,
+          StrahlkorperTags::RadiusCompute<::Frame::Inertial>,
+          StrahlkorperTags::RhatCompute<::Frame::Inertial>,
+          StrahlkorperTags::InvJacobianCompute<::Frame::Inertial>,
+          StrahlkorperTags::DxRadiusCompute<::Frame::Inertial>,
+          StrahlkorperTags::OneOverOneFormMagnitudeCompute<
+              volume_dim, ::Frame::Inertial, DataVector>,
+          StrahlkorperTags::NormalOneFormCompute<::Frame::Inertial>,
+          StrahlkorperTags::UnitNormalOneFormCompute<::Frame::Inertial>,
+          StrahlkorperTags::UnitNormalVectorCompute<::Frame::Inertial>,
+          StrahlkorperTags::GradUnitNormalOneFormCompute<::Frame::Inertial>,
+          StrahlkorperTags::ExtrinsicCurvatureCompute<::Frame::Inertial>,
+          StrahlkorperGr::Tags::SpinFunctionCompute<::Frame::Inertial>>,
+      horizons_tags_to_observe_inertial>;
+
   struct AhA {
     using temporal_id = ::Tags::Time;
     using vars_to_interpolate_to_target =
@@ -244,14 +272,14 @@ struct EvolutionMetavars {
   struct AhC {
     using temporal_id = ::Tags::Time;
     using vars_to_interpolate_to_target =
-        horizons_vars_to_interpolate_to_target;
+        horizons_vars_to_interpolate_to_target_inertial;
     using compute_vars_to_interpolate = ah::ComputeHorizonVolumeQuantities;
-    using tags_to_observe = horizons_tags_to_observe;
-    using compute_items_on_target = horizons_compute_items_on_target;
+    using tags_to_observe = horizons_tags_to_observe_inertial;
+    using compute_items_on_target = horizons_compute_items_on_target_inertial;
     using compute_target_points =
-        intrp::TargetPoints::ApparentHorizon<AhC, ::Frame::Grid>;
+        intrp::TargetPoints::ApparentHorizon<AhC, ::Frame::Inertial>;
     using post_interpolation_callback =
-        intrp::callbacks::FindApparentHorizon<AhC, ::Frame::Grid>;
+        intrp::callbacks::FindApparentHorizon<AhC, ::Frame::Inertial>;
     using horizon_find_failure_callback =
         intrp::callbacks::ErrorOnFailedApparentHorizon;
     using post_horizon_find_callback =
