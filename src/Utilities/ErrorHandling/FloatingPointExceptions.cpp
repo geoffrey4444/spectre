@@ -20,9 +20,7 @@
 namespace {
 
 #ifdef __APPLE__
-#ifdef __arm64__
-auto old_fpcr = 0;
-#else
+#ifndef __arm64__
 auto old_mask = _mm_getcsr();
 #endif
 #endif
@@ -34,12 +32,7 @@ auto old_mask = _mm_getcsr();
 
 void enable_floating_point_exceptions() {
 #ifdef __APPLE__
-#ifdef __arm64__
-  uint64_t fpcr = __builtin_arm_rsr64("FPCR") | __fpcr_trap_overflow |
-                  __fpcr_trap_invalid | __fpcr_trap_divbyzero;
-  __builtin_arm_wsr64("FPCR", fpcr);
-  std::signal(SIGILL, fpe_signal_handler);
-#else
+#ifndef __arm64__
   _mm_setcsr(_MM_MASK_MASK &
              ~(_MM_MASK_OVERFLOW | _MM_MASK_INVALID | _MM_MASK_DIV_ZERO));
 #endif
@@ -51,10 +44,7 @@ void enable_floating_point_exceptions() {
 
 void disable_floating_point_exceptions() {
 #ifdef __APPLE__
-#ifdef __arm64__
-  __builtin_arm_wsr64("FPCR", old_fpcr);
-  std::signal(SIGILL, SIG_DFL);
-#else
+#ifndef __arm64__
   _mm_setcsr(old_mask);
 #endif
 #else
