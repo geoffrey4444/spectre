@@ -109,6 +109,11 @@ void test() {
     // construct face-centered inertial coordinates
     const auto basis = subcell_mesh.basis();
     auto quadrature = subcell_mesh.quadrature();
+    // The following method of constructing the extents std::array avoids a
+    // suspected compiler bug when building on Apple Silicon. The apparent bug
+    // causes the Mesh<Dim> constructor to ignore modifications to the
+    // extents array's components, so here the array is constructed in a way
+    // that never modifies a component once set.
     std::array<size_t, Dim> extents{};
     for (size_t j = 0; j < Dim; ++j) {
       if (j == i) {
