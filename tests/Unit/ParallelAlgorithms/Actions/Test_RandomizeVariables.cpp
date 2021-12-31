@@ -29,9 +29,7 @@ struct ScalarFieldTag : db::SimpleTag {
   using type = Scalar<DataVector>;
 };
 
-struct System {
-  using variables_tag = ::Tags::Variables<tmpl::list<ScalarFieldTag>>;
-};
+using VariablesTag = ::Tags::Variables<tmpl::list<ScalarFieldTag>>;
 
 template <typename Metavariables>
 struct ElementArray {
@@ -46,12 +44,10 @@ struct ElementArray {
               tmpl::list<::Tags::Variables<tmpl::list<ScalarFieldTag>>>>>>,
       Parallel::PhaseActions<
           typename Metavariables::Phase, Metavariables::Phase::Testing,
-          tmpl::list<
-              Actions::RandomizeVariables<typename Metavariables::system>>>>;
+          tmpl::list<Actions::RandomizeVariables<VariablesTag>>>>;
 };
 
 struct Metavariables {
-  using system = System;
   using component_list = tmpl::list<ElementArray<Metavariables>>;
   using const_global_cache_tags = tmpl::list<>;
   enum class Phase { Initialization, Testing, Exit };
@@ -59,7 +55,7 @@ struct Metavariables {
 
 void test_randomize_variables(
     std::optional<
-        typename Actions::RandomizeVariables<System>::RandomParameters>
+        typename Actions::RandomizeVariables<VariablesTag>::RandomParameters>
         params) {
   const DataVector used_for_size{5};
 

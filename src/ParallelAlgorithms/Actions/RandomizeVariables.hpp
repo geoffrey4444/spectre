@@ -43,11 +43,8 @@ namespace Actions {
  * toggled and is configurable with input-file options. Adding random noise to
  * fields can be useful to test the convergence and stability.
  */
-template <typename System>
+template <typename VariablesTag>
 struct RandomizeVariables {
- private:
-  using fields_tag = typename System::variables_tag;
-
  public:
   // Bundle the options so they can be placed in Options::Auto
   struct RandomParameters {
@@ -109,12 +106,12 @@ struct RandomizeVariables {
     // Set up the random distribution
     std::uniform_real_distribution<> dist(-amplitude, amplitude);
     // Add noise to the fields
-    db::mutate<fields_tag>(make_not_null(&box),
-                           [&generator, &dist](const auto fields) {
-                             for (size_t i = 0; i < fields->size(); ++i) {
-                               fields->data()[i] += dist(generator);
-                             }
-                           });
+    db::mutate<VariablesTag>(make_not_null(&box),
+                             [&generator, &dist](const auto fields) {
+                               for (size_t i = 0; i < fields->size(); ++i) {
+                                 fields->data()[i] += dist(generator);
+                               }
+                             });
     return {std::move(box)};
   }
 };
