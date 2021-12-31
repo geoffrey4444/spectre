@@ -43,7 +43,7 @@ namespace Actions {
  * toggled and is configurable with input-file options. Adding random noise to
  * fields can be useful to test the convergence and stability.
  */
-template <typename VariablesTag>
+template <typename VariablesTag, typename Label>
 struct RandomizeVariables {
  public:
   // Bundle the options so they can be placed in Options::Auto
@@ -68,7 +68,7 @@ struct RandomizeVariables {
   };
 
   struct RandomParametersOptionTag {
-    static std::string name() { return "RandomizeVariables"; }
+    static std::string name() { return Options::name<Label>(); }
     using type = Options::Auto<RandomParameters, Options::AutoLabel::None>;
     static constexpr Options::String help =
         "Add uniform random noise to variables.";

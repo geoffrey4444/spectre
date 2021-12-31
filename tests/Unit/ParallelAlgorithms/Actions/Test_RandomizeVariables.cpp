@@ -31,6 +31,8 @@ struct ScalarFieldTag : db::SimpleTag {
 
 using VariablesTag = ::Tags::Variables<tmpl::list<ScalarFieldTag>>;
 
+struct RandomizeVariables {};
+
 template <typename Metavariables>
 struct ElementArray {
   using metavariables = Metavariables;
@@ -44,7 +46,8 @@ struct ElementArray {
               tmpl::list<::Tags::Variables<tmpl::list<ScalarFieldTag>>>>>>,
       Parallel::PhaseActions<
           typename Metavariables::Phase, Metavariables::Phase::Testing,
-          tmpl::list<Actions::RandomizeVariables<VariablesTag>>>>;
+          tmpl::list<
+              Actions::RandomizeVariables<VariablesTag, RandomizeVariables>>>>;
 };
 
 struct Metavariables {
@@ -54,8 +57,8 @@ struct Metavariables {
 };
 
 void test_randomize_variables(
-    std::optional<
-        typename Actions::RandomizeVariables<VariablesTag>::RandomParameters>
+    std::optional<typename Actions::RandomizeVariables<
+        VariablesTag, RandomizeVariables>::RandomParameters>
         params) {
   const DataVector used_for_size{5};
 
