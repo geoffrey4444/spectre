@@ -34,19 +34,17 @@ struct TaggedTuple;
 }  // namespace tuples
 /// \endcond
 
-namespace evolution::Actions {
+namespace Actions {
 
 /*!
  * \brief Optionally add random noise to the initial guess.
  *
- * In an evolution, add this action to the action list after initializing the
- * evolved fields but before taking timesteps to add random noise to the evolved
- * fields. The random noise can be toggled and is configurable with input-file
- * options. Adding random noise to the initial fields can be useful to test the
- * convergence and stability of evolutions.
+ * Use this action to add random noise to variables. The random noise can be
+ * toggled and is configurable with input-file options. Adding random noise to
+ * fields can be useful to test the convergence and stability.
  */
 template <typename System>
-struct RandomizeInitialFields {
+struct RandomizeVariables {
  private:
   using fields_tag = typename System::variables_tag;
 
@@ -73,10 +71,10 @@ struct RandomizeInitialFields {
   };
 
   struct RandomParametersOptionTag {
-    static std::string name() { return "RandomizeInitialFields"; }
+    static std::string name() { return "RandomizeVariables"; }
     using type = Options::Auto<RandomParameters, Options::AutoLabel::None>;
     static constexpr Options::String help =
-        "Add uniform random noise to the initial fields in an evolution.";
+        "Add uniform random noise to variables.";
   };
 
   struct RandomParametersTag : db::SimpleTag {
@@ -121,4 +119,4 @@ struct RandomizeInitialFields {
   }
 };
 
-}  // namespace evolution::Actions
+}  // namespace Actions
