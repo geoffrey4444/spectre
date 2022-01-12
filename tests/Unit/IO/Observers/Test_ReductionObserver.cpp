@@ -368,6 +368,7 @@ void test_reduction_observer(const bool observe_per_core) {
   });
 }
 
+// [[TimeOut, 6]]
 SPECTRE_TEST_CASE("Unit.IO.Observers.ReductionObserver", "[Unit][Observers]") {
   test_reduction_observer(false);
   test_reduction_observer(true);
