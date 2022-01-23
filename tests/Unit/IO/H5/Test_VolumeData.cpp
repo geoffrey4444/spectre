@@ -11,12 +11,14 @@
 #include <string>
 #include <vector>
 
+#include "ApparentHorizons/Strahlkorper.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/TensorData.hpp"
 #include "IO/H5/AccessType.hpp"
 #include "IO/H5/File.hpp"
 #include "IO/H5/VolumeData.hpp"
 #include "NumericalAlgorithms/Spectral/Spectral.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/YlmSpherepack.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/FileSystem.hpp"
@@ -31,6 +33,53 @@ T multiply(const double obs_value, const T& component) {
     t *= obs_value;
   }
   return result;
+}
+
+void test_strahlkorper() {
+  constexpr size_t l_max = 12;
+  constexpr size_t m_max = 12;
+  constexpr double sphere_radius = 4.0;
+  constexpr std::array<double, 3> center{{5.0, 6.0, 7.0}};
+  const Strahlkorper<Frame::Inertial> strahlkorper{l_max, m_max, sphere_radius,
+                                                   center};
+  const YlmSpherepack& ylm = strahlkorper.ylm_spherepack();
+  const std::array<DataVector, 2> theta_phi = ylm.theta_phi_points();
+  const DataVector theta = theta_phi[0];
+  const DataVector phi = theta_phi[1];
+  const DataVector sin_theta = sin(theta);
+  const DataVector radius = ylm.spec_to_phys(strahlkorper.coefficients());
+
+  const std::vector<size_t> extents{
+      {ylm.physical_extents()[0], ylm.physical_extents()[1]}};
+  const std::vector<TensorComponent> tensor_components{
+      {"AhA/InertialCoordinates_x", radius * sin_theta * cos(phi)},
+      {"AhA/InertialCoordinates_y", radius * sin_theta * sin(phi)},
+      {"AhA/InertialCoordinates_z", radius * cos(theta)},
+      {"AhA/TestScalar", cos(2.0 * theta)}};
+
+  const std::vector<size_t> observation_ids{4444};
+  const std::vector<double> observation_values{4.444};
+  const std::string grid_name{"[[Strahlkorper]]"};
+  const std::vector<Spectral::Basis> bases{2,
+                                           Spectral::Basis::SphericalHarmonic};
+  const std::vector<Spectral::Quadrature> quadratures{
+      2, Spectral::Quadrature::SphericalHarmonic};
+
+  const std::string h5_file_name{"Unit.IO.H5.VolumeData.Strahlkorper.h5"};
+  const uint32_t version_number = 4;
+  if (file_system::check_if_file_exists(h5_file_name)) {
+    file_system::rm(h5_file_name, true);
+  }
+
+  h5::H5File<h5::AccessType::ReadWrite> strahlkorper_file{h5_file_name};
+  auto& volume_file =
+      strahlkorper_file.insert<h5::VolumeData>("/element_data", version_number);
+  volume_file.write_volume_data(
+      observation_ids[0], observation_values[0],
+      std::vector<ElementVolumeData>{
+          {extents, tensor_components, bases, quadratures}});
+
+  CHECK(true);
 }
 
 template <typename DataType>
@@ -291,6 +340,7 @@ void test() {
 SPECTRE_TEST_CASE("Unit.IO.H5.VolumeData", "[Unit][IO][H5]") {
   test<DataVector>();
   test<std::vector<float>>();
+  test_strahlkorper();
 }
 
 // [[OutputRegex, The expected format of the tensor component names is
