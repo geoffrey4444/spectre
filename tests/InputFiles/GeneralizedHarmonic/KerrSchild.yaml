@@ -32,9 +32,9 @@ PhaseChangeAndTriggers:
 DomainCreator:
   Shell:
     InnerRadius: 1.9
-    OuterRadius: 2.3
+    OuterRadius: 10.
     InitialRefinement: 0
-    InitialGridPoints: [5, 5]
+    InitialGridPoints: [8, 8]
     UseEquiangularMap: true
     EquatorialCompression: None
     RadialPartitioning: []
@@ -50,6 +50,13 @@ AnalyticSolution:
     Mass: 1.0
     Spin: [0.0, 0.0, 0.0]
     Center: [0.0, 0.0, 0.0]
+
+Importers:
+  NumericInitialData:
+    FileName: KerrVolume0.h5
+    Subgroup: VolumeData
+    ObservationValue: 2. # Set to last iteration number of the elliptic solver
+    Variables: Adm
 
 EvolutionSystem:
   GeneralizedHarmonic:
