@@ -36,6 +36,14 @@ struct ReadAllVolumeDataAndDistribute;
 }  // namespace importers
 /// \endcond
 
+namespace importers::Tags {
+/// Indicates an available tensor field is selected for importing
+template <typename FieldTag>
+struct Selected : db::SimpleTag {
+  using type = bool;
+};
+}  // namespace importers::Tags
+
 namespace importers::Actions {
 
 /*!
@@ -138,7 +146,10 @@ struct ReadAllVolumeDataAndDistribute {
                db::tag_is_retrievable_v<Tags::ElementDataAlreadyRead,
                                         DataBox>> = nullptr>
   static void apply(DataBox& box, Parallel::GlobalCache<Metavariables>& cache,
-                    const ArrayIndex& /*array_index*/) {
+                    const ArrayIndex& /*array_index*/,
+                    tuples::tagged_tuple_from_typelist<
+                        db::wrap_tags_in<Tags::Selected, FieldTagsList>>
+                        selected_fields = select_all_fields(FieldTagsList{})) {
     // Only read and distribute the volume data once
     // This action will be invoked by `importers::Actions::ReadVolumeData` from
     // every element on the node, but only the first invocation reads the file
@@ -175,8 +186,12 @@ struct ReadAllVolumeDataAndDistribute {
     // stored in the file
     tuples::tagged_tuple_from_typelist<FieldTagsList> all_tensor_data{};
     tmpl::for_each<FieldTagsList>([&all_tensor_data, &volume_file,
-                                   &observation_id](auto field_tag_v) {
+                                   &observation_id,
+                                   &selected_fields](auto field_tag_v) {
       using field_tag = tmpl::type_from<decltype(field_tag_v)>;
+      if (not get<Tags::Selected<field_tag>>(selected_fields)) {
+        return;
+      }
       auto& tensor_data = get<field_tag>(all_tensor_data);
       for (size_t i = 0; i < tensor_data.size(); i++) {
         tensor_data[i] = volume_file.get_tensor_component(
@@ -212,8 +227,12 @@ struct ReadAllVolumeDataAndDistribute {
       tuples::tagged_tuple_from_typelist<FieldTagsList> element_data{};
       tmpl::for_each<FieldTagsList>([&element_data,
                                      &element_data_offset_and_length,
-                                     &all_tensor_data](auto field_tag_v) {
+                                     &all_tensor_data,
+                                     &selected_fields](auto field_tag_v) {
         using field_tag = tmpl::type_from<decltype(field_tag_v)>;
+        if (not get<Tags::Selected<field_tag>>(selected_fields)) {
+          return;
+        }
         auto& element_tensor_data = get<field_tag>(element_data);
         // Iterate independent components of the tensor
         for (size_t i = 0; i < element_tensor_data.size(); i++) {
@@ -242,6 +261,13 @@ struct ReadAllVolumeDataAndDistribute {
           // once, so there's no need to keep track of the temporal ID.
           0_st, std::move(element_data));
     }
+  }
+
+ private:
+  template <typename... LocalFieldTags>
+  static tuples::TaggedTuple<Tags::Selected<LocalFieldTags>...>
+  select_all_fields(tmpl::list<LocalFieldTags...> /*meta*/) {
+    return {typename Tags::Selected<LocalFieldTags>::type{true}...};
   }
 };
 
