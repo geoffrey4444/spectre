@@ -7,6 +7,7 @@
 #include <tuple>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/Structure/ElementId.hpp"
