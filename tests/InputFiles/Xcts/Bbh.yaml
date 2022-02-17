@@ -1,0 +1,182 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+# Executable: SolveXcts
+
+Background: &background
+  Binary:
+    XCoords: [&x_left -8., &x_right 8.]
+    ObjectA:
+      Kerr: &kerr_left
+        Mass: 0.4229
+        Spin: [0., 0., 0.]
+        Center: [0., 0., 0.]
+    ObjectB:
+      Kerr: &kerr_right
+        Mass: 0.4229
+        Spin: [0., 0., 0.]
+        Center: [0., 0., 0.]
+    AngularVelocity: 0.0144
+    FalloffWidths: [4.8, 4.8]
+    Expansion: 0.
+
+InitialGuess: *background
+
+DomainCreator:
+  BinaryCompactObject:
+    ObjectA:
+      InnerRadius: 0.8
+      OuterRadius: 5.
+      XCoord: *x_left
+      Interior:
+        ExciseWithBoundaryCondition:
+          ApparentHorizon:
+            Center: [*x_left, 0., 0.]
+            Rotation: [0., 0., 0.]
+            Lapse: *kerr_left
+            NegativeExpansion: *kerr_left
+      UseLogarithmicMap: True
+    ObjectB:
+      InnerRadius: 0.8
+      OuterRadius: 5.
+      XCoord: *x_right
+      Interior:
+        ExciseWithBoundaryCondition:
+          ApparentHorizon:
+            Center: [*x_right, 0., 0.]
+            Rotation: [0., 0., 0.]
+            Lapse: *kerr_right
+            NegativeExpansion: *kerr_right
+      UseLogarithmicMap: True
+    EnvelopingCube:
+      Radius: 55.
+      UseProjectiveMap: True
+      Sphericity: 0.
+    OuterShell:
+      InnerRadius: 60.
+      OuterRadius: 300.
+      RadialDistribution: Inverse
+      BoundaryCondition: Flatness
+    InitialRefinement:
+      ObjectAShell:               [{{ L + 1 }}, {{ L + 1 }}, {{ L + 1 }}]
+      ObjectBShell:               [{{ L + 1 }}, {{ L + 1 }}, {{ L + 1 }}]
+      ObjectACube:                [{{ L + 1 }}, {{ L + 1 }}, {{ L    }}]
+      ObjectBCube:                [{{ L + 1 }}, {{ L + 1 }}, {{ L    }}]
+      EnvelopingCubeUpperZLeft:   [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeLowerZLeft:   [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeUpperYLeft:   [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeLowerYLeft:   [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeLowerX:       [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeUpperZRight:  [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeLowerZRight:  [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeUpperYRight:  [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeLowerYRight:  [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      EnvelopingCubeUpperX:       [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellUpperZLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellLowerZLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellUpperYLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellLowerYLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellLowerX:           [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellUpperZRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellLowerZRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellUpperYRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellLowerYRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      CubedShellUpperX:           [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellUpperZLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellLowerZLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellUpperYLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellLowerYLeft:       [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellLowerX:           [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellUpperZRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellLowerZRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellUpperYRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellLowerYRight:      [{{ L     }}, {{ L + 1 }}, {{ L     }}]
+      OuterShellUpperX:           [{{ L + 1 }}, {{ L + 1 }}, {{ L     }}]
+    InitialGridPoints:
+      ObjectAShell:   [{{ P + 1 }}, {{ P + 1 }}, {{ P + 4 }}]
+      ObjectBShell:   [{{ P + 1 }}, {{ P + 1 }}, {{ P + 4 }}]
+      ObjectACube:    [{{ P + 1 }}, {{ P + 1 }}, {{ P + 2 }}]
+      ObjectBCube:    [{{ P + 1 }}, {{ P + 1 }}, {{ P + 2 }}]
+      EnvelopingCube: [{{ P + 1 }}, {{ P + 1 }}, {{ P + 1 }}]
+      CubedShell:     [{{ P + 1 }}, {{ P + 1 }}, {{ P + 1 }}]
+      OuterShell:     [{{ P + 1 }}, {{ P + 1 }}, {{ P     }}]
+
+Discretization:
+  DiscontinuousGalerkin:
+    PenaltyParameter: 1.
+    Massive: True
+
+Observers:
+  VolumeFileName: "BbhVolume"
+  ReductionFileName: "BbhReductions"
+
+NonlinearSolver:
+  NewtonRaphson:
+    ConvergenceCriteria:
+      MaxIterations: 20
+      RelativeResidual: 0.
+      AbsoluteResidual: 1.e-10
+    SufficientDecrease: 1.e-4
+    MaxGlobalizationSteps: 40
+    DampingFactor: 1.
+    Verbosity: Verbose
+
+LinearSolver:
+  Gmres:
+    ConvergenceCriteria:
+      MaxIterations: 100
+      RelativeResidual: 1.e-3
+      AbsoluteResidual: 1.e-10
+    Verbosity: Quiet
+
+  Multigrid:
+    Iterations: 1
+    MaxLevels: Auto
+    PreSmoothing: True
+    PostSmoothingAtBottom: True
+    Verbosity: Silent
+    OutputVolumeData: False
+
+  SchwarzSmoother:
+    MaxOverlap: 2
+    Iterations: 3
+    Verbosity: Silent
+    SubdomainSolver:
+      Gmres:
+        ConvergenceCriteria:
+          MaxIterations: 3
+          RelativeResidual: 1.e-4
+          AbsoluteResidual: 1.e-10
+        Verbosity: Silent
+        Restart: None
+        Preconditioner:
+          MinusLaplacian:
+            Solver: ExplicitInverse
+            BoundaryConditions: Auto
+    SkipResets: True
+    ObservePerCoreReductions: False
+
+EventsAndTriggers:
+  ? HasConverged
+  : - ObserveNorms:
+        SubfileName: ConstraintNorms
+        TensorsToObserve:
+          - Name: HamiltonianConstraint
+            NormType: L2Norm
+            Components: Individual
+          - Name: MomentumConstraint
+            NormType: L2Norm
+            Components: Individual
+    - ObserveFields:
+        SubfileName: VolumeData
+        VariablesToObserve:
+          - ConformalFactor
+          - Lapse
+          - Shift
+          - SpatialMetric
+          - ExtrinsicCurvature
+          - HamiltonianConstraint
+          - MomentumConstraint
+        InterpolateToMesh: None
+        CoordinatesFloatingPointType: Float
+        FloatingPointTypes: [Float]
