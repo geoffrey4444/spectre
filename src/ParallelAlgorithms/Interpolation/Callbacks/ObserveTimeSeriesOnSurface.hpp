@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ApparentHorizons/Strahlkorper.hpp"
+#include "ApparentHorizons/Tags.hpp"
 #include "DataStructures/DataBox/TagName.hpp"
 #include "DataStructures/Index.hpp"
 #include "IO/Observer/Helpers.hpp"
@@ -28,8 +29,6 @@
 #include "Utilities/Gsl.hpp"
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/TMPL.hpp"
-
-#include "Utilities/TmplDebugging.hpp"
 
 /// \cond
 namespace db {
@@ -97,7 +96,8 @@ auto make_reduction_data(const db::DataBox<DbTags>& box, double time,
 /// This is an InterpolationTargetTag::post_interpolation_callback;
 /// see InterpolationTarget for a description of InterpolationTargetTag.
 template <typename TagsToObserve, typename ObservationType,
-          typename InterpolationTargetTag>
+          typename InterpolationTargetTag, bool OutputSurfaceData = false,
+          typename SurfaceTagsToObserve = tmpl::list<>>
 struct ObserveTimeSeriesOnSurface {
   using observed_reduction_data_tags = observers::make_reduction_data_tags<
       tmpl::list<typename detail::reduction_data_type<TagsToObserve>::type>>;
@@ -131,46 +131,53 @@ struct ObserveTimeSeriesOnSurface {
             box, InterpolationTarget_detail::get_temporal_id_value(temporal_id),
             TagsToObserve{}));
 
-    // Output horizon surface data as well
-    const Strahlkorper<Frame::Inertial>& strahlkorper =
-        get<StrahlkorperTags::Strahlkorper<Frame::Inertial>>(box);
-    const YlmSpherepack& ylm = strahlkorper.ylm_spherepack();
-    const std::array<DataVector, 2>& theta_phi = ylm.theta_phi_points();
-    const DataVector& theta = theta_phi[0];
-    const DataVector& phi = theta_phi[1];
-    const DataVector& sin_theta = sin(theta);
-    const DataVector& radius = ylm.spec_to_phys(strahlkorper.coefficients());
-    const DataVector& ricci_scalar =
-        get(get<StrahlkorperTags::RicciScalar>(box));
-    std::vector<TensorComponent> tensor_components{
-        {"AhA/InertialCoordinates_x", radius * sin_theta * cos(phi)},
-        {"AhA/InertialCoordinates_y", radius * sin_theta * sin(phi)},
-        {"AhA/InertialCoordinates_z", radius * cos(theta)},
-        {"AhA/RicciScalar", ricci_scalar}};
-    const std::string& surface_name =
-        pretty_type::short_name<ObservationType>();
-    const std::string& subfile_path{std::string{"/"} + surface_name};
-    const std::vector<size_t> extents_vector{
-        {ylm.physical_extents()[0], ylm.physical_extents()[1]}};
-    const std::vector<Spectral::Basis> bases_vector{
-        2, Spectral::Basis::SphericalHarmonic};
-    const std::vector<Spectral::Quadrature> quadratures_vector{
-        2, Spectral::Quadrature::SphericalHarmonic};
-    const observers::ObservationId& observation_id = observers::ObservationId(
-        InterpolationTarget_detail::get_temporal_id_value(temporal_id),
-        subfile_path + ".vol");
+    if constexpr (OutputSurfaceData) {
+      const Strahlkorper<Frame::Inertial>& strahlkorper =
+          get<StrahlkorperTags::Strahlkorper<Frame::Inertial>>(box);
+      const YlmSpherepack& ylm = strahlkorper.ylm_spherepack();
+      const std::array<DataVector, 2>& theta_phi = ylm.theta_phi_points();
+      const DataVector& theta = theta_phi[0];
+      const DataVector& phi = theta_phi[1];
+      const DataVector& sin_theta = sin(theta);
+      const DataVector& radius = ylm.spec_to_phys(strahlkorper.coefficients());
 
-    const std::string h5_file_name{surface_name + "Surface0.h5"s};
-    const uint32_t version_number = 4;
-    {
-      h5::H5File<h5::AccessType::ReadWrite> strahlkorper_file{h5_file_name,
-                                                              true};
-      auto& volume_file = strahlkorper_file.try_insert<h5::VolumeData>(
-          subfile_path, version_number);
-      volume_file.write_volume_data(
-          observation_id.hash(), observation_id.value(),
-          std::vector<ElementVolumeData>{{extents_vector, tensor_components,
-                                          bases_vector, quadratures_vector}});
+      // Here, output the inertial-frame coordinates and the RicciScalar.
+      // This could be extended to include other scalars, such as the horizon
+      // vorticity and tendicity.
+      const DataVector& ricci_scalar =
+          get(get<StrahlkorperTags::RicciScalar>(box));
+      const std::string& surface_name =
+          pretty_type::short_name<ObservationType>();
+      std::vector<TensorComponent> tensor_components{
+          {surface_name + "/InertialCoordinates_x"s,
+           radius * sin_theta * cos(phi)},
+          {surface_name + "/InertialCoordinates_y"s,
+           radius * sin_theta * sin(phi)},
+          {surface_name + "/InertialCoordinates_z"s, radius * cos(theta)},
+          {surface_name + "/RicciScalar"s, ricci_scalar}};
+      const std::string& subfile_path{std::string{"/"} + surface_name};
+      const std::vector<size_t> extents_vector{
+          {ylm.physical_extents()[0], ylm.physical_extents()[1]}};
+      const std::vector<Spectral::Basis> bases_vector{
+          2, Spectral::Basis::SphericalHarmonic};
+      const std::vector<Spectral::Quadrature> quadratures_vector{
+          2, Spectral::Quadrature::SphericalHarmonic};
+      const observers::ObservationId& observation_id = observers::ObservationId(
+          InterpolationTarget_detail::get_temporal_id_value(temporal_id),
+          subfile_path + ".vol");
+
+      const std::string h5_file_name{surface_name + "Surface0.h5"s};
+      const uint32_t version_number = 4;
+      {
+        h5::H5File<h5::AccessType::ReadWrite> strahlkorper_file{h5_file_name,
+                                                                true};
+        auto& volume_file = strahlkorper_file.try_insert<h5::VolumeData>(
+            subfile_path, version_number);
+        volume_file.write_volume_data(
+            observation_id.hash(), observation_id.value(),
+            std::vector<ElementVolumeData>{{extents_vector, tensor_components,
+                                            bases_vector, quadratures_vector}});
+      }
     }
   }
 };

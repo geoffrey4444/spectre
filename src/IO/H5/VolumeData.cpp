@@ -207,10 +207,9 @@ void VolumeData::write_volume_data(
               append_element_extents_and_connectivity(
                   &total_extents, &total_connectivity, &total_points_so_far,
                   dim, element);
+
               // If element is 2D and the bases are both SphericalHarmonic,
-              // then add extra connections to close the surface. Note:
-              // here, just close the gap between min(phi) and max(phi);
-              // do not yet deal with closing the poles.
+              // then add extra connections to close the surface.
               if (dim == 2) {
                 if (element.basis[0] == Spectral::Basis::SphericalHarmonic and
                     element.basis[1] == Spectral::Basis::SphericalHarmonic) {

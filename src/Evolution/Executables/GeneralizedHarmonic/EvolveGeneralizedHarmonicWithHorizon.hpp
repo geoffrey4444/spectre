@@ -108,7 +108,9 @@ struct EvolutionMetavars<3, InitialData, BoundaryConditions>
     using horizon_find_failure_callback =
         intrp::callbacks::ErrorOnFailedApparentHorizon;
     using post_horizon_find_callback =
-        intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA, AhA>;
+        intrp::callbacks::ObserveTimeSeriesOnSurface<
+            tags_to_observe, AhA, AhA, true,
+            tmpl::list<StrahlkorperTags::RicciScalar>>;
   };
 
   using interpolation_target_tags = tmpl::list<AhA>;
