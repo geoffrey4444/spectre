@@ -88,6 +88,9 @@ auto make_reduction_data(const db::DataBox<DbTags>& box, double time,
 ///   - `temporal_id`
 /// - DataBox:
 ///   - `TagsToObserve`
+///   - `OutputSurfaceData` (optional): a `tmpl::list` of tags, each of which
+///     is a Scalar<DataVector> on the Strahlkorper. Ignored unless
+///     `OutputSurfaceData == true`.
 ///
 /// `ObservationType` is a type that distinguishes this observation
 /// from other things that call observers::ThreadedActions::ObserverWriter,
@@ -141,11 +144,7 @@ struct ObserveTimeSeriesOnSurface {
       const DataVector& sin_theta = sin(theta);
       const DataVector& radius = ylm.spec_to_phys(strahlkorper.coefficients());
 
-      // Here, output the inertial-frame coordinates and the RicciScalar.
-      // This could be extended to include other scalars, such as the horizon
-      // vorticity and tendicity.
-      const DataVector& ricci_scalar =
-          get(get<StrahlkorperTags::RicciScalar>(box));
+      // Output the inertial-frame coordinates.
       const std::string& surface_name =
           pretty_type::short_name<ObservationType>();
       std::vector<TensorComponent> tensor_components{
@@ -153,8 +152,22 @@ struct ObserveTimeSeriesOnSurface {
            radius * sin_theta * cos(phi)},
           {surface_name + "/InertialCoordinates_y"s,
            radius * sin_theta * sin(phi)},
-          {surface_name + "/InertialCoordinates_z"s, radius * cos(theta)},
-          {surface_name + "/RicciScalar"s, ricci_scalar}};
+          {surface_name + "/InertialCoordinates_z"s, radius * cos(theta)}};
+
+      // If SurfaceTagsToObserve is not empty, include each tag if it is
+      // a scalar. Otherwise, throw a compile-time error. This could be
+      // generalized to loop over components, outputting them one at a time.
+      tmpl::for_each<SurfaceTagsToObserve>([&box, &surface_name,
+                                            &tensor_components](auto tag_v) {
+        using Tag = tmpl::type_from<decltype(tag_v)>;
+        static_assert(
+            std::is_same_v<typename Tag::type, Scalar<DataVector>>,
+            "Each tag in SurfaceTagsToObserve must be a Scalar<DataVector>.");
+        tensor_components.push_back(
+            {surface_name + "/"s + pretty_type::short_name<Tag>(),
+             get(get<Tag>(box))});
+      });
+
       const std::string& subfile_path{std::string{"/"} + surface_name};
       const std::vector<size_t> extents_vector{
           {ylm.physical_extents()[0], ylm.physical_extents()[1]}};
