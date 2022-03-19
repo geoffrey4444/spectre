@@ -73,14 +73,14 @@ spectre_run_cmake() {
         return 1
     fi
     spectre_load_modules
-    CHARM_ROOT="/home/knelli/tools/charm/verbs-linux-x86_64-smp"
+    # CHARM_ROOT="/home/knelli/tools/charm/verbs-linux-x86_64-smp"
     export GCC_HOME=/opt/ohpc/pub/compiler/gcc/7.3.0/bin
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_C_COMPILER=clang \
           -D CMAKE_CXX_COMPILER=clang++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
-          -D ASAN=ON \
+          -D ASAN=OFF \
           "$@" \
           $SPECTRE_HOME
 }
@@ -91,14 +91,14 @@ spectre_run_cmake_charm7() {
         return 1
     fi
     spectre_load_modules
-    CHARM_ROOT="/home/knelli/tools/charm_7/verbs-linux-x86_64-smp"
+    # CHARM_ROOT="/home/knelli/tools/charm_7/verbs-linux-x86_64-smp"
     export GCC_HOME=/opt/ohpc/pub/compiler/gcc/7.3.0/bin
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_C_COMPILER=clang \
           -D CMAKE_CXX_COMPILER=clang++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
-          -D ASAN=ON \
+          -D ASAN=OFF \
           "$@" \
           $SPECTRE_HOME
 }
