@@ -89,7 +89,15 @@ struct Rotation : tt::ConformsTo<protocols::ControlError> {
     const double grid_dot_current = dot(grid_diff, current_diff);
     const DataVector grid_cross_current = cross(grid_diff, current_diff);
 
-    return grid_cross_current / grid_dot_current;
+    DataVector error = grid_cross_current / grid_dot_current;
+    if (get<control_system::Tags::RestrictToRotationAboutZAxis>(cache)) {
+      // Force x,y components to be 0 because we are only controlling
+      // z-component
+      error[0] = 0.0;
+      error[1] = 0.0;
+    }
+
+    return error;
   }
 };
 
