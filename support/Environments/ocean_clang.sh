@@ -76,6 +76,7 @@ spectre_run_cmake() {
     export GCC_HOME=/opt/ohpc/pub/compiler/gcc/7.3.0/bin
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
+          -D DEBUG_SYMBOLS=ON \
           -D CMAKE_C_COMPILER=clang \
           -D CMAKE_CXX_COMPILER=clang++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
@@ -92,10 +93,10 @@ spectre_run_cmake_charm7() {
     export GCC_HOME=/opt/ohpc/pub/compiler/gcc/7.3.0/bin
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
+          -D DEBUG_SYMBOLS=ON \
           -D CMAKE_C_COMPILER=clang \
           -D CMAKE_CXX_COMPILER=clang++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
-          -D ASAN=ON \
           "$@" \
           $SPECTRE_HOME
 }
