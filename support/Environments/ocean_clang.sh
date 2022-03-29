@@ -17,10 +17,11 @@ spectre_setup_modules() {
 }
 
 spectre_unload_modules() {
-    module unload ohpc
+    module unload prun
+    module unload gnu7/7.3.0
     module unload llvm/10.0.1
     module unload gnu7/7.3.0
-    module unload openmpi/1.10.7
+    module unload mpi
     module unload prun/1.2
     module unload cmake/3.18.5
     module unload git-2.19.2-gcc-7.3.0-jfnpgdh
@@ -36,18 +37,18 @@ spectre_unload_modules() {
     module unload hdf5-1.12.0-gcc-7.3.0-mknp6xv
     module unload openblas-0.3.4-gcc-7.3.0-tt2coe7
     module unload python/3.9.5
-    module unload charm-7.0.0
+    module unload charm-7.0.0-intel
     module unload doxygen-1.9.1-gcc-7.3.0-nxmwu4a
     module unload zlib-1.2.11-gcc-7.3.0-h3h2oa4
 }
 
 spectre_load_modules() {
-    module load ohpc
-    module load python/3.9.5
-    module load gnu7/7.3.0
-    module load openmpi/1.10.7
     module load prun/1.2
-    module load llvm/10.0.1
+    # module load llvm/10.0.1
+    module load gnu7/7.3.0
+    module load python/3.9.5
+    export MODULEPATH=$MODULEPATH:/opt/ohpc/pub/apps/intel/oneapi/modulefiles/
+    module load mpi
     source /opt/ohpc/pub/apps/spack/0.12.0/share/spack/setup-env.sh
     module load cmake/3.18.5
     module load git-2.19.2-gcc-7.3.0-jfnpgdh
@@ -62,7 +63,7 @@ spectre_load_modules() {
     module load boost-1.68.0-gcc-7.3.0-vgl6ofr
     module load hdf5-1.12.0-gcc-7.3.0-mknp6xv
     module load openblas-0.3.4-gcc-7.3.0-tt2coe7
-    module load charm-7.0.0
+    module load charm-7.0.0-intel
     module load doxygen-1.9.1-gcc-7.3.0-nxmwu4a
     module load zlib-1.2.11-gcc-7.3.0-h3h2oa4
 }
@@ -77,8 +78,9 @@ spectre_run_cmake() {
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
           -D DEBUG_SYMBOLS=ON \
-          -D CMAKE_C_COMPILER=clang \
-          -D CMAKE_CXX_COMPILER=clang++ \
+          -D CMAKE_CXX_FLAGS="-DSPECTRE_DEBUG" \
+          -D CMAKE_C_COMPILER=gcc \
+          -D CMAKE_CXX_COMPILER=g++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
           "$@" \
           $SPECTRE_HOME
@@ -94,6 +96,7 @@ spectre_run_cmake_charm7() {
     cmake -D CHARM_ROOT=$CHARM_ROOT \
           -D CMAKE_BUILD_TYPE=Release \
           -D DEBUG_SYMBOLS=ON \
+          -D CMAKE_CXX_FLAGS="-DSPECTRE_DEBUG" \
           -D CMAKE_C_COMPILER=clang \
           -D CMAKE_CXX_COMPILER=clang++ \
           -D CMAKE_Fortran_COMPILER=${GCC_HOME}/gfortran \
