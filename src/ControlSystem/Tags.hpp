@@ -19,8 +19,6 @@
 #include "Utilities/TMPL.hpp"
 #include "Utilities/TypeTraits/CreateHasStaticMemberVariable.hpp"
 
-#include "Parallel/Printf.hpp"
-
 /// \cond
 namespace ah {
 enum class ObjectLabel;
@@ -129,7 +127,6 @@ struct Averager : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options(
       const control_system::OptionHolder<ControlSystem>& option_holder) {
-    Parallel::printf("Creating averager\n");
     return option_holder.averager;
   }
 };
@@ -146,7 +143,6 @@ struct TimescaleTuner : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options(
       const control_system::OptionHolder<ControlSystem>& option_holder) {
-    Parallel::printf("Creating tuner\n");
     return option_holder.tuner;
   }
 };
@@ -168,7 +164,6 @@ struct Controller : db::SimpleTag {
     type controller = option_holder.controller;
     const ::TimescaleTuner tuner = option_holder.tuner;
 
-    Parallel::printf("Creating controller\n");
     controller.set_initial_update_time(initial_time);
     controller.assign_time_between_updates(min(tuner.current_timescale()));
 
@@ -188,7 +183,6 @@ struct ControlError : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options(
       const control_system::OptionHolder<ControlSystem>& option_holder) {
-    Parallel::printf("Creating control error\n");
     return option_holder.control_error;
   }
 };
@@ -248,7 +242,6 @@ struct IsActive : db::SimpleTag {
     if (not function_of_time_file.has_value()) {
       // `None` was specified as the option for the file so we aren't replacing
       // anything
-      Parallel::printf("%s control system active\n", ControlSystem::name());
       return true;
     }
 
@@ -256,13 +249,10 @@ struct IsActive : db::SimpleTag {
 
     for (const auto& spec_and_spectre_names : function_of_time_name_map) {
       if (spec_and_spectre_names.second == name) {
-        Parallel::printf("%s control system not active\n",
-                         ControlSystem::name());
         return false;
       }
     }
 
-    Parallel::printf("%s control system active\n", ControlSystem::name());
     return true;
   }
 

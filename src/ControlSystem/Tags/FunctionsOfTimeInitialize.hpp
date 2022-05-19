@@ -22,8 +22,6 @@
 #include "Utilities/TMPL.hpp"
 #include "Utilities/TypeTraits/IsA.hpp"
 
-#include "Parallel/Printf.hpp"
-
 /// \cond
 template <class Metavariables, typename ControlSystem>
 struct ControlComponent;
@@ -135,19 +133,10 @@ struct FunctionsOfTimeInitialize : domain::Tags::FunctionsOfTime,
                                               functions_of_time);
 
     if (function_of_time_file) {
-      auto fot = domain::FunctionsOfTime::override_functions_of_time(
+      return domain::FunctionsOfTime::override_functions_of_time(
           domain_creator, *function_of_time_file, function_of_time_name_map,
           initial_expiration_times);
-      for (const auto& [name, fot_ptr] : fot) {
-        Parallel::printf("Override: FoT %s has expiration time t=%.16g\n", name,
-                         fot_ptr->time_bounds()[1]);
-      }
-      return fot;
     } else {
-      for (const auto& [name, fot_ptr] : functions_of_time) {
-        Parallel::printf("NotOverride: FoT %s has expiration time t=%.16g\n",
-                         name, fot_ptr->time_bounds()[1]);
-      }
       return functions_of_time;
     }
   }

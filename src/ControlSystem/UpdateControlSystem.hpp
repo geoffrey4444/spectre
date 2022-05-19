@@ -104,8 +104,6 @@ struct UpdateControlSystem {
       // If this control system isn't active, don't do anything
       const bool is_active =
           get<control_system::Tags::IsActive<ControlSystem>>(*box);
-      Parallel::printf("UpdateControlSystem: %s is %sactive\n",
-                       ControlSystem::name(), is_active ? "" : "not ");
       if (not is_active) {
         return;
       }

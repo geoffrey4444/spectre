@@ -100,8 +100,6 @@ struct Expansion : tt::ConformsTo<protocols::ControlSystem> {
       const DataVector center =
           array_to_datavector(horizon_strahlkorper.physical_center());
 
-      Parallel::printf("Calling UpdateControlSystem for %s for Expansion\n",
-                       Horizon);
       Parallel::simple_action<::Actions::UpdateMessageQueue<
           QueueTags::Center<Horizon>, MeasurementQueue,
           UpdateControlSystem<Expansion>>>(control_sys_proxy, measurement_id,

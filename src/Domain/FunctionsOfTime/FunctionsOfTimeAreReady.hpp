@@ -73,10 +73,6 @@ bool functions_of_time_are_ready(
             continue;
           }
           const double expiration_time = f_of_t->time_bounds()[1];
-          Parallel::printf(
-              "Function of time %s %sready at t=%.16g, Expr-time=%.16g\n",
-              name, time > expiration_time ? "not " : "", time,
-              expiration_time);
           if (time > expiration_time) {
             return std::unique_ptr<Parallel::Callback>(
                 new Parallel::PerformAlgorithmCallback(proxy));
