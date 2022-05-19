@@ -50,6 +50,9 @@ struct RunCallbacks {
     tmpl::for_each<ControlSystems>(
         [&box, &cache, &measurement_id](auto control_system_v) {
           using ControlSystem = tmpl::type_from<decltype(control_system_v)>;
+          Parallel::printf("Calling process_measurement for %s for %s\n",
+                           pretty_type::name<Submeasurement>(),
+                           ControlSystem::name());
           db::apply<typename ControlSystem::process_measurement::
                         template argument_tags<Submeasurement>>(
               [&cache, &measurement_id](const auto&... args) {

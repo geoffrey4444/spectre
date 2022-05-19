@@ -108,6 +108,8 @@ struct Rotation : tt::ConformsTo<protocols::ControlSystem> {
       const DataVector center =
           array_to_datavector(strahlkorper.physical_center());
 
+      Parallel::printf("Calling UpdateControlSystem for %s for Rotation\n",
+                       Horizon);
       Parallel::simple_action<::Actions::UpdateMessageQueue<
           QueueTags::Center<Horizon>, MeasurementQueue,
           UpdateControlSystem<Rotation>>>(control_sys_proxy, measurement_id,

@@ -134,6 +134,10 @@ struct MeasurementTimescales : db::SimpleTag {
             }
           }
 
+          Parallel::printf(
+              "Measurement: %s has timescales of t=%s and expr-time=%.16g\n",
+              name, measurement_timescales, expr_time);
+
           timescales.emplace(
               name,
               std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<0>>(
