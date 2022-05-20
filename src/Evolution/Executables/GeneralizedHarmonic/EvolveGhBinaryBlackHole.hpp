@@ -274,7 +274,7 @@ struct EvolutionMetavars {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Grid>;
     using horizon_find_failure_callback =
-        intrp::callbacks::ErrorOnFailedApparentHorizon;
+        intrp::callbacks::IgnoreFailedApparentHorizon;
     using post_horizon_find_callbacks = tmpl::list<
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA>,
         intrp::callbacks::ObserveSurfaceData<surface_tags_to_observe, AhA>,
@@ -294,7 +294,7 @@ struct EvolutionMetavars {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhB, ::Frame::Grid>;
     using horizon_find_failure_callback =
-        intrp::callbacks::ErrorOnFailedApparentHorizon;
+        intrp::callbacks::IgnoreFailedApparentHorizon;
     using post_horizon_find_callbacks = tmpl::list<
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhB>,
         intrp::callbacks::ObserveSurfaceData<surface_tags_to_observe, AhB>,
