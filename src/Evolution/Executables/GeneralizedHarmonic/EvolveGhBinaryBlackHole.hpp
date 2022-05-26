@@ -208,50 +208,44 @@ struct EvolutionMetavars {
       gr::Tags::ExtrinsicCurvature<volume_dim, ::Frame::Grid>,
       gr::Tags::SpatialChristoffelSecondKind<volume_dim, ::Frame::Grid>,
       // everything below here is for observers.
-      gr::Tags::SpatialMetric<volume_dim, ::Frame::Inertial, DataVector>,
-      gr::Tags::InverseSpatialMetric<volume_dim, ::Frame::Inertial, DataVector>,
-      gr::Tags::SpatialChristoffelSecondKind<volume_dim, ::Frame::Inertial>,
-      gr::Tags::ExtrinsicCurvature<volume_dim, ::Frame::Inertial>,
-      gr::Tags::SpatialRicci<volume_dim, ::Frame::Inertial>>;
+      gr::Tags::SpatialRicci<volume_dim, ::Frame::Grid>>;
   // Observe horizons in inertial frame.
   using horizons_tags_to_observe = tmpl::list<
-      StrahlkorperGr::Tags::AreaCompute<::Frame::Inertial>,
-      StrahlkorperGr::Tags::IrreducibleMassCompute<::Frame::Inertial>,
+      StrahlkorperGr::Tags::AreaCompute<::Frame::Grid>,
+      StrahlkorperGr::Tags::IrreducibleMassCompute<::Frame::Grid>,
       StrahlkorperTags::MaxRicciScalarCompute,
       StrahlkorperTags::MinRicciScalarCompute,
-      StrahlkorperGr::Tags::ChristodoulouMassCompute<::Frame::Inertial>,
-      StrahlkorperGr::Tags::DimensionlessSpinMagnitudeCompute<
-          ::Frame::Inertial>>;
+      StrahlkorperGr::Tags::ChristodoulouMassCompute<::Frame::Grid>,
+      StrahlkorperGr::Tags::DimensionlessSpinMagnitudeCompute<::Frame::Grid>>;
   // These ComputeItems are used only for observers, since the
   // actual horizon-finding does not use any ComputeItems.
   using horizons_compute_items_on_target = tmpl::append<
-      tmpl::list<
-          StrahlkorperTags::ThetaPhiCompute<::Frame::Inertial>,
-          StrahlkorperTags::RadiusCompute<::Frame::Inertial>,
-          StrahlkorperTags::RhatCompute<::Frame::Inertial>,
-          StrahlkorperTags::InvJacobianCompute<::Frame::Inertial>,
-          StrahlkorperTags::InvHessianCompute<::Frame::Inertial>,
-          StrahlkorperTags::JacobianCompute<::Frame::Inertial>,
-          StrahlkorperTags::DxRadiusCompute<::Frame::Inertial>,
-          StrahlkorperTags::D2xRadiusCompute<::Frame::Inertial>,
-          StrahlkorperTags::NormalOneFormCompute<::Frame::Inertial>,
-          StrahlkorperTags::OneOverOneFormMagnitudeCompute<
-              volume_dim, ::Frame::Inertial, DataVector>,
-          StrahlkorperTags::TangentsCompute<::Frame::Inertial>,
-          StrahlkorperTags::UnitNormalOneFormCompute<::Frame::Inertial>,
-          StrahlkorperTags::UnitNormalVectorCompute<::Frame::Inertial>,
-          StrahlkorperTags::GradUnitNormalOneFormCompute<::Frame::Inertial>,
-          // Note that StrahlkorperTags::ExtrinsicCurvatureCompute is the
-          // 2d extrinsic curvature of the strahlkorper embedded in the 3d
-          // slice, whereas gr::tags::ExtrinsicCurvature is the 3d extrinsic
-          // curvature of the slice embedded in 4d spacetime.  Both quantities
-          // are in the DataBox.
-          StrahlkorperGr::Tags::AreaElementCompute<::Frame::Inertial>,
-          StrahlkorperTags::ExtrinsicCurvatureCompute<::Frame::Inertial>,
-          StrahlkorperTags::RicciScalarCompute<::Frame::Inertial>,
-          StrahlkorperGr::Tags::SpinFunctionCompute<::Frame::Inertial>,
-          StrahlkorperGr::Tags::DimensionfulSpinMagnitudeCompute<
-              ::Frame::Inertial>>,
+      tmpl::list<StrahlkorperTags::ThetaPhiCompute<::Frame::Grid>,
+                 StrahlkorperTags::RadiusCompute<::Frame::Grid>,
+                 StrahlkorperTags::RhatCompute<::Frame::Grid>,
+                 StrahlkorperTags::InvJacobianCompute<::Frame::Grid>,
+                 StrahlkorperTags::InvHessianCompute<::Frame::Grid>,
+                 StrahlkorperTags::JacobianCompute<::Frame::Grid>,
+                 StrahlkorperTags::DxRadiusCompute<::Frame::Grid>,
+                 StrahlkorperTags::D2xRadiusCompute<::Frame::Grid>,
+                 StrahlkorperTags::NormalOneFormCompute<::Frame::Grid>,
+                 StrahlkorperTags::OneOverOneFormMagnitudeCompute<
+                     volume_dim, ::Frame::Grid, DataVector>,
+                 StrahlkorperTags::TangentsCompute<::Frame::Grid>,
+                 StrahlkorperTags::UnitNormalOneFormCompute<::Frame::Grid>,
+                 StrahlkorperTags::UnitNormalVectorCompute<::Frame::Grid>,
+                 StrahlkorperTags::GradUnitNormalOneFormCompute<::Frame::Grid>,
+                 // Note that StrahlkorperTags::ExtrinsicCurvatureCompute is the
+                 // 2d extrinsic curvature of the strahlkorper embedded in the
+                 // 3d slice, whereas gr::tags::ExtrinsicCurvature is the 3d
+                 // extrinsic curvature of the slice embedded in 4d spacetime.
+                 // Both quantities are in the DataBox.
+                 StrahlkorperGr::Tags::AreaElementCompute<::Frame::Grid>,
+                 StrahlkorperTags::ExtrinsicCurvatureCompute<::Frame::Grid>,
+                 StrahlkorperTags::RicciScalarCompute<::Frame::Grid>,
+                 StrahlkorperGr::Tags::SpinFunctionCompute<::Frame::Grid>,
+                 StrahlkorperGr::Tags::DimensionfulSpinMagnitudeCompute<
+                     ::Frame::Grid>>,
       horizons_tags_to_observe>;
 
   struct AhA : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
