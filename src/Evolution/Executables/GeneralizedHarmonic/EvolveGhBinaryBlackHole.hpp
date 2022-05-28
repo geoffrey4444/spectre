@@ -124,6 +124,7 @@
 #include "ParallelAlgorithms/Interpolation/Actions/TryToInterpolate.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ErrorOnFailedApparentHorizon.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/FindApparentHorizon.hpp"
+#include "ParallelAlgorithms/Interpolation/Callbacks/IgnoreFailedApparentHorizon.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveSurfaceData.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveTimeSeriesOnSurface.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/SendGhWorldtubeData.hpp"
@@ -303,7 +304,7 @@ struct EvolutionMetavars : CharacteristicExtractDefaults {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Grid>;
     using horizon_find_failure_callback =
-        intrp::callbacks::ErrorOnFailedApparentHorizon;
+        intrp::callbacks::IgnoreFailedApparentHorizon;
     using post_horizon_find_callbacks = tmpl::list<
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhA>,
         intrp::callbacks::ObserveSurfaceData<surface_tags_to_observe, AhA>,
@@ -323,7 +324,7 @@ struct EvolutionMetavars : CharacteristicExtractDefaults {
     using post_interpolation_callback =
         intrp::callbacks::FindApparentHorizon<AhB, ::Frame::Grid>;
     using horizon_find_failure_callback =
-        intrp::callbacks::ErrorOnFailedApparentHorizon;
+        intrp::callbacks::IgnoreFailedApparentHorizon;
     using post_horizon_find_callbacks = tmpl::list<
         intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, AhB>,
         intrp::callbacks::ObserveSurfaceData<surface_tags_to_observe, AhB>,
