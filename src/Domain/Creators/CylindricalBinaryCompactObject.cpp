@@ -3,7 +3,12 @@
 
 #include "Domain/Creators/CylindricalBinaryCompactObject.hpp"
 
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 #include "Domain/BoundaryConditions/Periodic.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
@@ -16,10 +21,17 @@
 #include "Domain/CoordinateMaps/Interval.hpp"
 #include "Domain/CoordinateMaps/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/TimeDependent/CubicScale.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/TimeDependent/Rotation.hpp"
 #include "Domain/CoordinateMaps/Wedge.hpp"
 #include "Domain/Creators/ExpandOverBlocks.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
 #include "Domain/DomainHelpers.hpp"
+#include "Domain/FunctionsOfTime/FixedSpeedCubic.hpp"
+#include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
+#include "Domain/FunctionsOfTime/QuaternionFunctionOfTime.hpp"
 #include "Domain/Structure/Direction.hpp"
 #include "Domain/Structure/OrientationMap.hpp"
 #include "NumericalAlgorithms/RootFinding/QuadraticEquation.hpp"
@@ -38,14 +50,13 @@ std::array<double, 3> flip_about_xy_plane(const std::array<double, 3> input) {
 }  // namespace
 
 namespace domain::creators {
+// Time-independent constructor
 CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
     typename CenterA::type center_A, typename CenterB::type center_B,
     typename RadiusA::type radius_A, typename RadiusB::type radius_B,
     typename OuterRadius::type outer_radius,
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_grid_points,
-    std::unique_ptr<domain::creators::time_dependence::TimeDependence<3>>
-        time_dependence,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
         inner_boundary_condition,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -56,7 +67,6 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
       radius_A_(radius_A),
       radius_B_(radius_B),
       outer_radius_(outer_radius),
-      time_dependence_(std::move(time_dependence)),
       inner_boundary_condition_(std::move(inner_boundary_condition)),
       outer_boundary_condition_(std::move(outer_boundary_condition)) {
   if (center_A_[2] <= 0.0) {
@@ -89,11 +99,6 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
                 "OuterRadius is too small. Please increase it "
                 "beyond "
                     << 3.0 * (center_A_[2] - center_B_[2]));
-  }
-
-  if (time_dependence_ == nullptr) {
-    time_dependence_ =
-        std::make_unique<domain::creators::time_dependence::None<3>>();
   }
 
   if ((outer_boundary_condition_ == nullptr) xor
@@ -292,6 +297,46 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
   // 5 blocks: 37 thru 41
   for (size_t block = 27; block < 42; ++block) {
     swap_refinement_and_grid_points_xi_zeta(block);
+  }
+}
+
+// Time-dependent constructor, with additional options for specifying
+// the time-dependent maps
+CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
+    double initial_time, double expansion_map_outer_boundary,
+    double initial_expansion, double initial_expansion_velocity,
+    double asymptotic_velocity_outer_boundary,
+    double decay_timescale_outer_boundary_velocity,
+    std::array<double, 3> initial_angular_velocity,
+    typename CenterA::type center_A, typename CenterB::type center_B,
+    typename RadiusA::type radius_A, typename RadiusB::type radius_B,
+    typename OuterRadius::type outer_radius,
+    const typename InitialRefinement::type& initial_refinement,
+    const typename InitialGridPoints::type& initial_grid_points,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        inner_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        outer_boundary_condition,
+    const Options::Context& context)
+    : CylindricalBinaryCompactObject(
+          center_A, center_B, radius_A, radius_B, outer_radius,
+          initial_refinement, initial_grid_points,
+          std::move(inner_boundary_condition),
+          std::move(outer_boundary_condition), context) {
+  enable_time_dependence_ = true;
+  initial_time_ = initial_time;
+  expansion_map_outer_boundary_ = expansion_map_outer_boundary;
+  initial_expansion_ = initial_expansion;
+  initial_expansion_velocity_ = initial_expansion_velocity;
+  asymptotic_velocity_outer_boundary_ = asymptotic_velocity_outer_boundary;
+  decay_timescale_outer_boundary_velocity_ =
+      decay_timescale_outer_boundary_velocity;
+  // quat = (cos(theta/2), nhat*sin(theta/2)) but we always take theta = 0
+  // initially
+  initial_quaternion_ = DataVector{{1.0, 0.0, 0.0, 0.0}};
+
+  for (size_t i = 0; i < initial_angular_velocity.size(); i++) {
+    initial_angular_velocity_[i] = gsl::at(initial_angular_velocity, i);
   }
 }
 
@@ -660,13 +705,48 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
   Domain<3> domain{std::move(coordinate_maps),
                    std::move(boundary_conditions_all_blocks)};
 
-  if (not time_dependence_->is_none()) {
+  // Inject the hard-coded time-dependence
+  if (enable_time_dependence_) {
+    // Note on frames: Because the relevant maps will all be composed before
+    // they are used, all maps here go from Frame::Grid (the frame after the
+    // final time-independent map is applied) to Frame::Inertial
+    // (the frame after the final time-dependent map is applied).
+    using CubicScaleMap = domain::CoordinateMaps::TimeDependent::CubicScale<3>;
+    using CubicScaleMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap>;
+
+    using RotationMap3D = domain::CoordinateMaps::TimeDependent::Rotation<3>;
+    using RotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, RotationMap3D>;
+
+    using CubicScaleAndRotationMapForComposition =
+        domain::CoordinateMap<Frame::Grid, Frame::Inertial, CubicScaleMap,
+                              RotationMap3D>;
+
+    std::vector<std::unique_ptr<
+        domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, 3>>>
+        block_maps{number_of_blocks_};
+
+    block_maps[0] = std::make_unique<CubicScaleAndRotationMapForComposition>(
+        domain::push_back(
+            CubicScaleMapForComposition{CubicScaleMap{
+                expansion_map_outer_boundary_, expansion_function_of_time_name_,
+                expansion_function_of_time_name_ + "OuterBoundary"s}},
+            RotationMapForComposition{
+                RotationMap3D{rotation_function_of_time_name_}}));
+
+    // Fill in the rest of the block maps by cloning the relevant maps
+    for (size_t block = 1; block < number_of_blocks_; ++block) {
+      block_maps[block] = block_maps[0]->get_clone();
+    }
+
+    // Finally, inject the time dependent maps into the corresponding blocks
     for (size_t block = 0; block < number_of_blocks_; ++block) {
-      domain.inject_time_dependent_map_for_block(
-          block, std::move(time_dependence_->block_maps_grid_to_inertial(
-                     number_of_blocks_)[block]));
+      domain.inject_time_dependent_map_for_block(block,
+                                                 std::move(block_maps[block]));
     }
   }
+
   return domain;
 }
 
@@ -685,11 +765,56 @@ std::unordered_map<std::string,
 CylindricalBinaryCompactObject::functions_of_time(
     const std::unordered_map<std::string, double>& initial_expiration_times)
     const {
-  if (time_dependence_->is_none()) {
-    return {};
-  } else {
-    return time_dependence_->functions_of_time(initial_expiration_times);
+  std::unordered_map<std::string,
+                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+      result{};
+  if (not enable_time_dependence_) {
+    return result;
   }
+
+  // Get existing function of time names that are used for the maps and assign
+  // their initial expiration time to infinity (i.e. not expiring)
+  std::unordered_map<std::string, double> expiration_times{
+      {expansion_function_of_time_name_,
+       std::numeric_limits<double>::infinity()},
+      {rotation_function_of_time_name_,
+       std::numeric_limits<double>::infinity()}};
+
+  // If we have control systems, overwrite these expiration times with the ones
+  // supplied by the control system
+  for (auto& [name, expr_time] : initial_expiration_times) {
+    expiration_times[name] = expr_time;
+  }
+
+  // ExpansionMap FunctionOfTime for the function \f$a(t)\f$ in the
+  // domain::CoordinateMaps::TimeDependent::CubicScale map
+  result[expansion_function_of_time_name_] =
+      std::make_unique<FunctionsOfTime::PiecewisePolynomial<2>>(
+          initial_time_,
+          std::array<DataVector, 3>{
+              {{initial_expansion_}, {initial_expansion_velocity_}, {0.0}}},
+          expiration_times.at(expansion_function_of_time_name_));
+
+  // ExpansionMap FunctionOfTime for the function \f$b(t)\f$ in the
+  // domain::CoordinateMaps::TimeDependent::CubicScale map
+  result[expansion_function_of_time_name_ + "OuterBoundary"s] =
+      std::make_unique<FunctionsOfTime::FixedSpeedCubic>(
+          1.0, initial_time_, asymptotic_velocity_outer_boundary_,
+          decay_timescale_outer_boundary_velocity_);
+
+  // RotationMap FunctionOfTime for the rotation angles about each axis.
+  // The initial rotation angles don't matter as we never actually use the
+  // angles themselves. We only use their derivatives (omega) to determine map
+  // parameters. In theory we could determine each initital angle from the input
+  // axis-angle representation, but we don't need to.
+  result[rotation_function_of_time_name_] =
+      std::make_unique<FunctionsOfTime::QuaternionFunctionOfTime<3>>(
+          initial_time_, std::array<DataVector, 1>{initial_quaternion_},
+          std::array<DataVector, 4>{
+              {{3, 0.0}, initial_angular_velocity_, {3, 0.0}, {3, 0.0}}},
+          expiration_times.at(rotation_function_of_time_name_));
+
+  return result;
 }
 
 }  // namespace domain::creators
