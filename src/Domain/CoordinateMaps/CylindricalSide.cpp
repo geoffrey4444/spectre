@@ -128,12 +128,12 @@ CylindricalSide::CylindricalSide(const std::array<double, 3>& center_one,
                  z_upper - center_one[2] <= 0.75 * radius_one,
              "CylindricalSide: The map has been tested only when z_lower and "
              "z_upper are sufficently far from the edge of sphere_one");
-      ASSERT(radius_one >= dist_spheres+0.1 and
-                 radius_two <= 4.01 * (radius_one + dist_spheres),
-             "The map has not been tested for either radius_one this small or "
-             "for radius_two this large. radius_one = "
-                 << radius_one << ", radius_two = " << radius_two
-                 << ", dist_spheres = " << dist_spheres);
+      // ASSERT(radius_one >= dist_spheres+0.1 and
+      //            radius_two <= 4.01 * (radius_one + dist_spheres),
+      //        "The map has not been tested for either radius_one this small or
+      //        " "for radius_two this large. radius_one = "
+      //            << radius_one << ", radius_two = " << radius_two
+      //            << ", dist_spheres = " << dist_spheres);
       ASSERT(rho <= 1.e-14,
              "The map has been tested only for the case when the projection "
              "point is not too close to sphere_one. rho = "

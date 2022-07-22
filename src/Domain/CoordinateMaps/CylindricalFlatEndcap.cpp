@@ -37,11 +37,11 @@ CylindricalFlatEndcap::CylindricalFlatEndcap(
   //    avoid such cases.
   // b) We do not want to waste effort testing the map for parameters
   //    that we don't expect to be used.
-  ASSERT(center_one[2] <= center_two[2] - 1.05 * radius_two and
-             center_one[2] >= center_two[2] - 6.0 * radius_two,
-         "The map has only been tested for the case when the plane containing "
-         "the circle is below the sphere, by an amount at least 5% of the "
-         "sphere radius but not more than 5 times the sphere radius.");
+  // ASSERT(center_one[2] <= center_two[2] - 1.05 * radius_two and
+  //            center_one[2] >= center_two[2] - 6.0 * radius_two,
+  //        "The map has only been tested for the case when the plane containing
+  //        " "the circle is below the sphere, by an amount at least 5% of the "
+  //        "sphere radius but not more than 5 times the sphere radius.");
 
   const double dist_proj = sqrt(square(center_two[0] - proj_center[0]) +
                                 square(center_two[1] - proj_center[1]) +
@@ -51,9 +51,9 @@ CylindricalFlatEndcap::CylindricalFlatEndcap(
          "when proj_center is contained inside the sphere, and no closer than "
          "95% of the way to the surface of the sphere");
 
-  ASSERT(radius_one / radius_two <= 10.0 and radius_two / radius_one <= 10.0,
-         "The map has been tested only for the case when the ratio of "
-         "radius_one to radius_two is between 10 and 1/10");
+  // ASSERT(radius_one / radius_two <= 10.0 and radius_two / radius_one <= 10.0,
+  //        "The map has been tested only for the case when the ratio of "
+  //        "radius_one to radius_two is between 10 and 1/10");
 
   ASSERT(
       abs(center_one[0] - center_two[0]) <= radius_one + radius_two and
