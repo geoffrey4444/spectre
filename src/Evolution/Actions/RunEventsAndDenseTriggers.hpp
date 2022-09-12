@@ -12,6 +12,7 @@
 #include "Evolution/EventsAndDenseTriggers/EventsAndDenseTriggers.hpp"
 #include "Evolution/EventsAndDenseTriggers/Tags.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
+#include "Parallel/Printf.hpp"
 #include "ParallelAlgorithms/Initialization/MutateAssign.hpp"
 #include "Time/EvolutionOrdering.hpp"
 #include "Time/Tags.hpp"
@@ -91,6 +92,21 @@ struct RunEventsAndDenseTriggers {
       Parallel::GlobalCache<Metavariables>& cache,
       const ArrayIndex& array_index, const ActionList /*meta*/,
       const ParallelComponent* const component) {
+    auto debug_print = [&box, &array_index](const std::string& message) {
+      Parallel::printf(
+          "RunEventsAndTriggers: i=%s t=%1.20f tstep=%1.20f tsub=%1.20f "
+          "dt=%1.20f next_trigger=%1.20f: %s\n",
+          array_index, db::get<::Tags::Time>(box),
+          db::get<::Tags::TimeStepId>(box).step_time().value(),
+          db::get<::Tags::TimeStepId>(box).substep_time().value(),
+          db::get<::Tags::TimeStep>(box).value(),
+          db::get_mutable_reference<::evolution::Tags::EventsAndDenseTriggers>(
+              make_not_null(&box))
+              .next_trigger(box),
+          message);
+    };
+    debug_print("start of action"s);
+
     using system = typename Metavariables::system;
     using variables_tag = typename system::variables_tag;
 
@@ -123,7 +139,9 @@ struct RunEventsAndDenseTriggers {
     (void)primitives_restorer;
     for (;;) {
       const double next_trigger = events_and_dense_triggers.next_trigger(box);
+      debug_print("start of for loop"s);
       if (before(step_end.value(), next_trigger)) {
+        debug_print("continue"s);
         return {Parallel::AlgorithmExecution::Continue, std::nullopt};
       }
 
@@ -147,6 +165,7 @@ struct RunEventsAndDenseTriggers {
       using TriggeringState = std::decay_t<decltype(triggered)>;
       switch (triggered) {
         case TriggeringState::NotReady:
+          debug_print("not ready, retry"s);
           return {Parallel::AlgorithmExecution::Retry, std::nullopt};
         case TriggeringState::NeedsEvolvedVariables:
           if (not already_at_correct_time) {
@@ -154,6 +173,7 @@ struct RunEventsAndDenseTriggers {
               if (not dg::receive_boundary_data_local_time_stepping<
                       Metavariables, true>(make_not_null(&box),
                                            make_not_null(&inboxes))) {
+                debug_print("local time stepping needs boundary data, retry"s);
                 return {Parallel::AlgorithmExecution::Retry, std::nullopt};
               }
             }
@@ -173,6 +193,7 @@ struct RunEventsAndDenseTriggers {
                 db::get<::Tags::TimeStepper<>>(box), db::get<history_tag>(box));
             if (not dense_output_succeeded) {
               // Need to take another time step
+              debug_print("dense output failed, continue"s);
               return {Parallel::AlgorithmExecution::Continue, std::nullopt};
             }
 
@@ -194,9 +215,11 @@ struct RunEventsAndDenseTriggers {
           break;
       }
 
+      debug_print("running events"s);
       events_and_dense_triggers.run_events(box, cache, array_index, component);
       if (not events_and_dense_triggers.reschedule(box, cache, array_index,
                                                    component)) {
+        debug_print("could not reschedule, retry"s);
         return {Parallel::AlgorithmExecution::Retry, std::nullopt};
       }
     }

@@ -21,6 +21,10 @@
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/StdHelpers.hpp"
 
+#include "Evolution/EventsAndDenseTriggers/Tags.hpp"
+#include "Parallel/Printf.hpp"
+#include "Time/Tags.hpp"
+
 /// \cond
 namespace Tags {
 struct Time;
@@ -74,6 +78,11 @@ bool functions_of_time_are_ready(
             continue;
           }
           const double expiration_time = f_of_t->time_bounds()[1];
+          Parallel::printf(
+              "functions_of_time_are_ready: t=%1.20f texp=%1.20f f_of_t %s: "
+              "%s\n",
+              time, expiration_time, name,
+              time > expiration_time ? "is not ready"s : "is ready"s);
           if (time > expiration_time) {
             return std::unique_ptr<Parallel::Callback>(
                 new Parallel::PerformAlgorithmCallback(proxy));
@@ -103,6 +112,21 @@ struct CheckFunctionsOfTimeAreReady {
     const bool ready =
         functions_of_time_are_ready<domain::Tags::FunctionsOfTime>(
             cache, array_index, component, db::get<::Tags::Time>(box));
+    auto debug_print = [&box, &array_index](const std::string& message) {
+      Parallel::printf(
+          "CheckFunctionsOfTimeAreReady: i=%s t=%1.15f tstep=%1.15f "
+          "tsub=%1.20f "
+          "dt=%1.20f next_trigger=%1.20f: %s\n",
+          array_index, db::get<::Tags::Time>(box),
+          db::get<::Tags::TimeStepId>(box).step_time().value(),
+          db::get<::Tags::TimeStepId>(box).substep_time().value(),
+          db::get<::Tags::TimeStep>(box).value(),
+          db::get_mutable_reference<::evolution::Tags::EventsAndDenseTriggers>(
+              make_not_null(&box))
+              .next_trigger(box),
+          message);
+    };
+    debug_print(ready ? "Ready"s : "Not ready"s);
     return {ready ? Parallel::AlgorithmExecution::Continue
                   : Parallel::AlgorithmExecution::Retry,
             std::nullopt};

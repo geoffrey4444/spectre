@@ -14,6 +14,7 @@
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/Printf.hpp"
 #include "Time/Tags.hpp"
 #include "Time/Time.hpp"
 #include "Time/TimeStepId.hpp"
@@ -21,6 +22,10 @@
 #include "Utilities/FractionUtilities.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TaggedTuple.hpp"
+
+#include "Evolution/EventsAndDenseTriggers/Tags.hpp"
+#include "Parallel/Printf.hpp"
+#include "Time/Tags.hpp"
 
 /// \cond
 namespace Parallel {
@@ -71,8 +76,24 @@ struct LimitTimeStepToExpirationTimes {
   static Parallel::iterable_action_return_t apply(
       db::DataBox<DbTags>& box, tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
       const Parallel::GlobalCache<Metavariables>& cache,
-      const ArrayIndex& /*array_index*/, ActionList /*meta*/,
+      const ArrayIndex& array_index, ActionList /*meta*/,
       const ParallelComponent* const /*meta*/) {  // NOLINT const
+    auto debug_print = [&box, &array_index](const std::string& message) {
+      Parallel::printf(
+          "LimitTimeStepToExpirationTimes.hpp: i=%s t=%1.20f tstep=%1.20f "
+          "tsub=%1.20f "
+          "dt=%1.20f next_trigger=%1.20f: %s\n",
+          array_index, db::get<::Tags::Time>(box),
+          db::get<::Tags::TimeStepId>(box).step_time().value(),
+          db::get<::Tags::TimeStepId>(box).substep_time().value(),
+          db::get<::Tags::TimeStep>(box).value(),
+          db::get_mutable_reference<::evolution::Tags::EventsAndDenseTriggers>(
+              make_not_null(&box))
+              .next_trigger(box),
+          message);
+    };
+    debug_print("start action"s);
+
     // First, check whether the time stepper uses substeps
     const TimeStepper& time_stepper = db::get<Tags::TimeStepper<>>(box);
     if (time_stepper.number_of_substeps() > 0) {
@@ -93,8 +114,10 @@ struct LimitTimeStepToExpirationTimes {
 
           // Is the minimum expiration time less than t + dt?
           const auto& initial_time_step{db::get<Tags::TimeStep>(box)};
-          if ((db::get<Tags::Time>(box) + initial_time_step.value() -
-               min_expiration_time) > -std::numeric_limits<double>::epsilon()) {
+          if (((db::get<Tags::TimeStepId>(box).step_time().value() +
+                initial_time_step.value() - min_expiration_time) > 0) and
+              (fabs(db::get<Tags::TimeStepId>(box).step_time().value() -
+                    min_expiration_time) > 1.e-8)) {
             // Estimate fraction of slab that is min expiration time
             const double start{initial_time_step.slab().start().value()};
             // To avoid roundoff errors when checking if functions of time are
@@ -102,8 +125,7 @@ struct LimitTimeStepToExpirationTimes {
             // set the time step to by slightly less than the expiration time.
             // Here I choose 1e-8, a value much smaller than typical step sizes
             // but larger than any conceivable roundoff error.
-            constexpr double eps{1.e-8};
-            Slab new_slab{start, min_expiration_time - eps};
+            Slab new_slab{start, min_expiration_time};
             TimeDelta new_time_step{new_slab, Rational{1, 1}};
 
             TimeStepId new_time_step_id{
@@ -131,6 +153,7 @@ struct LimitTimeStepToExpirationTimes {
                   *time_step_id = new_time_step_id;
                   *next_time_step_id = new_next_time_step_id;
                 });
+            debug_print("adjusted slab to match expiration time"s);
           }
         }
       }
