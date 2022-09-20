@@ -36,7 +36,7 @@ template <size_t MaxDeriv>
 template <size_t MaxDerivReturned>
 std::array<DataVector, MaxDerivReturned + 1>
 PiecewisePolynomial<MaxDeriv>::func_and_derivs(const double t) const {
-  if (t > expiration_time_) {
+  if (UNLIKELY(t > expiration_time_ * (1. + 1.e-10))) {
     ERROR("Attempt to evaluate PiecewisePolynomial at a time "
           << t << " that is after the expiration time " << expiration_time_
           << ". The difference between times is " << t - expiration_time_

@@ -17,6 +17,7 @@
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/Callback.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/StdHelpers.hpp"
@@ -54,11 +55,11 @@ bool functions_of_time_are_ready(
       ::Parallel::get_parallel_component<Component>(cache)[array_index];
 
   return Parallel::mutable_cache_item_is_ready<CacheTag>(
-      cache, [&functions_to_check, &proxy,
-              &time](const std::unordered_map<
+      cache, [&functions_to_check, &proxy, &time, &array_index](
+                 const std::unordered_map<
                      std::string,
                      std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
-                         functions_of_time) {
+                     functions_of_time) {
         using ::operator<<;
         ASSERT(alg::all_of(
                    functions_to_check,
@@ -74,9 +75,14 @@ bool functions_of_time_are_ready(
             continue;
           }
           const double expiration_time = f_of_t->time_bounds()[1];
-          if (time > expiration_time) {
+          if (UNLIKELY(time > expiration_time * (1. + 1.e-10))) {
             return std::unique_ptr<Parallel::Callback>(
                 new Parallel::PerformAlgorithmCallback(proxy));
+          } else if (UNLIKELY(time > expiration_time)) {
+            Parallel::printf(
+                "Accepting functions of time as ready at a time %1.20f after "
+                "expiration time %1.20f in element %s\n",
+                time - expiration_time, expiration_time, array_index);
           }
         }
         return std::unique_ptr<Parallel::Callback>{};
