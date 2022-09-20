@@ -186,35 +186,40 @@ struct LimitTimeStepToExpirationTimes {
             debug_print("Min expiration time within two steps, adjust step");
           }
 
-          ASSERT(initial_time_step.fraction() == 1,
-                 "This action does not currently support local time stepping, "
-                 "but the time step fraction is "
-                     << initial_time_step.fraction() << " instead of 1");
-          const TimeDelta new_time_step = new_slab.duration();
-          const TimeStepId new_time_step_id{
-              time_step_id.time_runs_forward(), time_step_id.slab_number(),
-              time_step_id.step_time().with_slab(new_slab)};
-          const TimeStepId new_next_time_step_id =
-              time_stepper.next_time_id(new_time_step_id, new_time_step);
-          const TimeDelta new_next_time_step{
-              new_next_time_step_id.step_time().slab(),
-              initial_time_step.fraction()};
+          if (db::get<::Tags::Time>(box) < 0.007) {
+            ASSERT(
+                initial_time_step.fraction() == 1,
+                "This action does not currently support local time stepping, "
+                "but the time step fraction is "
+                    << initial_time_step.fraction() << " instead of 1");
+            const TimeDelta new_time_step = new_slab.duration();
+            const TimeStepId new_time_step_id{
+                time_step_id.time_runs_forward(), time_step_id.slab_number(),
+                time_step_id.step_time().with_slab(new_slab)};
+            const TimeStepId new_next_time_step_id =
+                time_stepper.next_time_id(new_time_step_id, new_time_step);
+            const TimeDelta new_next_time_step{
+                new_next_time_step_id.step_time().slab(),
+                initial_time_step.fraction()};
 
-          db::mutate<::Tags::TimeStep, ::Tags::Next<::Tags::TimeStep>,
-                     ::Tags::TimeStepId, ::Tags::Next<::Tags::TimeStepId>>(
-              make_not_null(&box),
-              [&new_time_step, &new_next_time_step, &new_time_step_id,
-               &new_next_time_step_id](
-                  const gsl::not_null<TimeDelta*> time_step,
-                  const gsl::not_null<TimeDelta*> next_time_step,
-                  const gsl::not_null<TimeStepId*> time_step_id,
-                  const gsl::not_null<TimeStepId*> next_time_step_id) {
-                *time_step = new_time_step;
-                *next_time_step = new_next_time_step;
-                *time_step_id = new_time_step_id;
-                *next_time_step_id = new_next_time_step_id;
-              });
-          debug_print("adjusted slab to match expiration time"s);
+            db::mutate<::Tags::TimeStep, ::Tags::Next<::Tags::TimeStep>,
+                       ::Tags::TimeStepId, ::Tags::Next<::Tags::TimeStepId>>(
+                make_not_null(&box),
+                [&new_time_step, &new_next_time_step, &new_time_step_id,
+                 &new_next_time_step_id](
+                    const gsl::not_null<TimeDelta*> time_step,
+                    const gsl::not_null<TimeDelta*> next_time_step,
+                    const gsl::not_null<TimeStepId*> time_step_id,
+                    const gsl::not_null<TimeStepId*> next_time_step_id) {
+                  *time_step = new_time_step;
+                  *next_time_step = new_next_time_step;
+                  *time_step_id = new_time_step_id;
+                  *next_time_step_id = new_next_time_step_id;
+                });
+            debug_print("adjusted slab to match expiration time"s);
+          } else {
+            debug_print("slab adjustment disabled");
+          }
         }
       }
     }
