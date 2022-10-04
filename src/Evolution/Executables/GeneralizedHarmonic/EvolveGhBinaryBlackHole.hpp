@@ -422,7 +422,7 @@ struct EvolutionMetavars {
                   EvolutionMetavars>,
               Actions::RecordTimeStepperData<>,
               evolution::Actions::RunEventsAndDenseTriggers<tmpl::list<>>,
-              Actions::UpdateU<>>>,
+              Actions::LimitTimeStepToExpirationTimes, Actions::UpdateU<>>>,
       dg::Actions::Filter<
           Filters::Exponential<0>,
           tmpl::list<
@@ -479,7 +479,6 @@ struct EvolutionMetavars {
               Parallel::Phase::Evolve,
               tmpl::list<::domain::Actions::CheckFunctionsOfTimeAreReady,
                          Actions::RunEventsAndTriggers, Actions::ChangeSlabSize,
-                         Actions::LimitTimeStepToExpirationTimes,
                          step_actions, Actions::AdvanceTime,
                          PhaseControl::Actions::ExecutePhaseChange>>>>>;
 
