@@ -20,6 +20,7 @@
 #include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Evolution/EventsAndDenseTriggers/DenseTrigger.hpp"
 #include "Parallel/CharmPupable.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/EqualWithinRoundoff.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -80,8 +81,8 @@ class Trigger : public DenseTrigger {
 
   template <typename Metavariables, typename ArrayIndex, typename Component>
   std::optional<bool> is_triggered(
-      Parallel::GlobalCache<Metavariables>& /*cache*/,
-      const ArrayIndex& /*array_index*/, const Component* /*component*/,
+      Parallel::GlobalCache<Metavariables>& cache,
+      const ArrayIndex& array_index, const Component* /*component*/,
       const double time,
       const std::unordered_map<
           std::string,
@@ -91,6 +92,26 @@ class Trigger : public DenseTrigger {
           std::string,
           std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time) {
+    auto debug_print = [&time, &array_index, &cache,
+                        this](const std::string& message) {
+      if (not is_zeroth_element(array_index)) {
+        return;
+      }
+      double min_expiration_time{std::numeric_limits<double>::max()};
+      const auto& functions_of_time = get<domain::Tags::FunctionsOfTime>(cache);
+      if (not functions_of_time.empty()) {
+        for (const auto& [name, f_of_t] : functions_of_time) {
+          if (f_of_t->time_bounds()[1] < min_expiration_time) {
+            min_expiration_time = f_of_t->time_bounds()[1];
+          }
+        }
+      }
+      Parallel::printf(
+          "Trigger.hpp.hpp: i=%s texp=%1.20f "
+          "is_triggered=%s: %s\n",
+          array_index, min_expiration_time,
+          time == *next_trigger_ ? "yep" : "nope", message);
+    };
     if (UNLIKELY(not next_trigger_.has_value())) {
       // First call
 
@@ -107,7 +128,7 @@ class Trigger : public DenseTrigger {
         next_trigger_ = time;
       }
     }
-
+    debug_print("is_triggered() called");
     return time == *next_trigger_;
   }
 
@@ -128,6 +149,26 @@ class Trigger : public DenseTrigger {
           std::string,
           std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time) {
+    auto debug_print = [&time, &array_index, &cache,
+                        this](const std::string& message) {
+      if (not is_zeroth_element(array_index)) {
+        return;
+      }
+      double min_expiration_time{std::numeric_limits<double>::max()};
+      const auto& functions_of_time = get<domain::Tags::FunctionsOfTime>(cache);
+      if (not functions_of_time.empty()) {
+        for (const auto& [name, f_of_t] : functions_of_time) {
+          if (f_of_t->time_bounds()[1] < min_expiration_time) {
+            min_expiration_time = f_of_t->time_bounds()[1];
+          }
+        }
+      }
+      Parallel::printf(
+          "Trigger.hpp: i=%s texp=%1.20f "
+          "time=%1.20f next_trigger=%s is_triggered=%s: %s\n",
+          array_index, min_expiration_time, time, next_trigger_,
+          time == *next_trigger_ ? "yep" : "nope", message);
+    };
     // At least one control system is active
     const bool is_ready = tmpl::as_pack<ControlSystems>(
         [&array_index, &cache, &component, &time](auto... control_systems) {
@@ -138,6 +179,7 @@ class Trigger : public DenseTrigger {
                   tmpl::type_from<decltype(control_systems)>::name()...});
         });
     if (not is_ready) {
+      debug_print("not ready");
       return std::nullopt;
     }
 
@@ -146,6 +188,7 @@ class Trigger : public DenseTrigger {
       *next_trigger_ =
           next_measurement(time, measurement_timescales, functions_of_time);
     }
+    debug_print("ready");
     return *next_trigger_;
   }
 
@@ -203,8 +246,12 @@ class Trigger : public DenseTrigger {
                               std::numeric_limits<double>::epsilon() * 100.0,
                               scale)) {
       next_measurement_time = min_fot_expr_time;
+      Parallel::printf("Time %1.20f within roundoff of texp=%1.20f\n", time,
+                       min_fot_expr_time);
     } else {
       next_measurement_time = calculated_next_measurement;
+      Parallel::printf("Time %1.20f not within roundoff of texp=%1.20f\n", time,
+                       min_fot_expr_time);
     }
 
     return next_measurement_time;
