@@ -17,6 +17,8 @@
 #include "DataStructures/DataBox/TagName.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Domain/FunctionsOfTime/FunctionsOfTimeAreReady.hpp"
+#include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "Domain/Tags.hpp"
 #include "IO/Observer/GetSectionObservationKey.hpp"
@@ -242,13 +244,14 @@ class ObserveNorms<ObservationValueTag, tmpl::list<ObservableTensorTags...>,
                  subfile_path_ + section_observation_key.value() + ".dat")}};
   }
 
-  using is_ready_argument_tags = tmpl::list<>;
+  using is_ready_argument_tags = tmpl::list<::Tags::Time>;
 
   template <typename Metavariables, typename ArrayIndex, typename Component>
-  bool is_ready(Parallel::GlobalCache<Metavariables>& /*cache*/,
-                const ArrayIndex& /*array_index*/,
-                const Component* const /*meta*/) const {
-    return true;
+  bool is_ready(const double time, Parallel::GlobalCache<Metavariables>& cache,
+                const ArrayIndex& array_index,
+                const Component* const component) const {
+    return domain::functions_of_time_are_ready<domain::Tags::FunctionsOfTime>(
+        cache, array_index, component, time);
   }
 
   bool needs_evolved_variables() const override { return true; }
