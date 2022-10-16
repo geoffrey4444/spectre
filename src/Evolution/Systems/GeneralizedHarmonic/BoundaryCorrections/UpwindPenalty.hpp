@@ -293,5 +293,8 @@ class UpwindPenalty final : public BoundaryCorrection<Dim> {
           char_speed_constraint_gamma2_v_spacetime_metric_ext,
       const tnsr::a<DataVector, 3, Frame::Inertial>& char_speeds_ext,
       dg::Formulation /*dg_formulation*/) const;
+
+ private:
+  double lifting_weight_factor_ = 1.0;
 };
 }  // namespace GeneralizedHarmonic::BoundaryCorrections

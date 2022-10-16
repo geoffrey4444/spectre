@@ -236,38 +236,42 @@ void UpwindPenalty<Dim>::dg_boundary_terms(
   for (size_t a = 0; a < Dim + 1; ++a) {
     for (size_t b = a; b < Dim + 1; ++b) {
       boundary_correction_spacetime_metric->get(a, b) =
-          weighted_lambda_spacetime_metric_ext *
-              char_speed_v_spacetime_metric_ext.get(a, b) -
-          weighted_lambda_spacetime_metric_int *
-              char_speed_v_spacetime_metric_int.get(a, b);
+          lifting_weight_factor_ *
+          (weighted_lambda_spacetime_metric_ext *
+               char_speed_v_spacetime_metric_ext.get(a, b) -
+           weighted_lambda_spacetime_metric_int *
+               char_speed_v_spacetime_metric_int.get(a, b));
 
       boundary_correction_pi->get(a, b) =
-          0.5 * (weighted_lambda_plus_ext * char_speed_v_plus_ext.get(a, b) +
-                 weighted_lambda_minus_ext * char_speed_v_minus_ext.get(a, b)) +
-          weighted_lambda_spacetime_metric_ext *
-              char_speed_constraint_gamma2_v_spacetime_metric_ext.get(a, b)
+          lifting_weight_factor_ *
+          (0.5 *
+               (weighted_lambda_plus_ext * char_speed_v_plus_ext.get(a, b) +
+                weighted_lambda_minus_ext * char_speed_v_minus_ext.get(a, b)) +
+           weighted_lambda_spacetime_metric_ext *
+               char_speed_constraint_gamma2_v_spacetime_metric_ext.get(a, b)
 
-          -
-          0.5 * (weighted_lambda_plus_int * char_speed_v_plus_int.get(a, b) +
-                 weighted_lambda_minus_int * char_speed_v_minus_int.get(a, b)) -
-          weighted_lambda_spacetime_metric_int *
-              char_speed_constraint_gamma2_v_spacetime_metric_int.get(a, b);
+           - 0.5 * (weighted_lambda_plus_int * char_speed_v_plus_int.get(a, b) +
+                    weighted_lambda_minus_int *
+                        char_speed_v_minus_int.get(a, b)) -
+           weighted_lambda_spacetime_metric_int *
+               char_speed_constraint_gamma2_v_spacetime_metric_int.get(a, b));
 
       for (size_t d = 0; d < Dim; ++d) {
         // Overall minus sign on ext because of normal vector is opposite
         // direction.
         boundary_correction_phi->get(d, a, b) =
-            -0.5 * (weighted_lambda_minus_ext *
-                        char_speed_normal_times_v_minus_ext.get(d, a, b) -
-                    weighted_lambda_plus_ext *
-                        char_speed_normal_times_v_plus_ext.get(d, a, b)) +
-            weighted_lambda_zero_ext * char_speed_v_zero_ext.get(d, a, b)
+            lifting_weight_factor_ *
+            (-0.5 * (weighted_lambda_minus_ext *
+                         char_speed_normal_times_v_minus_ext.get(d, a, b) -
+                     weighted_lambda_plus_ext *
+                         char_speed_normal_times_v_plus_ext.get(d, a, b)) +
+             weighted_lambda_zero_ext * char_speed_v_zero_ext.get(d, a, b)
 
-            - 0.5 * (weighted_lambda_plus_int *
-                         char_speed_normal_times_v_plus_int.get(d, a, b) -
-                     weighted_lambda_minus_int *
-                         char_speed_normal_times_v_minus_int.get(d, a, b)) -
-            weighted_lambda_zero_int * char_speed_v_zero_int.get(d, a, b);
+             - 0.5 * (weighted_lambda_plus_int *
+                          char_speed_normal_times_v_plus_int.get(d, a, b) -
+                      weighted_lambda_minus_int *
+                          char_speed_normal_times_v_minus_int.get(d, a, b)) -
+             weighted_lambda_zero_int * char_speed_v_zero_int.get(d, a, b));
       }
     }
   }
