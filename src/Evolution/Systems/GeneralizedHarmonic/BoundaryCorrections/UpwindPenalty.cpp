@@ -19,6 +19,10 @@
 
 namespace GeneralizedHarmonic::BoundaryCorrections {
 template <size_t Dim>
+UpwindPenalty<Dim>::UpwindPenalty(const double lifting_weight_factor)
+    : lifting_weight_factor_(lifting_weight_factor) {}
+
+template <size_t Dim>
 UpwindPenalty<Dim>::UpwindPenalty(CkMigrateMessage* msg)
     : BoundaryCorrection<Dim>(msg) {}
 
@@ -252,6 +256,11 @@ void UpwindPenalty<Dim>::dg_boundary_terms(
                  weighted_lambda_minus_int * char_speed_v_minus_int.get(a, b)) -
           weighted_lambda_spacetime_metric_int *
               char_speed_constraint_gamma2_v_spacetime_metric_int.get(a, b);
+      if (lifting_weight_factor_ < 1.0) {
+        boundary_correction_spacetime_metric->get(a, b) *=
+            lifting_weight_factor_;
+        boundary_correction_pi->get(a, b) *= lifting_weight_factor_;
+      }
 
       for (size_t d = 0; d < Dim; ++d) {
         // Overall minus sign on ext because of normal vector is opposite
@@ -268,6 +277,9 @@ void UpwindPenalty<Dim>::dg_boundary_terms(
                      weighted_lambda_minus_int *
                          char_speed_normal_times_v_minus_int.get(d, a, b)) -
             weighted_lambda_zero_int * char_speed_v_zero_int.get(d, a, b);
+        if (lifting_weight_factor_ < 1.0) {
+          boundary_correction_phi->get(d, a, b) *= lifting_weight_factor_;
+        }
       }
     }
   }

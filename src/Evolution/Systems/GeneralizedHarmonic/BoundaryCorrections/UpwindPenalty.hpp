@@ -191,12 +191,21 @@ class UpwindPenalty final : public BoundaryCorrection<Dim> {
   };
 
  public:
-  using options = tmpl::list<>;
+  struct LiftingWeightFactor {
+    using type = double;
+    static constexpr Options::String help = {
+        "Factor scaling boundary correction. 1.0 = DG, 0.5 = pseudospectral."};
+    static type suggested_value() { return 1.0; }
+    static type lower_bound() { return 0.5; }
+    static type upper_bound() { return 1.0; }
+  };
+  using options = tmpl::list<LiftingWeightFactor>;
   static constexpr Options::String help = {
       "Computes the UpwindPenalty boundary correction term for the generalized "
       "harmonic system."};
 
-  UpwindPenalty() = default;
+  UpwindPenalty(double lifting_weight_factor);
+  UpwindPenalty() : UpwindPenalty(1.0) {}
   UpwindPenalty(const UpwindPenalty&) = default;
   UpwindPenalty& operator=(const UpwindPenalty&) = default;
   UpwindPenalty(UpwindPenalty&&) = default;
@@ -293,5 +302,8 @@ class UpwindPenalty final : public BoundaryCorrection<Dim> {
           char_speed_constraint_gamma2_v_spacetime_metric_ext,
       const tnsr::a<DataVector, 3, Frame::Inertial>& char_speeds_ext,
       dg::Formulation /*dg_formulation*/) const;
+
+ private:
+  double lifting_weight_factor_;
 };
 }  // namespace GeneralizedHarmonic::BoundaryCorrections
