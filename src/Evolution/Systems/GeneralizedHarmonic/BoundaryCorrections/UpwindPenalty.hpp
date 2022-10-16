@@ -295,6 +295,6 @@ class UpwindPenalty final : public BoundaryCorrection<Dim> {
       dg::Formulation /*dg_formulation*/) const;
 
  private:
-  double lifting_weight_factor_ = 1.0;
+  double lifting_weight_factor_ = 0.5;
 };
 }  // namespace GeneralizedHarmonic::BoundaryCorrections
