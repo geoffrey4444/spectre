@@ -16,6 +16,7 @@ struct WrappedGr;
 }  // namespace GeneralizedHarmonic
 namespace gr {
 namespace Solutions {
+struct HarmonicSchwarzschild;
 struct KerrSchild;
 struct SphericalKerrSchild;
 }  // namespace Solutions

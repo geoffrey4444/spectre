@@ -58,13 +58,17 @@
 template <typename InitialData, typename BoundaryConditions>
 struct EvolutionMetavars<3, InitialData, BoundaryConditions>
     : public GeneralizedHarmonicTemplateBase<
-          true, EvolutionMetavars<3, InitialData, BoundaryConditions>> {
+          false, EvolutionMetavars<3, InitialData, BoundaryConditions>> {
   using gh_base = GeneralizedHarmonicTemplateBase<
-      true, EvolutionMetavars<3, InitialData, BoundaryConditions>>;
+      false, EvolutionMetavars<3, InitialData, BoundaryConditions>>;
   using typename gh_base::frame;
   using typename gh_base::initialize_initial_data_dependent_quantities_actions;
   using typename gh_base::system;
   static constexpr size_t volume_dim = 3;
+
+  struct domain : tt::ConformsTo<::domain::protocols::Metavariables> {
+    static constexpr bool enable_time_dependent_maps = true;
+  };
 
   static constexpr Options::String help{
       "Evolve the Einstein field equations using the Generalized Harmonic "

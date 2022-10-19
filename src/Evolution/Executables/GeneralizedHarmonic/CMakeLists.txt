@@ -54,6 +54,13 @@ add_generalized_harmonic_executable_with_horizon(
 )
 
 add_generalized_harmonic_executable_with_horizon(
+  HarmonicSchwarzschild
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::HarmonicSchwarzschild>
+  GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::HarmonicSchwarzschild>
+  "${LIBS_TO_LINK};ApparentHorizons;GeneralRelativitySolutions"
+)
+
+add_generalized_harmonic_executable_with_horizon(
   KerrSchildNumericInitialData
   evolution::NumericInitialData
   GeneralizedHarmonic::Solutions::WrappedGr<gr::Solutions::KerrSchild>
