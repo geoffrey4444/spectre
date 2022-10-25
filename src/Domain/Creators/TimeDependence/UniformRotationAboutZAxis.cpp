@@ -31,14 +31,17 @@ namespace creators::time_dependence {
 
 template <size_t MeshDim>
 UniformRotationAboutZAxis<MeshDim>::UniformRotationAboutZAxis(
-    const double initial_time, const double angular_velocity)
-    : initial_time_(initial_time), angular_velocity_(angular_velocity) {}
+    const double initial_time, const double initial_angular_velocity,
+    const double initial_angular_acceleration)
+    : initial_time_(initial_time),
+      initial_angular_velocity_(initial_angular_velocity),
+      initial_angular_acceleration_(initial_angular_acceleration) {}
 
 template <size_t MeshDim>
 std::unique_ptr<TimeDependence<MeshDim>>
 UniformRotationAboutZAxis<MeshDim>::get_clone() const {
-  return std::make_unique<UniformRotationAboutZAxis>(initial_time_,
-                                                     angular_velocity_);
+  return std::make_unique<UniformRotationAboutZAxis>(
+      initial_time_, initial_angular_velocity_, initial_angular_acceleration_);
 }
 
 template <size_t MeshDim>
@@ -81,7 +84,10 @@ UniformRotationAboutZAxis<MeshDim>::functions_of_time(
   result[function_of_time_name_] =
       std::make_unique<FunctionsOfTime::PiecewisePolynomial<3>>(
           initial_time_,
-          std::array<DataVector, 4>{{{0.0}, {angular_velocity_}, {0.0}, {0.0}}},
+          std::array<DataVector, 4>{{{0.0},
+                                     {initial_angular_velocity_},
+                                     {initial_angular_acceleration_},
+                                     {0.0}}},
           expiration_time);
   return result;
 }
@@ -109,7 +115,8 @@ template <size_t Dim>
 bool operator==(const UniformRotationAboutZAxis<Dim>& lhs,
                 const UniformRotationAboutZAxis<Dim>& rhs) {
   return lhs.initial_time_ == rhs.initial_time_ and
-         lhs.angular_velocity_ == rhs.angular_velocity_;
+         lhs.initial_angular_velocity_ == rhs.initial_angular_velocity_ and
+         lhs.initial_angular_acceleration_ == rhs.initial_angular_acceleration_;
 }
 
 template <size_t Dim>
