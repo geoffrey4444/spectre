@@ -58,9 +58,9 @@
 template <typename InitialData, typename BoundaryConditions>
 struct EvolutionMetavars<3, InitialData, BoundaryConditions>
     : public GeneralizedHarmonicTemplateBase<
-          false, EvolutionMetavars<3, InitialData, BoundaryConditions>> {
+          true, EvolutionMetavars<3, InitialData, BoundaryConditions>> {
   using gh_base = GeneralizedHarmonicTemplateBase<
-      false, EvolutionMetavars<3, InitialData, BoundaryConditions>>;
+      true, EvolutionMetavars<3, InitialData, BoundaryConditions>>;
   using typename gh_base::frame;
   using typename gh_base::initialize_initial_data_dependent_quantities_actions;
   using typename gh_base::system;
