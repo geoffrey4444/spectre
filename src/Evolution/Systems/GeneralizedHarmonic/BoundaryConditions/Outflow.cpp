@@ -61,7 +61,7 @@ std::optional<std::string> Outflow<Dim>::dg_outflow(
     } else {
       min_speed = min(gsl::at(char_speeds, i));
     }
-    if (min_speed < -1.e-12) {
+    if (min_speed < 0.0) {
       return {MakeString{}
               << "Outflow boundary condition violated with speed index " << i
               << " ingoing: " << min_speed
