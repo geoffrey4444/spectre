@@ -64,11 +64,11 @@ double UpwindPenalty<Dim>::dg_package_data(
     const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_covector,
     const tnsr::I<DataVector, Dim, Frame::Inertial>& normal_vector,
     const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
-    /*mesh_velocity*/,
+        mesh_velocity,
     const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity) const {
   const std::array<DataVector, 4> char_speeds =
-      ::GeneralizedHarmonic::characteristic_speeds(constraint_gamma1, lapse,
-                                                   shift, normal_covector);
+      ::GeneralizedHarmonic::characteristic_speeds(
+          constraint_gamma1, lapse, shift, normal_covector, mesh_velocity);
   get<0>(*packaged_char_speeds) = char_speeds[0];
   get<1>(*packaged_char_speeds) = char_speeds[1];
   get<2>(*packaged_char_speeds) = char_speeds[2];

@@ -187,6 +187,12 @@ def char_speed_upsi(gamma1, lapse, shift, unit_normal):
     return -(1. + gamma1) * np.dot(shift, unit_normal)
 
 
+def char_speed_upsi_moving_mesh(gamma1, lapse, shift, unit_normal,
+                                mesh_velocity):
+    return -(1. + gamma1) * np.dot(shift, unit_normal) - gamma1 * np.dot(
+        mesh_velocity, unit_normal)
+
+
 def char_speed_uzero(gamma1, lapse, shift, unit_normal):
     return -np.dot(shift, unit_normal)
 
@@ -504,10 +510,10 @@ def f_constraint_stress_energy_term(inverse_spacetime_metric,
 
 
 def f_constraint_with_stress_energy(
-    gauge_function, d_gauge_function, spacetime_normal_one_form,
-    spacetime_normal_vector, inverse_spatial_metric, inverse_spacetime_metric,
-    pi, phi, d_pi, d_phi, gamma2, three_index_constraint,
-    trace_reversed_stress_energy):
+        gauge_function, d_gauge_function, spacetime_normal_one_form,
+        spacetime_normal_vector, inverse_spatial_metric,
+        inverse_spacetime_metric, pi, phi, d_pi, d_phi, gamma2,
+        three_index_constraint, trace_reversed_stress_energy):
     constraint = f_constraint(gauge_function, d_gauge_function,
                               spacetime_normal_one_form,
                               spacetime_normal_vector, inverse_spatial_metric,
