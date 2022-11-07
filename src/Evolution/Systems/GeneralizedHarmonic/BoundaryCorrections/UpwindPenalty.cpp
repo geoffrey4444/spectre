@@ -12,6 +12,7 @@
 #include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Formulation.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
@@ -65,22 +66,13 @@ double UpwindPenalty<Dim>::dg_package_data(
     const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
     /*mesh_velocity*/,
     const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity) const {
-  // Compute the char speeds without the mesh movement, then add the mesh
-  // movement. We compute the zero-speed first since it is just the normal
-  // dotted into the shift.
-  {
-    Scalar<DataVector> shift_dot_normal{};
-    get(shift_dot_normal)
-        .set_data_ref(make_not_null(&get<1>(*packaged_char_speeds)));
-    dot_product(make_not_null(&shift_dot_normal), shift, normal_covector);
-    get(shift_dot_normal) *= -1.0;
-    // the metric mode speed is the zero speed times (1 + gamma_1)
-    get<0>(*packaged_char_speeds) =
-        (1.0 + get(constraint_gamma1)) * get(shift_dot_normal);
-    // 2 = plus, 3 = minus
-    get<2>(*packaged_char_speeds) = get(lapse) + get(shift_dot_normal);
-    get<3>(*packaged_char_speeds) = -get(lapse) + get(shift_dot_normal);
-  }
+  const std::array<DataVector, 4> char_speeds =
+      ::GeneralizedHarmonic::characteristic_speeds(constraint_gamma1, lapse,
+                                                   shift, normal_covector);
+  get<0>(*packaged_char_speeds) = char_speeds[0];
+  get<1>(*packaged_char_speeds) = char_speeds[1];
+  get<2>(*packaged_char_speeds) = char_speeds[2];
+  get<3>(*packaged_char_speeds) = char_speeds[3];
 
   if (normal_dot_mesh_velocity.has_value()) {
     get<0>(*packaged_char_speeds) -= get(*normal_dot_mesh_velocity);
