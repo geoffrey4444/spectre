@@ -15,6 +15,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/ConstraintDamping/Tags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "Parallel/Printf.hpp"
 #include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -691,11 +692,14 @@ struct ThreeIndexConstraintCompute : ThreeIndexConstraint<SpatialDim, Frame>,
 
   using return_type = tnsr::iaa<DataVector, SpatialDim, Frame>;
 
-  static constexpr auto function = static_cast<void (*)(
-      gsl::not_null<tnsr::iaa<DataVector, SpatialDim, Frame>*>,
-      const tnsr::iaa<DataVector, SpatialDim, Frame>&,
-      const tnsr::iaa<DataVector, SpatialDim, Frame>&)>(
-      &three_index_constraint<SpatialDim, Frame, DataVector>);
+  static constexpr auto function(
+      gsl::not_null<tnsr::iaa<DataVector, SpatialDim, Frame>*> result,
+      const tnsr::iaa<DataVector, SpatialDim, Frame>& d_spacetime_metric,
+      const tnsr::iaa<DataVector, SpatialDim, Frame>& phi) {
+    Parallel::printf("3Con 6 3ConL2 = %1.15e\n",
+                     l2_norm(three_index_constraint(d_spacetime_metric, phi)));
+    return three_index_constraint(result, d_spacetime_metric, phi);
+  }
 
   using base = ThreeIndexConstraint<SpatialDim, Frame>;
 };

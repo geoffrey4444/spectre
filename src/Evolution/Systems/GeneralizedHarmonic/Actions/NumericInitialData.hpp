@@ -12,6 +12,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "Domain/Tags.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "IO/Importers/Actions/ReadVolumeData.hpp"
 #include "IO/Importers/ElementDataReader.hpp"
@@ -21,6 +22,7 @@
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/Printf.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Phi.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Pi.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
@@ -302,6 +304,38 @@ struct SetNumericInitialData {
           "an implementation to "
           "GeneralizedHarmonic::Actions::SetNumericInitialData.");
     }
+    return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+  }
+};
+
+/*!
+ * \brief Check the 3-index constraint.
+ *
+ * Place this action some place to have it print out the 3-index constraint
+ * on the elements.
+ *
+ */
+template <size_t CheckNumber>
+struct Check3Con {
+  static constexpr size_t Dim = 3;
+  using inbox_tags = tmpl::list<>;
+
+  template <typename DbTagsList, typename... InboxTags, typename Metavariables,
+            typename ActionList, typename ParallelComponent>
+  static Parallel::iterable_action_return_t apply(
+      db::DataBox<DbTagsList>& box,
+      tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
+      const Parallel::GlobalCache<Metavariables>& /*cache*/,
+      const ElementId<Dim>& element_id, const ActionList /*meta*/,
+      const ParallelComponent* const /*meta*/) {
+    const auto& d_spacetime_metric = db::get<
+        ::Tags::deriv<gr::Tags::SpacetimeMetric<3, Frame::Inertial, DataVector>,
+                      tmpl::size_t<3>, Frame::Inertial>>(box);
+    const auto& phi =
+        db::get<GeneralizedHarmonic::Tags::Phi<3, Frame::Inertial>>(box);
+    Parallel::printf("3Con %i %s t = %1.15e 3ConL2 = %1.15e\n", CheckNumber,
+                     element_id, db::get<::Tags::Time>(box),
+                     l2_norm(three_index_constraint(d_spacetime_metric, phi)));
     return {Parallel::AlgorithmExecution::Continue, std::nullopt};
   }
 };
