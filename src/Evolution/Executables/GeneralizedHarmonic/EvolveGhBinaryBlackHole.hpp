@@ -463,9 +463,7 @@ struct EvolutionMetavars {
                                             Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Parallel::Phase::InitializeTimeStepperHistory,
-              tmpl::list<GeneralizedHarmonic::Actions::Check3Con<2>,
-                         SelfStart::self_start_procedure<step_actions,
-                                                         system>>>,
+              SelfStart::self_start_procedure<step_actions, system>>,
           Parallel::PhaseActions<
               Parallel::Phase::Evolve,
               tmpl::list<::domain::Actions::CheckFunctionsOfTimeAreReady,
