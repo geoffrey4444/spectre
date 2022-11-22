@@ -13,17 +13,10 @@
 #include <utility>
 
 #include "DataStructures/DataBox/DataBox.hpp"
-#include "DataStructures/Tensor/EagerMath/Norms.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
-#include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
-#include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
-#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/Callback.hpp"
 #include "Parallel/GlobalCache.hpp"
-#include "Parallel/Printf.hpp"
-#include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
-#include "Time/Tags.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/StdHelpers.hpp"
@@ -107,14 +100,6 @@ struct CheckFunctionsOfTimeAreReady {
       Parallel::GlobalCache<Metavariables>& cache,
       const ArrayIndex& array_index, ActionList /*meta*/,
       const ParallelComponent* component) {
-    Parallel::printf(
-        "3Con CheckFoTReady %s t = %1.15e 3ConL2 = %1.15e\n", array_index,
-        db::get<::Tags::Time>(box),
-        l2_norm(::GeneralizedHarmonic::three_index_constraint(
-            db::get<::Tags::deriv<
-                gr::Tags::SpacetimeMetric<3, Frame::Inertial, DataVector>,
-                tmpl::size_t<3>, Frame::Inertial>>(box),
-            db::get<GeneralizedHarmonic::Tags::Phi<3, Frame::Inertial>>(box))));
     const bool ready =
         functions_of_time_are_ready<domain::Tags::FunctionsOfTime>(
             cache, array_index, component, db::get<::Tags::Time>(box));
