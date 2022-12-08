@@ -19,6 +19,7 @@
 #include "Domain/BoundaryConditions/GetBoundaryConditionsBase.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/CoordinateMaps/Distribution.hpp"
+#include "Domain/Creators/BinaryCompactObjectHelpers.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
 #include "Domain/Domain.hpp"
 #include "Domain/Structure/DirectionMap.hpp"
@@ -65,23 +66,6 @@ namespace Frame {
 struct Inertial;
 struct BlockLogical;
 }  // namespace Frame
-
-namespace BinaryCompactObject_detail {
-// If `Metavariables` has a `domain_parameters` member struct and
-// `domain_parameters::enable_time_dependent_maps` is `true`, then
-// inherit from `std::true_type`; otherwise, inherit from `std::false_type`.
-template <typename Metavariables, typename = std::void_t<>>
-struct enable_time_dependent_maps : std::false_type {};
-
-template <typename Metavariables>
-struct enable_time_dependent_maps<Metavariables,
-                                  std::void_t<typename Metavariables::domain>>
-    : std::bool_constant<Metavariables::domain::enable_time_dependent_maps> {};
-
-template <typename Metavariables>
-constexpr bool enable_time_dependent_maps_v =
-    enable_time_dependent_maps<Metavariables>::value;
-}  // namespace BinaryCompactObject_detail
 /// \endcond
 
 namespace domain {
