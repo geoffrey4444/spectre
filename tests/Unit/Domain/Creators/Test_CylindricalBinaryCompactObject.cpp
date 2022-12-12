@@ -286,6 +286,14 @@ void test_connectivity_once(const bool with_sphere_e,
     TestHelpers::domain::creators::test_domain_creator(
         binary_compact_object, with_boundary_conditions);
 
+    // The Domain has no functions of time above, so make sure
+    // that the functions_of_time function returns an empty map.
+    CHECK(binary_compact_object.functions_of_time(
+              std::unordered_map<std::string, double>{}) ==
+          std::unordered_map<
+              std::string,
+              std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>{});
+
     if (with_boundary_conditions) {
       CHECK_THROWS_WITH(
           domain::creators::CylindricalBinaryCompactObject(

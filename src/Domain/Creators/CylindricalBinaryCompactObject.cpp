@@ -995,7 +995,11 @@ CylindricalBinaryCompactObject::functions_of_time(
   // domain::CoordinateMaps::TimeDependent::CubicScale map
   result[expansion_function_of_time_name_ + "OuterBoundary"s] =
       std::make_unique<FunctionsOfTime::FixedSpeedCubic>(
+          // codecov seems to not recognize that the next line is actually
+          // run during the tests.
+          // LCOV_EXCL_START
           1.0, initial_time_, expansion_map_options_.outer_boundary_velocity,
+          // LCOV_EXCL_STOP
           expansion_map_options_.outer_boundary_decay_time);
 
   // RotationMap FunctionOfTime for the rotation angles about each
