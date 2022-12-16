@@ -29,6 +29,7 @@
 #include "Domain/OptionTags.hpp"
 #include "Domain/Protocols/Metavariables.hpp"
 #include "Domain/Structure/BlockNeighbor.hpp"  // IWYU pragma: keep
+#include "Domain/Structure/ExcisionSphere.hpp"
 #include "Framework/TestCreation.hpp"
 #include "Helpers/Domain/BoundaryConditions/BoundaryCondition.hpp"
 #include "Helpers/Domain/Creators/TestHelpers.hpp"
@@ -283,8 +284,62 @@ void test_connectivity_once(const bool with_sphere_e,
     CHECK(binary_compact_object.block_names() == block_names);
     CHECK(binary_compact_object.block_groups() == block_groups);
 
-    TestHelpers::domain::creators::test_domain_creator(
+    const auto domain = TestHelpers::domain::creators::test_domain_creator(
         binary_compact_object, with_boundary_conditions);
+
+    std::unordered_map<std::string, ExcisionSphere<3>>
+        expected_excision_spheres{};
+    std::unordered_map<size_t, Direction<3>> abutting_directions_A;
+    if(include_inner_sphere_A) {
+      for (size_t i = 46; i < 56; ++i) {
+        abutting_directions_A.emplace(i, Direction<3>::lower_zeta());
+      }
+      for (size_t i = 56; i < 60; ++i) {
+        abutting_directions_A.emplace(i, Direction<3>::lower_xi());
+      }
+    } else {
+      for (size_t i = 9; i < 14; ++i) {
+        abutting_directions_A.emplace(i, Direction<3>::lower_zeta());
+      }
+      for (size_t i = 14; i < 18; ++i) {
+        abutting_directions_A.emplace(i, Direction<3>::lower_xi());
+      }
+      for (size_t i = 27; i < 32; ++i) {
+        abutting_directions_A.emplace(i, Direction<3>::lower_zeta());
+      }
+    }
+    std::unordered_map<size_t, Direction<3>> abutting_directions_B;
+    if(include_inner_sphere_B) {
+      const size_t first_inner_sphere_block = include_inner_sphere_A ? 60 : 46;
+      for (size_t i = first_inner_sphere_block;
+           i < first_inner_sphere_block + 10; ++i) {
+        abutting_directions_B.emplace(i, Direction<3>::lower_zeta());
+      }
+      for (size_t i = first_inner_sphere_block + 10;
+           i < first_inner_sphere_block + 14; ++i) {
+        abutting_directions_B.emplace(i, Direction<3>::lower_xi());
+      }
+    } else {
+      for (size_t i = 18; i < 23; ++i) {
+        abutting_directions_B.emplace(i, Direction<3>::lower_zeta());
+      }
+      for (size_t i = 23; i < 27; ++i) {
+        abutting_directions_B.emplace(i, Direction<3>::lower_xi());
+      }
+      for (size_t i = 32; i < 37; ++i) {
+        abutting_directions_B.emplace(i, Direction<3>::lower_zeta());
+      }
+    }
+    expected_excision_spheres.emplace(
+        "ObjectBExcisionSphere",
+        ExcisionSphere<3>{inner_radius_objectB, center_objectB,
+                          abutting_directions_B});
+    expected_excision_spheres.emplace(
+        "ObjectAExcisionSphere",
+        ExcisionSphere<3>{inner_radius_objectA, center_objectA,
+                          abutting_directions_A});
+
+    CHECK(domain.excision_spheres() == expected_excision_spheres);
 
     // The Domain has no functions of time above, so make sure
     // that the functions_of_time function returns an empty map.
