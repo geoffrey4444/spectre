@@ -38,12 +38,10 @@ namespace {
 struct test_metavariables {
   struct Target : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     using temporal_id = ::Tags::Time;
-    using vars_to_interpolate_to_target = tmpl::list<
-        gr::Tags::SpacetimeMetric<3, ::Frame::Inertial>,
-        GeneralizedHarmonic::Tags::Pi<3, ::Frame::Inertial>,
-        GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>,
-        ::Tags::deriv<GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>,
-                      tmpl::size_t<3>, ::Frame::Inertial>>;
+    using vars_to_interpolate_to_target =
+        tmpl::list<gr::Tags::SpacetimeMetric<3, ::Frame::Inertial>,
+                   GeneralizedHarmonic::Tags::Pi<3, ::Frame::Inertial>,
+                   GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>>;
     using compute_target_points =
         intrp::TargetPoints::Sphere<Target, ::Frame::Inertial>;
     using post_interpolation_callback =
@@ -90,9 +88,7 @@ void test(const std::string& filename_prefix,
           const std::vector<double>& radii) {
   using metavars = test_metavariables;
   using target = typename metavars::Target;
-  using all_spacetime_tags = typename target::vars_to_interpolate_to_target;
-  using spacetime_tags_for_cce =
-      typename target::post_interpolation_callback::gh_source_vars_for_cce;
+  using spacetime_tags = typename target::vars_to_interpolate_to_target;
   using cce_tags =
       typename target::post_interpolation_callback::cce_boundary_tags;
   using written_cce_tags =
@@ -117,9 +113,9 @@ void test(const std::string& filename_prefix,
   // calculate bondi data, because this is just testing that we can write the
   // data. So choose Minkowski spacetime. This means pi, phi, and deriv phi are
   // trivially 0.
-  Variables<all_spacetime_tags> spacetime_variables =
-      make_spacetime_variables<all_spacetime_tags>(radii.size() *
-                                                   num_points_single_sphere);
+  Variables<spacetime_tags> spacetime_variables =
+      make_spacetime_variables<spacetime_tags>(radii.size() *
+                                               num_points_single_sphere);
 
   // Options for Sphere
   const intrp::AngularOrdering angular_ordering = intrp::AngularOrdering::Cce;
@@ -132,11 +128,10 @@ void test(const std::string& filename_prefix,
       {std::move(sphere_opts), filename_prefix}, &mutable_cache};
 
   // Only need variables in the box for this test
-  using db_tags = tmpl::list<::Tags::Variables<all_spacetime_tags>>;
+  using db_tags = tmpl::list<::Tags::Variables<spacetime_tags>>;
   const auto box = db::create<db_tags>(spacetime_variables);
 
-#ifdef SPECTRE_DEBUG
-  // Check the assert
+  // Check the error
   CHECK_THROWS_WITH(
       ([&box, &radii, &center, &filename_prefix, &mutable_cache]() {
         const intrp::AngularOrdering local_angular_ordering =
@@ -151,7 +146,6 @@ void test(const std::string& filename_prefix,
       Catch::Contains(
           "To use the DumpBondiSachsOnWorldtube post interpolation callback, "
           "the angular ordering of the Spheres must be Cce"));
-#endif
 
   const std::vector<double> times{0.9, 1.3};
 
@@ -159,9 +153,8 @@ void test(const std::string& filename_prefix,
     target::post_interpolation_callback::apply(box, cache, time);
   }
 
-  Variables<spacetime_tags_for_cce> single_spacetime_variables =
-      make_spacetime_variables<spacetime_tags_for_cce>(
-          num_points_single_sphere);
+  Variables<spacetime_tags> single_spacetime_variables =
+      make_spacetime_variables<spacetime_tags>(num_points_single_sphere);
   const auto& [spacetime_metric, pi, phi] = single_spacetime_variables;
   Variables<cce_tags> bondi_boundary_data{num_points_single_sphere};
 

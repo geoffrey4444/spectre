@@ -53,7 +53,6 @@ namespace callbacks {
  * - `gr::Tags::SpacetimeMetric`
  * - `GeneralizedHarmonic::Tags::Pi`
  * - `GeneralizedHarmonic::Tags::Phi`
- * - `::Tags::deriv<GeneralizedHarmonic::Tags::Phi>`
  *
  * This callback will write a new `H5` file for each extraction radius in the
  * Sphere target. The name of this file will be a file prefix specified by the
@@ -97,11 +96,6 @@ struct DumpBondiSachsOnWorldtube
                  GeneralizedHarmonic::Tags::Pi<3, ::Frame::Inertial>,
                  GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>>;
 
-  using expected_gh_source_vars_from_interpolation = tmpl::push_back<
-      gh_source_vars_for_cce,
-      ::Tags::deriv<GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>,
-                    tmpl::size_t<3>, ::Frame::Inertial>>;
-
   using gh_source_vars_from_interpolation =
       typename InterpolationTargetTag::vars_to_interpolate_to_target;
 
@@ -112,16 +106,14 @@ struct DumpBondiSachsOnWorldtube
 
   static_assert(
       tmpl::and_<
-          std::is_same<
-              tmpl::list_difference<gh_source_vars_from_interpolation,
-                                    expected_gh_source_vars_from_interpolation>,
-              tmpl::list<>>,
-          std::is_same<
-              tmpl::list_difference<expected_gh_source_vars_from_interpolation,
-                                    gh_source_vars_from_interpolation>,
-              tmpl::list<>>>::type::value,
+          std::is_same<tmpl::list_difference<gh_source_vars_from_interpolation,
+                                             gh_source_vars_for_cce>,
+                       tmpl::list<>>,
+          std::is_same<tmpl::list_difference<gh_source_vars_for_cce,
+                                             gh_source_vars_from_interpolation>,
+                       tmpl::list<>>>::type::value,
       "To use DumpBondiSachsOnWorldtube, the GH source variables must be the "
-      "spacetime metric, pi, phi, and Deriv phi.");
+      "spacetime metric, pi, and phi.");
 
   static_assert(
       std::is_same_v<typename InterpolationTargetTag::compute_target_points,
@@ -139,10 +131,12 @@ struct DumpBondiSachsOnWorldtube
         Parallel::get<Tags::Sphere<InterpolationTargetTag>>(cache);
     const auto& filename_prefix = Parallel::get<Cce::Tags::FilePrefix>(cache);
 
-    ASSERT(sphere.angular_ordering == intrp::AngularOrdering::Cce,
-           "To use the DumpBondiSachsOnWorldtube post interpolation callback, "
-           "the angular ordering of the Spheres must be Cce, not "
-               << sphere.angular_ordering);
+    if (sphere.angular_ordering != intrp::AngularOrdering::Cce) {
+      ERROR(
+          "To use the DumpBondiSachsOnWorldtube post interpolation callback, "
+          "the angular ordering of the Spheres must be Cce, not "
+          << sphere.angular_ordering);
+    }
 
     const auto& radii = sphere.radii;
     const size_t l_max = sphere.l_max;
@@ -159,9 +153,15 @@ struct DumpBondiSachsOnWorldtube
     const auto& all_phi =
         get<GeneralizedHarmonic::Tags::Phi<3, ::Frame::Inertial>>(all_gh_vars);
 
-    Variables<gh_source_vars_for_cce> tmp_buffer;
+    const tnsr::aa<DataVector, 3, ::Frame::Inertial> spacetime_metric;
+    const tnsr::aa<DataVector, 3, ::Frame::Inertial> pi;
+    const tnsr::iaa<DataVector, 3, ::Frame::Inertial> phi;
 
-    const auto& [spacetime_metric, pi, phi] = tmp_buffer;
+    // Bondi data
+    Variables<cce_boundary_tags> bondi_boundary_data{num_points_single_sphere};
+    ComplexModalVector goldberg_mode_buffer{square(l_max + 1)};
+    const std::vector<std::string> all_legend = build_legend(l_max, false);
+    const std::vector<std::string> real_legend = build_legend(l_max, true);
 
     size_t offset = 0;
     for (const auto& radius : radii) {
@@ -183,16 +183,9 @@ struct DumpBondiSachsOnWorldtube
 
       offset += num_points_single_sphere;
 
-      // Bondi data
-      Variables<cce_boundary_tags> bondi_boundary_data{
-          num_points_single_sphere};
-      ComplexModalVector goldberg_mode_buffer{square(l_max + 1)};
-
       Cce::create_bondi_boundary_data(make_not_null(&bondi_boundary_data), phi,
                                       pi, spacetime_metric, radius, l_max);
 
-      const std::vector<std::string> all_legend = build_legend(l_max, false);
-      const std::vector<std::string> real_legend = build_legend(l_max, true);
       const std::string filename =
           MakeString{} << filename_prefix << "CceR" << std::setfill('0')
                        << std::setw(4) << std::lround(radius);
@@ -232,8 +225,8 @@ struct DumpBondiSachsOnWorldtube
             // because we don't print negative m or the imaginary part of m=0
             // for real quantities.
             for (size_t ell = 0; ell <= l_max; ell++) {
-              for (int m = is_real ? 0 : -ell; m <= static_cast<int>(ell);
-                   m++) {
+              for (int m = is_real ? 0 : -static_cast<int>(ell);
+                   m <= static_cast<int>(ell); m++) {
                 const size_t goldberg_index =
                     Spectral::Swsh::goldberg_mode_index(l_max, ell, m);
                 data_to_write_buffer.push_back(
