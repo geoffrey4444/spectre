@@ -247,6 +247,10 @@ struct EvolutionMetavars {
       tmpl::size<control_systems>::value > 0;
 
   using interpolator_source_vars = ::ah::source_vars<volume_dim>;
+  using cce_interpolator_source_vars =
+      tmpl::list<gr::Tags::SpacetimeMetric<volume_dim, Frame::Inertial>,
+                 GeneralizedHarmonic::Tags::Pi<volume_dim, Frame::Inertial>,
+                 GeneralizedHarmonic::Tags::Phi<volume_dim, Frame::Inertial>>;
 
   using observe_fields = tmpl::append<
       tmpl::list<
@@ -369,7 +373,8 @@ struct EvolutionMetavars {
                 intrp::Events::Interpolate<3, AhA, interpolator_source_vars>,
                 intrp::Events::Interpolate<3, AhB, interpolator_source_vars>,
                 intrp::Events::InterpolateWithoutInterpComponent<
-                    3, BondiSachs, EvolutionMetavars, interpolator_source_vars>,
+                    3, BondiSachs, EvolutionMetavars,
+                    cce_interpolator_source_vars>,
                 Events::MonitorMemory<3, ::Tags::Time>, Events::Completion,
                 dg::Events::field_observations<volume_dim, Tags::Time,
                                                observe_fields,
@@ -515,7 +520,7 @@ struct EvolutionMetavars {
   struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "BondiSachsInterpolation"; }
     using temporal_id = ::Tags::Time;
-    using vars_to_interpolate_to_target = interpolator_source_vars;
+    using vars_to_interpolate_to_target = cce_interpolator_source_vars;
     using compute_target_points =
         intrp::TargetPoints::Sphere<BondiSachs, ::Frame::Inertial>;
     using post_interpolation_callback =
