@@ -42,7 +42,6 @@ void take_step(
        ++substep) {
     CHECK(time_id.substep() == substep);
     history->insert(time_id, *y, rhs(*y, time_id.substep_time().value()));
-    *y = std::numeric_limits<double>::signaling_NaN();
     stepper.update_u(y, history, step_size);
     time_id = stepper.next_time_id(time_id, step_size);
   }
@@ -61,7 +60,6 @@ void take_step_and_check_error(
        ++substep) {
     CHECK(time_id.substep() == substep);
     history->insert(time_id, *y, rhs(*y, time_id.substep_time().value()));
-    *y = std::numeric_limits<double>::signaling_NaN();
     bool error_updated = stepper.update_u(y, y_error, history, step_size);
     CAPTURE(substep);
     REQUIRE((substep == stepper.number_of_substeps_for_error() - 1) ==
@@ -456,7 +454,6 @@ void check_dense_output(const TimeStepper& stepper,
       auto step = step_size;
       for (;;) {
         history.insert(time_id, y, y);
-        y = std::numeric_limits<double>::signaling_NaN();
         if (not before((time_id.step_time() + step).value(), time)) {
           if (stepper.dense_update_u(make_not_null(&y), history, time)) {
             return y;
