@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -12,6 +13,7 @@
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.tpp"
 #include "Domain/CoordinateMaps/DiscreteRotation.hpp"
+#include "Domain/CoordinateMaps/Identity.hpp"
 #include "Domain/CoordinateMaps/Interval.hpp"
 #include "Domain/CoordinateMaps/ProductMaps.hpp"
 #include "Domain/CoordinateMaps/ProductMaps.tpp"
@@ -60,8 +62,9 @@ namespace domain::creators {
 CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
     std::array<double, 3> center_A, std::array<double, 3> center_B,
     double radius_A, double radius_B, bool include_inner_sphere_A,
-    bool include_inner_sphere_B, bool include_outer_sphere, double outer_radius,
-    bool use_equiangular_map,
+    bool include_inner_sphere_B, bool include_outer_sphere,
+    double singularity_position_A, double singularity_position_B,
+    double outer_radius, bool use_equiangular_map,
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_grid_points,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -73,6 +76,8 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
       center_B_(rotate_to_z_axis(center_B)),
       radius_A_(radius_A),
       radius_B_(radius_B),
+      singularity_position_A_(singularity_position_A),
+      singularity_position_B_(singularity_position_B),
       include_inner_sphere_A_(include_inner_sphere_A),
       include_inner_sphere_B_(include_inner_sphere_B),
       include_outer_sphere_(include_outer_sphere),
@@ -370,8 +375,9 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
     std::array<double, 3> initial_size_map_values_B,
     std::array<double, 3> center_A, std::array<double, 3> center_B,
     double radius_A, double radius_B, bool include_inner_sphere_A,
-    bool include_inner_sphere_B, bool include_outer_sphere, double outer_radius,
-    bool use_equiangular_map,
+    bool include_inner_sphere_B, bool include_outer_sphere,
+    double singularity_position_A, double singularity_position_B,
+    double outer_radius, bool use_equiangular_map,
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_grid_points,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -381,8 +387,9 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
     const Options::Context& context)
     : CylindricalBinaryCompactObject(
           center_A, center_B, radius_A, radius_B, include_inner_sphere_A,
-          include_inner_sphere_B, include_outer_sphere, outer_radius,
-          use_equiangular_map, initial_refinement, initial_grid_points,
+          include_inner_sphere_B, include_outer_sphere, singularity_position_A,
+          singularity_position_B, outer_radius, use_equiangular_map,
+          initial_refinement, initial_grid_points,
           std::move(inner_boundary_condition),
           std::move(outer_boundary_condition), context) {
   // The size map, which is applied from the grid to distorted frame, currently
@@ -471,20 +478,35 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
       [&coordinate_maps, &logical_to_cylinder_center_maps,
        &logical_to_cylinder_surrounding_maps](
           const CoordinateMaps::UniformCylindricalEndcap& endcap_map,
-          const CoordinateMaps::DiscreteRotation<3>& rotation_map) {
+          const CoordinateMaps::DiscreteRotation<3>& rotation_map,
+          const std::optional<CoordinateMaps::ProductOf3Maps<
+              CoordinateMaps::Identity<1>, CoordinateMaps::Identity<1>,
+              CoordinateMaps::Interval>>& log_map = std::nullopt) {
         auto new_logical_to_cylinder_center_maps =
-            domain::make_vector_coordinate_map_base<Frame::BlockLogical,
-                                                    Frame::Inertial, 3>(
-                logical_to_cylinder_center_maps, endcap_map, rotation_map);
+            log_map.has_value()
+                ? domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      *log_map, logical_to_cylinder_center_maps, endcap_map,
+                      rotation_map)
+                : domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      logical_to_cylinder_center_maps, endcap_map,
+                      rotation_map);
         coordinate_maps.insert(
             coordinate_maps.end(),
             std::make_move_iterator(
                 new_logical_to_cylinder_center_maps.begin()),
             std::make_move_iterator(new_logical_to_cylinder_center_maps.end()));
         auto new_logical_to_cylinder_surrounding_maps =
-            domain::make_vector_coordinate_map_base<Frame::BlockLogical,
-                                                    Frame::Inertial, 3>(
-                logical_to_cylinder_surrounding_maps, endcap_map, rotation_map);
+            log_map.has_value()
+                ? domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      *log_map, logical_to_cylinder_surrounding_maps,
+                      endcap_map, rotation_map)
+                : domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      logical_to_cylinder_surrounding_maps, endcap_map,
+                      rotation_map);
         coordinate_maps.insert(
             coordinate_maps.end(),
             std::make_move_iterator(
@@ -548,11 +570,20 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
   auto add_side_to_list_of_maps =
       [&coordinate_maps, &logical_to_cylindrical_shell_maps](
           const CoordinateMaps::UniformCylindricalSide& side_map,
-          const CoordinateMaps::DiscreteRotation<3>& rotation_map) {
+          const CoordinateMaps::DiscreteRotation<3>& rotation_map,
+          const std::optional<CoordinateMaps::ProductOf3Maps<
+              CoordinateMaps::Interval, CoordinateMaps::Identity<1>,
+              CoordinateMaps::Identity<1>>>& log_map = std::nullopt) {
         auto new_logical_to_cylindrical_shell_maps =
-            domain::make_vector_coordinate_map_base<Frame::BlockLogical,
-                                                    Frame::Inertial, 3>(
-                logical_to_cylindrical_shell_maps, side_map, rotation_map);
+            log_map.has_value()
+                ? domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      *log_map, logical_to_cylindrical_shell_maps, side_map,
+                      rotation_map)
+                : domain::make_vector_coordinate_map_base<Frame::BlockLogical,
+                                                          Frame::Inertial, 3>(
+                      logical_to_cylindrical_shell_maps, side_map,
+                      rotation_map);
         coordinate_maps.insert(
             coordinate_maps.end(),
             std::make_move_iterator(
@@ -740,14 +771,32 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
                                                  radius_A_, outer_radius_A,
                                                  z_cut_upper, z_cut_EA_upper),
         // LCOV_EXCL_START
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Interval>{
+            {},
+            {},
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_A_}}});
     // InnerSphereMA Filled Cylinder
     // 5 blocks
     add_endcap_to_list_of_maps(
         CoordinateMaps::UniformCylindricalEndcap(
             flip_about_xy_plane(center_A_), flip_about_xy_plane(center_A_),
             radius_A_, outer_radius_A, -z_cut_lower, -z_cut_EA_lower),
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Interval>{
+            {},
+            {},
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_A_}}});
     // InnerSphereEA Cylinder
     // 4 blocks
     add_side_to_list_of_maps(
@@ -755,7 +804,16 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
         CoordinateMaps::UniformCylindricalSide(  // LCOV_EXCL_LINE
             center_A_, center_A_, radius_A_, outer_radius_A, z_cut_upper,
             z_cut_lower, z_cut_EA_upper, z_cut_EA_lower),
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Interval,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>>{
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_A_},
+            {},
+            {}}});
   }
   if (include_inner_sphere_B_) {
     // Note here that 'upper' means 'closer to z=-infinity'
@@ -768,7 +826,16 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
         CoordinateMaps::UniformCylindricalEndcap(
             flip_about_xy_plane(center_B_), flip_about_xy_plane(center_B_),
             radius_B_, outer_radius_B, -z_cut_upper, -z_cut_EB_upper),
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Interval>{
+            {},
+            {},
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_B_}}});
     // InnerSphereMB Filled Cylinder
     // 5 blocks
     add_endcap_to_list_of_maps(
@@ -778,7 +845,16 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
                                                  radius_B_, outer_radius_B,
                                                  z_cut_lower, z_cut_EB_lower),
         // LCOV_EXCL_STOP
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Interval>{
+            {},
+            {},
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_B_}}});
     // InnerSphereEB Cylinder
     // 4 blocks
     add_side_to_list_of_maps(
@@ -786,7 +862,16 @@ Domain<3> CylindricalBinaryCompactObject::create_domain() const {
             flip_about_xy_plane(center_B_), flip_about_xy_plane(center_B_),
             radius_B_, outer_radius_B, -z_cut_upper, -z_cut_lower,
             -z_cut_EB_upper, -z_cut_EB_lower),
-        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis));
+        CoordinateMaps::DiscreteRotation<3>(rotate_to_minus_x_axis),
+        {CoordinateMaps::ProductOf3Maps<CoordinateMaps::Interval,
+                                        CoordinateMaps::Identity<1>,
+                                        CoordinateMaps::Identity<1>>{
+            domain::CoordinateMaps::Interval{
+                -1.0, 1.0, -1.0, 1.0,
+                domain::CoordinateMaps::Distribution::Logarithmic,
+                singularity_position_B_},
+            {},
+            {}}});
   }
   if (include_outer_sphere_) {
     const double z_cut_CA_outer = 0.7 * outer_radius_;
