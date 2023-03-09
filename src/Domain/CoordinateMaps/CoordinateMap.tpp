@@ -548,6 +548,24 @@ auto make_vector_coordinate_map_base(Arg0&& arg_0,
   return return_vector;
 }
 
+template <typename SourceFrame, typename TargetFrame, size_t Dim,
+          typename FirstMap, typename Map, typename... Maps>
+auto make_vector_coordinate_map_base(const FirstMap& first_map,
+                                     std::vector<Map> maps,
+                                     const Maps&... remaining_maps)
+    -> std::vector<
+        std::unique_ptr<CoordinateMapBase<SourceFrame, TargetFrame, Dim>>> {
+  std::vector<std::unique_ptr<CoordinateMapBase<SourceFrame, TargetFrame, Dim>>>
+      return_vector;
+  return_vector.reserve(sizeof...(Maps) + 1);
+  for (auto& map : maps) {
+    return_vector.emplace_back(
+        make_coordinate_map_base<SourceFrame, TargetFrame>(
+            first_map, std::move(map), remaining_maps...));
+  }
+  return return_vector;
+}
+
 template <typename SourceFrame, typename TargetFrame, size_t Dim, typename Map,
           typename... Maps>
 auto make_vector_coordinate_map_base(std::vector<Map> maps,

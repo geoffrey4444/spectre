@@ -575,6 +575,19 @@ auto make_vector_coordinate_map_base(std::vector<Map> maps,
         std::unique_ptr<CoordinateMapBase<SourceFrame, TargetFrame, Dim>>>;
 
 /// \ingroup ComputationalDomainGroup
+/// \brief Creates a `std::vector<std::unique_ptr<CoordinateMapBase>>`
+/// containing the result of `make_coordinate_map_base` applied to each
+/// element of the vector of maps composed with the rest of the arguments
+/// passed in and prepended with the first map.
+template <typename SourceFrame, typename TargetFrame, size_t Dim,
+          typename FirstMap, typename Map, typename... Maps>
+auto make_vector_coordinate_map_base(const FirstMap& first_map,
+                                     std::vector<Map> maps,
+                                     const Maps&... remaining_maps)
+    -> std::vector<
+        std::unique_ptr<CoordinateMapBase<SourceFrame, TargetFrame, Dim>>>;
+
+/// \ingroup ComputationalDomainGroup
 /// \brief Creates a `CoordinateMap` by appending the new map to the end of the
 /// old maps
 template <typename SourceFrame, typename TargetFrame, typename... Maps,
