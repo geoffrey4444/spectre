@@ -25,6 +25,8 @@
 /// \cond
 namespace domain {
 namespace CoordinateMaps {
+template <size_t Dim>
+class Identity;
 class Interval;
 template <typename Map1, typename Map2>
 class ProductOf2Maps;
@@ -157,6 +159,25 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
                      CoordinateMaps::DiscreteRotation<3>>,
                  domain::CoordinateMap<
                      Frame::BlockLogical, Frame::Inertial,
+                     CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                                    CoordinateMaps::Identity<1>,
+                                                    CoordinateMaps::Interval>,
+                     CoordinateMaps::ProductOf3Maps<CoordinateMaps::Interval,
+                                                    CoordinateMaps::Interval,
+                                                    CoordinateMaps::Interval>,
+                     CoordinateMaps::UniformCylindricalEndcap,
+                     CoordinateMaps::DiscreteRotation<3>>,
+                 domain::CoordinateMap<
+                     Frame::BlockLogical, Frame::Inertial,
+                     CoordinateMaps::ProductOf3Maps<CoordinateMaps::Identity<1>,
+                                                    CoordinateMaps::Identity<1>,
+                                                    CoordinateMaps::Interval>,
+                     CoordinateMaps::ProductOf2Maps<CoordinateMaps::Wedge<2>,
+                                                    CoordinateMaps::Interval>,
+                     CoordinateMaps::UniformCylindricalEndcap,
+                     CoordinateMaps::DiscreteRotation<3>>,
+                 domain::CoordinateMap<
+                     Frame::BlockLogical, Frame::Inertial,
                      CoordinateMaps::ProductOf3Maps<CoordinateMaps::Interval,
                                                     CoordinateMaps::Interval,
                                                     CoordinateMaps::Interval>,
@@ -170,6 +191,15 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
                      CoordinateMaps::DiscreteRotation<3>>,
                  domain::CoordinateMap<
                      Frame::BlockLogical, Frame::Inertial,
+                     CoordinateMaps::ProductOf2Maps<CoordinateMaps::Wedge<2>,
+                                                    CoordinateMaps::Interval>,
+                     CoordinateMaps::UniformCylindricalSide,
+                     CoordinateMaps::DiscreteRotation<3>>,
+                 domain::CoordinateMap<
+                     Frame::BlockLogical, Frame::Inertial,
+                     CoordinateMaps::ProductOf3Maps<
+                         CoordinateMaps::Interval, CoordinateMaps::Identity<1>,
+                         CoordinateMaps::Identity<1>>,
                      CoordinateMaps::ProductOf2Maps<CoordinateMaps::Wedge<2>,
                                                     CoordinateMaps::Interval>,
                      CoordinateMaps::UniformCylindricalSide,
@@ -208,6 +238,16 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
     using type = bool;
     static constexpr Options::String help = {
         "Add an extra spherical layer of Blocks around Object B."};
+  };
+  struct SingularityPositionA {
+    using type = double;
+    static constexpr Options::String help = {
+        "Singularity position for log spacing in inner sphere A, if present."};
+  };
+  struct SingularityPositionB {
+    using type = double;
+    static constexpr Options::String help = {
+        "Singularity position for log spacing in inner sphere B, if present."};
   };
   struct IncludeOuterSphere {
     using type = bool;
@@ -339,8 +379,8 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
 
   using time_independent_options =
       tmpl::list<CenterA, CenterB, RadiusA, RadiusB, IncludeInnerSphereA,
-                 IncludeInnerSphereB, IncludeOuterSphere, OuterRadius,
-                 UseEquiangularMap,
+                 IncludeInnerSphereB, IncludeOuterSphere, SingularityPositionA,
+                 SingularityPositionB, OuterRadius, UseEquiangularMap,
                  InitialRefinement, InitialGridPoints>;
   using time_dependent_options =
       tmpl::list<InitialTime, ExpansionMap, InitialAngularVelocity>;
@@ -375,6 +415,7 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
       std::array<double, 3> center_A, std::array<double, 3> center_B,
       double radius_A, double radius_B, bool include_inner_sphere_A,
       bool include_inner_sphere_B, bool include_outer_sphere,
+      double singularity_position_A, double singularity_position_B,
       double outer_radius, bool use_equiangular_map,
       const typename InitialRefinement::type& initial_refinement,
       const typename InitialGridPoints::type& initial_grid_points,
@@ -390,6 +431,7 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
       std::array<double, 3> center_A, std::array<double, 3> center_B,
       double radius_A, double radius_B, bool include_inner_sphere_A,
       bool include_inner_sphere_B, bool include_outer_sphere,
+      double singularity_position_A, double singularity_position_B,
       double outer_radius, bool use_equiangular_map,
       const typename InitialRefinement::type& initial_refinement,
       const typename InitialGridPoints::type& initial_grid_points,
@@ -442,6 +484,8 @@ class CylindricalBinaryCompactObject : public DomainCreator<3> {
   std::array<double, 3> center_B_{};
   double radius_A_{};
   double radius_B_{};
+  double singularity_position_A_{};
+  double singularity_position_B_{};
   bool include_inner_sphere_A_{};
   bool include_inner_sphere_B_{};
   bool include_outer_sphere_{};
