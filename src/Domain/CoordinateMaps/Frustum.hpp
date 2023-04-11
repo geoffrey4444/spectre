@@ -266,7 +266,7 @@ class Frustum {
           bool with_equiangular_map = false,
           double projective_scale_factor = 1.0,
           bool auto_projective_scale_factor = false, double sphericity = 0.0,
-          double transition_phi = 0.0);
+          double transition_phi = 0.0, double opening_angle = M_PI_2);
   Frustum() = default;
   ~Frustum() = default;
   Frustum(Frustum&&) = default;
@@ -324,6 +324,9 @@ class Frustum {
   double sphericity_{std::numeric_limits<double>::signaling_NaN()};
   double radius_{std::numeric_limits<double>::signaling_NaN()};
   double phi_{std::numeric_limits<double>::signaling_NaN()};
+  double half_opening_angle_{std::numeric_limits<double>::signaling_NaN()};
+  double one_over_tan_half_opening_angle_{
+      std::numeric_limits<double>::signaling_NaN()};
 };
 
 bool operator!=(const Frustum& lhs, const Frustum& rhs);
