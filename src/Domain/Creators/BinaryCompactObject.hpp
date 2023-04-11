@@ -316,6 +316,14 @@ class BinaryCompactObject : public DomainCreator<3> {
     static constexpr Options::String help = {"Radius of the entire domain."};
   };
 
+  struct OpeningAngle {
+    using group = OuterShell;
+    static std::string name() { return "OpeningAngle"; }
+    using type = double;
+    static constexpr Options::String help = {
+        "The opening angle of the two half wedges in degrees."};
+  };
+
   struct InitialRefinement {
     using type =
         std::variant<size_t, std::array<size_t, 3>,
@@ -378,7 +386,7 @@ class BinaryCompactObject : public DomainCreator<3> {
   using time_independent_options = tmpl::append<
       tmpl::list<ObjectA, ObjectB, EnvelopeRadius, OuterRadius,
                  InitialRefinement, InitialGridPoints, UseEquiangularMap,
-                 UseProjectiveMap, RadialDistributionOuterShell>,
+                 UseProjectiveMap, RadialDistributionOuterShell, OpeningAngle>,
       tmpl::conditional_t<
           domain::BoundaryConditions::has_boundary_conditions_base_v<
               typename Metavariables::system>,
@@ -433,6 +441,7 @@ class BinaryCompactObject : public DomainCreator<3> {
       bool use_equiangular_map = true, bool use_projective_map = true,
       CoordinateMaps::Distribution radial_distribution_outer_shell =
           CoordinateMaps::Distribution::Linear,
+      double opening_angle_in_degrees = 90.0,
       std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
           outer_boundary_condition = nullptr,
       const Options::Context& context = {});
@@ -450,6 +459,7 @@ class BinaryCompactObject : public DomainCreator<3> {
       bool use_equiangular_map = true, bool use_projective_map = true,
       CoordinateMaps::Distribution radial_distribution_outer_shell =
           CoordinateMaps::Distribution::Linear,
+      double opening_angle_in_degrees = 90.0,
       std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
           outer_boundary_condition = nullptr,
       const Options::Context& context = {});
@@ -519,6 +529,7 @@ class BinaryCompactObject : public DomainCreator<3> {
   bool use_single_block_a_ = false;
   bool use_single_block_b_ = false;
   std::optional<bco::TimeDependentMapOptions> time_dependent_options_{};
+  double opening_angle_ = std::numeric_limits<double>::signaling_NaN();
 };
 }  // namespace creators
 }  // namespace domain

@@ -73,6 +73,7 @@ DomainCreator:
     OuterShell:
       Radius: 1493.0
       RadialDistribution: Logarithmic
+      OpeningAngle: 120.0
       BoundaryCondition:
         ConstraintPreservingBjorhus:
           Type: ConstraintPreservingPhysical
