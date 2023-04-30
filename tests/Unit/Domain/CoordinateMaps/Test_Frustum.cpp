@@ -579,6 +579,8 @@ SPECTRE_TEST_CASE("Unit.Domain.CoordinateMaps.Frustum", "[Domain][Unit]") {
                          CoordinateMaps::Distribution::Linear);  // Equidistant
   test_suite_for_frustum(
       true, CoordinateMaps::Distribution::Projective);  // Equiangular
+  test_suite_for_frustum(
+      true, CoordinateMaps::Distribution::Logarithmic);  // Equiangular
   test_alignment();
   test_auto_projective_scale_factor();
   test_is_identity();
