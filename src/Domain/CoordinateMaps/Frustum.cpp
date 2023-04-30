@@ -29,8 +29,8 @@ Frustum::Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
                  const double lower_bound, const double upper_bound,
                  OrientationMap<3> orientation_of_frustum,
                  const bool with_equiangular_map,
-                 const double projective_scale_factor,
-                 const bool auto_projective_scale_factor,
+                 const Distribution zeta_distribution,
+                 const std::optional<double> distribution_value,
                  const double sphericity, const double transition_phi,
                  const double opening_angle)
     // clang-tidy: trivially copyable
@@ -43,17 +43,15 @@ Frustum::Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
                                                              {{1.0, 1.0}}}} and
                    lower_bound == -1.0 and upper_bound == 1.0 and
                    orientation_of_frustum_ == OrientationMap<3>{} and
-                   not with_equiangular_map and projective_scale_factor == 1.0),
-      with_projective_map_(projective_scale_factor != 1.0),
+                   not with_equiangular_map and
+                   zeta_distribution == Distribution::Linear),
+      zeta_distribution_(zeta_distribution),
       sphericity_(sphericity) {
   ASSERT(sphericity_ >= 0.0 and sphericity_ <= 1.0,
          "The sphericity must be set between 0.0, corresponding to a flat "
          "surface, and 1.0, corresponding to a spherical surface, inclusive. "
          "It is currently set to "
              << sphericity << ".");
-  ASSERT(projective_scale_factor != 0.0,
-         "A projective scale factor of zero maps all coordinates to zero! Set "
-         "projective_scale_factor to unity to turn off projective scaling.");
   const double& lower_x_lower_base = face_vertices[0][0];
   const double& lower_y_lower_base = face_vertices[0][1];
   const double& upper_x_lower_base = face_vertices[1][0];
@@ -100,8 +98,6 @@ Frustum::Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
                               upper_y_lower_base + lower_y_lower_base);
   sigma_z_ = 0.5 * (upper_bound + lower_bound);
   delta_z_zeta_ = 0.5 * (upper_bound - lower_bound);
-  w_plus_ = projective_scale_factor + 1.0;
-  w_minus_ = projective_scale_factor - 1.0;
   phi_ = transition_phi;
   half_opening_angle_ = 0.5 * opening_angle;
   one_over_tan_half_opening_angle_ = 1.0 / tan(half_opening_angle_);
@@ -118,15 +114,21 @@ Frustum::Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
       square(std::max({abs(upper_y_upper_base), abs(upper_y_lower_base),
                        abs(lower_y_upper_base), abs(lower_y_lower_base)})) +
       square(std::max({abs(upper_bound), abs(lower_bound)})));
-  if (auto_projective_scale_factor) {
-    with_projective_map_ = true;
-    const double w_delta = sqrt(((upper_x_lower_base - lower_x_lower_base) *
-                                 (upper_y_lower_base - lower_y_lower_base)) /
-                                ((upper_x_upper_base - lower_x_upper_base) *
-                                 (upper_y_upper_base - lower_y_upper_base)));
+
+  double w_delta;
+  if (zeta_distribution_ == Distribution::Projective) {
+    w_delta = sqrt(((upper_x_lower_base - lower_x_lower_base) *
+                    (upper_y_lower_base - lower_y_lower_base)) /
+                   ((upper_x_upper_base - lower_x_upper_base) *
+                    (upper_y_upper_base - lower_y_upper_base)));
+    if (distribution_value.has_value()) {
+      w_delta = distribution_value.value();
+    }
+  } else if (zeta_distribution_ == Distribution::Linear) {
+    w_delta = 1.0;
+  }
     w_plus_ = w_delta + 1.0;
     w_minus_ = w_delta - 1.0;
-  }
 }
 
 template <typename T>
@@ -137,10 +139,12 @@ std::array<tt::remove_cvref_wrap_t<T>, 3> Frustum::operator()(
   const ReturnType& xi = source_coords[0];
   const ReturnType& eta = source_coords[1];
   const ReturnType& zeta = source_coords[2];
-  const ReturnType cap_zeta =
-      with_projective_map_
-          ? (w_minus_ + w_plus_ * zeta) / (w_plus_ + w_minus_ * zeta)
-          : zeta;
+  ReturnType cap_zeta;
+  if (zeta_distribution_ == Distribution::Projective) {
+    cap_zeta = (w_minus_ + w_plus_ * zeta) / (w_plus_ + w_minus_ * zeta);
+  } else if (zeta_distribution_ == Distribution::Linear) {
+    cap_zeta = zeta;
+  }
   const ReturnType cap_xi_zero = with_equiangular_map_ ? tan(M_PI_4 * xi) : xi;
   const double one_plus_phi_square = 1.0 + phi_ * phi_;
   const ReturnType cap_xi_upper =
@@ -212,7 +216,7 @@ std::optional<std::array<double, 3>> Frustum::inverse(
     logical_coords[0] = atan(logical_coords[0]) / M_PI_4;
     logical_coords[1] = atan(logical_coords[1]) / M_PI_4;
   }
-  if (with_projective_map_) {
+  if (zeta_distribution_ == Distribution::Projective) {
     logical_coords[2] = (-w_minus_ + w_plus_ * logical_coords[2]) /
                         (w_plus_ - w_minus_ * logical_coords[2]);
   }
@@ -298,10 +302,18 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::jacobian(
   const ReturnType& xi = source_coords[0];
   const ReturnType& eta = source_coords[1];
   const ReturnType& zeta = source_coords[2];
-  const ReturnType cap_zeta =
-      with_projective_map_
-          ? (w_minus_ + w_plus_ * zeta) / (w_plus_ + w_minus_ * zeta)
-          : zeta;
+  ReturnType cap_zeta;
+  ReturnType cap_zeta_deriv;
+  if (zeta_distribution_ == Distribution::Projective) {
+    cap_zeta = (w_minus_ + w_plus_ * zeta) / (w_plus_ + w_minus_ * zeta);
+    cap_zeta_deriv = (square(w_plus_) - square(w_minus_)) /
+                     square(w_plus_ + zeta * w_minus_);
+  } else if (zeta_distribution_ == Distribution::Linear) {
+    cap_zeta = zeta;
+    cap_zeta_deriv = make_with_value<ReturnType>(zeta, 1.0);
+  } else {
+    ERROR("Not implemented.");
+  }
   const ReturnType& cap_xi_zero = with_equiangular_map_ ? tan(M_PI_4 * xi) : xi;
   const double one_plus_phi_square = 1.0 + phi_ * phi_;
   const ReturnType cap_xi_upper =
@@ -335,10 +347,6 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::jacobian(
   const ReturnType cap_eta_deriv = with_equiangular_map_
                                        ? M_PI_4 * (1.0 + square(cap_eta))
                                        : make_with_value<ReturnType>(eta, 1.0);
-  const ReturnType cap_zeta_deriv =
-      with_projective_map_ ? (square(w_plus_) - square(w_minus_)) /
-                                 square(w_plus_ + zeta * w_minus_)
-                           : make_with_value<ReturnType>(zeta, 1.0);
 
   auto jacobian_matrix =
       make_with_value<tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame>>(
@@ -380,7 +388,7 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::jacobian(
            delta_y_zeta_ + delta_y_eta_zeta_ * cap_eta,
            make_with_value<ReturnType>(zeta, delta_z_zeta_)}});
 
-  if (with_projective_map_) {
+  if (zeta_distribution_ == Distribution::Projective) {
     dX_dzeta[0] *= cap_zeta_deriv;
     dX_dzeta[1] *= cap_zeta_deriv;
     dX_dzeta[2] *= cap_zeta_deriv;
@@ -465,7 +473,7 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::jacobian(
                 {flat_frustum_x, flat_frustum_y,
                  make_with_value<ReturnType>(zeta, flat_frustum_z)}});
 
-    if (with_projective_map_) {
+    if (zeta_distribution_ == Distribution::Projective) {
       delta_dX_dzeta[0] *= cap_zeta_deriv;
       delta_dX_dzeta[1] *= cap_zeta_deriv;
       delta_dX_dzeta[2] *= cap_zeta_deriv;
@@ -521,7 +529,7 @@ bool operator==(const Frustum& lhs, const Frustum& rhs) {
   return lhs.orientation_of_frustum_ == rhs.orientation_of_frustum_ and
          lhs.with_equiangular_map_ == rhs.with_equiangular_map_ and
          lhs.is_identity_ == rhs.is_identity_ and
-         lhs.with_projective_map_ == rhs.with_projective_map_ and
+         lhs.zeta_distribution_ == rhs.zeta_distribution_ and
          lhs.sigma_x_ == rhs.sigma_x_ and
          lhs.delta_x_zeta_ == rhs.delta_x_zeta_ and
          lhs.delta_x_xi_ == rhs.delta_x_xi_ and

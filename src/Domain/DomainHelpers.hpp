@@ -190,8 +190,10 @@ std::vector<domain::CoordinateMaps::Frustum> frustum_coordinate_maps(
     double length_inner_cube, double length_outer_cube,
     bool use_equiangular_map,
     const std::array<double, 3>& origin_preimage = {{0.0, 0.0, 0.0}},
-    double projective_scale_factor = 1.0, double sphericity = 0.0,
-    double opening_angle = M_PI_2);
+    domain::CoordinateMaps::Distribution radial_distribution =
+        domain::CoordinateMaps::Distribution::Linear,
+    std::optional<double> distribution_value = std::nullopt,
+    double sphericity = 0.0, double opening_angle = M_PI_2);
 
 /// \ingroup ComputationalDomainGroup
 /// \brief The corners for a domain with radial layers.

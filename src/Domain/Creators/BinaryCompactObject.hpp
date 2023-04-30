@@ -511,9 +511,10 @@ class BinaryCompactObject : public DomainCreator<3> {
   std::vector<std::array<size_t, 3>> initial_number_of_grid_points_{};
   bool use_equiangular_map_ = true;
   bool use_projective_map_ = true;
+  CoordinateMaps::Distribution radial_distribution_envelope_ =
+      CoordinateMaps::Distribution::Linear;
   CoordinateMaps::Distribution radial_distribution_outer_shell_ =
       CoordinateMaps::Distribution::Linear;
-  double projective_scale_factor_{};
   double translation_{};
   double length_inner_cube_{};
   double length_outer_cube_{};

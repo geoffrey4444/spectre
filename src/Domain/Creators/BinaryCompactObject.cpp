@@ -95,11 +95,6 @@ BinaryCompactObject::BinaryCompactObject(
   length_inner_cube_ = abs(x_coord_a_ - x_coord_b_);
   length_outer_cube_ =
       2.0 * envelope_radius_ / sqrt(2.0 + square(tan_half_opening_angle));
-  if (use_projective_map_) {
-    projective_scale_factor_ = length_inner_cube_ / length_outer_cube_;
-  } else {
-    projective_scale_factor_ = 1.0;
-  }
 
   // Calculate number of blocks
   // Object cubes and shells have 6 blocks each, for a total for 24 blocks.
@@ -435,10 +430,11 @@ Domain<3> BinaryCompactObject::create_domain() const {
   // the origin to account for their center of mass, the enveloping frustums are
   // centered at the origin.
   Maps maps_frustums = domain::make_vector_coordinate_map_base<
-      Frame::BlockLogical, Frame::Inertial, 3>(
-      frustum_coordinate_maps(length_inner_cube_, length_outer_cube_,
-                              use_equiangular_map_, {{-translation_, 0.0, 0.0}},
-                              projective_scale_factor_, 1.0, opening_angle_));
+      Frame::BlockLogical, Frame::Inertial, 3>(frustum_coordinate_maps(
+      length_inner_cube_, length_outer_cube_, use_equiangular_map_,
+      {{-translation_, 0.0, 0.0}},
+      domain::CoordinateMaps::Distribution::Projective,
+      length_inner_cube_ / length_outer_cube_, 1.0, opening_angle_));
   std::move(maps_frustums.begin(), maps_frustums.end(),
             std::back_inserter(maps));
 
