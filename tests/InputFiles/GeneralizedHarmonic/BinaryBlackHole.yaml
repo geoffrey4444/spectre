@@ -72,7 +72,7 @@ DomainCreator:
       UseLogarithmicMap: true
     Envelope:
       Radius: 100.0
-      UseProjectiveMap: true
+      RadialDistribution: Logarithmic
     OuterShell:
       Radius: 1493.0
       RadialDistribution: Logarithmic

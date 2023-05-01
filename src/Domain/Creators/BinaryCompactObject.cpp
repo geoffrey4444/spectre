@@ -59,7 +59,8 @@ BinaryCompactObject::BinaryCompactObject(
     const double envelope_radius, const double outer_radius,
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_number_of_grid_points,
-    const bool use_equiangular_map, const bool use_projective_map,
+    const bool use_equiangular_map,
+    const CoordinateMaps::Distribution radial_distribution_envelope,
     const CoordinateMaps::Distribution radial_distribution_outer_shell,
     const double opening_angle_in_degrees,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
@@ -70,7 +71,7 @@ BinaryCompactObject::BinaryCompactObject(
       envelope_radius_(envelope_radius),
       outer_radius_(outer_radius),
       use_equiangular_map_(use_equiangular_map),
-      use_projective_map_(use_projective_map),
+      radial_distribution_envelope_(radial_distribution_envelope),
       radial_distribution_outer_shell_(radial_distribution_outer_shell),
       outer_boundary_condition_(std::move(outer_boundary_condition)),
       opening_angle_(M_PI * opening_angle_in_degrees / 180.0) {
@@ -285,18 +286,19 @@ BinaryCompactObject::BinaryCompactObject(
     double envelope_radius, double outer_radius,
     const typename InitialRefinement::type& initial_refinement,
     const typename InitialGridPoints::type& initial_number_of_grid_points,
-    const bool use_equiangular_map, const bool use_projective_map,
+    const bool use_equiangular_map,
+    const CoordinateMaps::Distribution radial_distribution_envelope,
     const CoordinateMaps::Distribution radial_distribution_outer_shell,
     const double opening_angle_in_degrees,
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
         outer_boundary_condition,
     const Options::Context& context)
-    : BinaryCompactObject(std::move(object_A), std::move(object_B),
-                          envelope_radius, outer_radius, initial_refinement,
-                          initial_number_of_grid_points, use_equiangular_map,
-                          use_projective_map, radial_distribution_outer_shell,
-                          opening_angle_in_degrees,
-                          std::move(outer_boundary_condition), context) {
+    : BinaryCompactObject(
+          std::move(object_A), std::move(object_B), envelope_radius,
+          outer_radius, initial_refinement, initial_number_of_grid_points,
+          use_equiangular_map, radial_distribution_envelope,
+          radial_distribution_outer_shell, opening_angle_in_degrees,
+          std::move(outer_boundary_condition), context) {
   time_dependent_options_ = std::move(time_dependent_options);
 
   const std::optional<double> inner_radius_A =
