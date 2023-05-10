@@ -141,6 +141,7 @@ void test_connectivity() {
       refinement["ObjectBInterior"] = std::array<size_t, 3>{{1, 1, 1}};
     }
     CAPTURE(radial_distribution_outer_shell);
+    CAPTURE(radial_distribution_envelope);
     const domain::creators::BinaryCompactObject binary_compact_object{
         Object{inner_radius_objectA, outer_radius_objectA, xcoord_objectA,
                excise_interiorA ? std::make_optional(Excision{
