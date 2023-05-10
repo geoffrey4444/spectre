@@ -44,6 +44,8 @@
 #include "Domain/Structure/ExcisionSphere.hpp"
 #include "Utilities/MakeArray.hpp"
 
+#include <iostream>
+
 namespace Frame {
 struct BlockLogical;
 }  // namespace Frame
@@ -434,9 +436,12 @@ Domain<3> BinaryCompactObject::create_domain() const {
   Maps maps_frustums = domain::make_vector_coordinate_map_base<
       Frame::BlockLogical, Frame::Inertial, 3>(frustum_coordinate_maps(
       length_inner_cube_, length_outer_cube_, use_equiangular_map_,
-      {{-translation_, 0.0, 0.0}},
-      domain::CoordinateMaps::Distribution::Projective,
-      length_inner_cube_ / length_outer_cube_, 1.0, opening_angle_));
+      {{-translation_, 0.0, 0.0}}, radial_distribution_envelope_,
+      radial_distribution_envelope_ ==
+              domain::CoordinateMaps::Distribution::Projective
+          ? std::optional<double>(length_inner_cube_ / length_outer_cube_)
+          : std::nullopt,
+      1.0, opening_angle_));
   std::move(maps_frustums.begin(), maps_frustums.end(),
             std::back_inserter(maps));
 
@@ -635,7 +640,6 @@ Domain<3> BinaryCompactObject::create_domain() const {
           std::move(distorted_to_inertial_block_maps[block]));
     }
   }
-
   return domain;
 }
 
