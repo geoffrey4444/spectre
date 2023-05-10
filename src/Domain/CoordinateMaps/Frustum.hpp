@@ -329,6 +329,7 @@ class Frustum {
   double half_opening_angle_{std::numeric_limits<double>::signaling_NaN()};
   double one_over_tan_half_opening_angle_{
       std::numeric_limits<double>::signaling_NaN()};
+  double inner_radius_{std::numeric_limits<double>::signaling_NaN()};
 };
 
 bool operator!=(const Frustum& lhs, const Frustum& rhs);

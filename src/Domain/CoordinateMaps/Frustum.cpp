@@ -114,21 +114,24 @@ Frustum::Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
       square(std::max({abs(upper_y_upper_base), abs(upper_y_lower_base),
                        abs(lower_y_upper_base), abs(lower_y_lower_base)})) +
       square(std::max({abs(upper_bound), abs(lower_bound)})));
+  inner_radius_ = sqrt(
+      square(std::max({abs(upper_x_lower_base), abs(lower_x_lower_base)})) +
+      square(std::max({abs(upper_y_lower_base), abs(lower_y_lower_base)})) +
+      square(lower_bound));
 
-  double w_delta;
   if (zeta_distribution_ == Distribution::Projective) {
-    w_delta = sqrt(((upper_x_lower_base - lower_x_lower_base) *
-                    (upper_y_lower_base - lower_y_lower_base)) /
-                   ((upper_x_upper_base - lower_x_upper_base) *
-                    (upper_y_upper_base - lower_y_upper_base)));
-    if (distribution_value.has_value()) {
-      w_delta = distribution_value.value();
-    }
-  } else if (zeta_distribution_ == Distribution::Linear) {
-    w_delta = 1.0;
-  }
+    double w_delta = distribution_value.has_value()
+                         ? distribution_value.value()
+                         : sqrt(((upper_x_lower_base - lower_x_lower_base) *
+                                 (upper_y_lower_base - lower_y_lower_base)) /
+                                ((upper_x_upper_base - lower_x_upper_base) *
+                                 (upper_y_upper_base - lower_y_upper_base)));
     w_plus_ = w_delta + 1.0;
     w_minus_ = w_delta - 1.0;
+  } else {
+    w_plus_ = 2.0;
+    w_minus_ = 0.0;
+  }
 }
 
 template <typename T>
@@ -145,10 +148,9 @@ std::array<tt::remove_cvref_wrap_t<T>, 3> Frustum::operator()(
   } else if (zeta_distribution_ == Distribution::Linear) {
     cap_zeta = zeta;
   } else if (zeta_distribution_ == Distribution::Logarithmic) {
-    const double radius_inner = sqrt(square(sigma_x_) + square(sigma_y_));
-    const double sigma_r = 0.5 * (radius_inner + radius_);
-    const double delta_r = 0.5 * (radius_ - radius_inner);
-    cap_zeta = (exp(0.5 * (1.0 - zeta) * log(radius_inner) +
+    const double sigma_r = 0.5 * (inner_radius_ + radius_);
+    const double delta_r = 0.5 * (radius_ - inner_radius_);
+    cap_zeta = (exp(0.5 * (1.0 - zeta) * log(inner_radius_) +
                     0.5 * (1.0 + zeta) * log(radius_)) -
                 sigma_r) /
                delta_r;
@@ -232,12 +234,11 @@ std::optional<std::array<double, 3>> Frustum::inverse(
     logical_coords[2] = (-w_minus_ + w_plus_ * logical_coords[2]) /
                         (w_plus_ - w_minus_ * logical_coords[2]);
   } else if (zeta_distribution_ == Distribution::Logarithmic) {
-    const double radius_inner = sqrt(square(sigma_x_) + square(sigma_y_));
-    const double sigma_r = 0.5 * (radius_inner + radius_);
-    const double delta_r = 0.5 * (radius_ - radius_inner);
+    const double sigma_r = 0.5 * (inner_radius_ + radius_);
+    const double delta_r = 0.5 * (radius_ - inner_radius_);
     logical_coords[2] = (2.0 * log(sigma_r + delta_r * logical_coords[2]) -
-                         log(radius_ * radius_inner)) /
-                        log(radius_ / radius_inner);
+                         log(radius_ * inner_radius_)) /
+                        log(radius_ / inner_radius_);
   } else {
     ASSERT(zeta_distribution_ == Distribution::Linear,
            "Only the "
@@ -251,7 +252,7 @@ std::optional<std::array<double, 3>> Frustum::inverse(
     // std::nullopt instead. Also, points below the lower bound are likely not
     // invertible, so return std::nullopt in that case as well.
     if (magnitude(physical_coords) > radius_ + 1.0e-4 or
-        physical_coords[2] < (sigma_z_ - delta_z_zeta_)) {
+        physical_coords[2] < (sigma_z_ - delta_z_zeta_) - 1.0e-4) {
       return std::nullopt;
     }
     const double absolute_tolerance = 1.0e-12;
@@ -335,16 +336,15 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::jacobian(
     cap_zeta = zeta;
     cap_zeta_deriv = make_with_value<ReturnType>(zeta, 1.0);
   } else if (zeta_distribution_ == Distribution::Logarithmic) {
-    const double radius_inner = sqrt(square(sigma_x_) + square(sigma_y_));
-    const double sigma_r = 0.5 * (radius_inner + radius_);
-    const double delta_r = 0.5 * (radius_ - radius_inner);
-    cap_zeta = (exp(0.5 * (1.0 - zeta) * log(radius_inner) +
+    const double sigma_r = 0.5 * (inner_radius_ + radius_);
+    const double delta_r = 0.5 * (radius_ - inner_radius_);
+    cap_zeta = (exp(0.5 * (1.0 - zeta) * log(inner_radius_) +
                     0.5 * (1.0 + zeta) * log(radius_)) -
                 sigma_r) /
                delta_r;
-    cap_zeta_deriv = exp(0.5 * (1.0 - zeta) * log(radius_inner) +
+    cap_zeta_deriv = exp(0.5 * (1.0 - zeta) * log(inner_radius_) +
                          0.5 * (1.0 + zeta) * log(radius_)) *
-                     0.5 * log(radius_ / radius_inner) / delta_r;
+                     0.5 * log(radius_ / inner_radius_) / delta_r;
   } else {
     ERROR(
         "Only the distributions Linear, Projective, and Logarithmic are "
@@ -530,7 +530,7 @@ tnsr::Ij<tt::remove_cvref_wrap_t<T>, 3, Frame::NoFrame> Frustum::inv_jacobian(
 }
 
 void Frustum::pup(PUP::er& p) {
-  size_t version = 0;
+  size_t version = 1;
   p | version;
   // Remember to increment the version number when making changes to this
   // function. Retain support for unpacking data written by previous versions
@@ -539,7 +539,6 @@ void Frustum::pup(PUP::er& p) {
     p | orientation_of_frustum_;
     p | with_equiangular_map_;
     p | is_identity_;
-    p | with_projective_map_;
     p | sigma_x_;
     p | delta_x_zeta_;
     p | delta_x_xi_;
@@ -556,6 +555,8 @@ void Frustum::pup(PUP::er& p) {
     p | radius_;
     p | phi_;
   } if (version >= 1) {
+    p | inner_radius_;
+    p | zeta_distribution_;
     p | half_opening_angle_;
     p | one_over_tan_half_opening_angle_;
   }
@@ -581,7 +582,8 @@ bool operator==(const Frustum& lhs, const Frustum& rhs) {
          lhs.phi_ == rhs.phi_ and
          lhs.half_opening_angle_ == rhs.half_opening_angle_ and
          lhs.one_over_tan_half_opening_angle_ ==
-             rhs.one_over_tan_half_opening_angle_;
+             rhs.one_over_tan_half_opening_angle_ and
+         lhs.inner_radius_ == rhs.inner_radius_ and lhs.radius_ == rhs.radius_;
 }
 
 bool operator!=(const Frustum& lhs, const Frustum& rhs) {
