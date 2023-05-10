@@ -351,7 +351,7 @@ void test_all_frustum_directions() {
       origin_preimage);
 
   const CoordinateMaps::Distribution radial_distribution =
-      CoordinateMaps::Distribution::Projective;
+      CoordinateMaps::Distribution::Logarithmic;
   const double sphericity = 0.;
   for (const bool use_equiangular_map : {true, false}) {
     const double stretch = tan(0.5 * M_PI_2);
@@ -499,7 +499,7 @@ void test_all_frustum_directions() {
 
     const auto maps = frustum_coordinate_maps(
         2.0 * lower, 2.0 * top, use_equiangular_map, origin_preimage,
-        CoordinateMaps::Distribution::Projective);
+        CoordinateMaps::Distribution::Logarithmic);
     CHECK(maps == expected_coord_maps);
   }
 }
