@@ -507,7 +507,7 @@ Wedge<Dim>::inv_jacobian(const std::array<T, Dim>& source_coords) const {
 
 template <size_t Dim>
 void Wedge<Dim>::pup(PUP::er& p) {
-  size_t version = 0;
+  size_t version = 1;
   p | version;
   // Remember to increment the version number when making changes to this
   // function. Retain support for unpacking data written by previous versions
@@ -529,7 +529,6 @@ void Wedge<Dim>::pup(PUP::er& p) {
     p | opening_angles_;
     p | opening_angles_distribution_;
   }
->>>>>>> Add opening_angles to Wedge map
 }
 
 template <size_t Dim>
