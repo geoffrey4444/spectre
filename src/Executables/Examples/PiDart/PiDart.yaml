@@ -1,0 +1,13 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+---
+---
+ResourceInfo:
+  AvoidGlobalProc0: false
+  Singletons:
+    PiEstimator:
+      Proc: Auto
+      Exclusive: false
+
+DartsPerIteration: 100000000
+FractionalAccuracyGoal: 1.e-6
