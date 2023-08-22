@@ -65,6 +65,10 @@ Now symlink the development environment:
 ```
 ln -s support/DevEnvironments/.devcontainer .devcontainer
 ```
+\note If you are using a Mac with Apple Silicon, instead do the following:
+```
+ln -s support/DevEnvironments/.devcontainer_arm64 .devcontainer
+```
 
 ## Install Docker
 
