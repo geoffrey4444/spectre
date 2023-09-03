@@ -38,8 +38,29 @@
 # If you do not have permission to push to DockerHub please coordinate with
 # someone who does. Since changes to this image effect our testing
 # infrastructure it is important all changes be carefully reviewed.
+#
+# NOTE: If building for Apple Silicon, then add the following arguments to
+# the docker build command in step 1 and in step 3 (building the ci target)
+# is not currently supported, since GitHub actions do not yet support
+# Apple Silicon:
+#
+#  --build-arg "CHARM_ARCH=arm8" --build-arg "TEX_ARCH=aarch64"
+#
 
-FROM ubuntu:20.04 AS dev
+FROM --platform=linux/$BUILDARCH ubuntu:20.04 AS dev
+
+# Platform-dependent arguments. For building on Apple Silicon, instead of the
+# default options given here, CHARM_ARCH must be set to arm8, and
+# TEX_ARCH must be set to aarch64. Dockerfiles do not support conditional
+# logic for ARG and ENV commands, so these must be set on the command line.
+#
+# Note that on Apple Silicon, BUILDARCH is automatically set to 'arm64'. Also
+# note that building the ci target is currently only supported for x86_64, since
+# GitHub Actions does not support Apple Silicon.
+#
+ARG BUILDARCH
+ARG CHARM_ARCH=x86_64
+ARG TEX_ARCH=x86_64
 
 ARG PARALLEL_MAKE_ARG=-j2
 ARG DEBIAN_FRONTEND=noninteractive
@@ -175,7 +196,8 @@ RUN wget https://github.com/Libsharp/libsharp/archive/v1.0.0.tar.gz -O libsharp.
     && tar -xzf libsharp.tar.gz \
     && mv libsharp-* libsharp_build \
     && cd libsharp_build \
-    && sed -i 's/march=native/march=x86-64/' configure.ac \
+    && { if [ "$BUILDARCH" != "arm64" ]; \
+        then sed -i 's/march=native/march=x86-64/' configure.ac; fi } \
     && autoconf \
     && ./configure --prefix=/usr/local --enable-pic --disable-openmp \
     && make $PARALLEL_MAKE_ARG \
@@ -185,14 +207,25 @@ RUN wget https://github.com/Libsharp/libsharp/archive/v1.0.0.tar.gz -O libsharp.
     && cd ../ \
     && rm -r libsharp*
 # - LibXSMM
-RUN wget https://github.com/hfp/libxsmm/archive/1.16.1.tar.gz -O libxsmm.tar.gz \
-    && tar -xzf libxsmm.tar.gz \
-    && mv libxsmm-* libxsmm \
-    && cd libxsmm \
-    && make $PARALLEL_MAKE_ARG PREFIX=/usr/local/ CXX=g++-9 CC=gcc-9 \
-        FC=gfortran-9 install \
-    && cd .. \
-    && rm -rf libxsmm libxsmm.tar.gz
+RUN if [ "$BUILDARCH" = "arm64" ] ; then \
+        git clone --single-branch --branch main --depth 1 \
+            https://github.com/libxsmm/libxsmm.git libxsmm \
+        && cd libxsmm \
+        && make $PARALLEL_MAKE_ARG PREFIX=/usr/local/ CXX=g++-9 CC=gcc-9 \
+            FC=gfortran-9 PLATFORM=1 install \
+        && cd .. \
+        && rm -rf libxsmm; \
+    else \
+        wget https://github.com/hfp/libxsmm/archive/1.16.1.tar.gz \
+            -O libxsmm.tar.gz \
+        && tar -xzf libxsmm.tar.gz \
+        && mv libxsmm-* libxsmm \
+        && cd libxsmm \
+        && make $PARALLEL_MAKE_ARG PREFIX=/usr/local/ CXX=g++-9 CC=gcc-9 \
+            FC=gfortran-9 install \
+        && cd .. \
+        && rm -rf libxsmm libxsmm.tar.gz; \
+    fi
 # - Yaml-cpp
 RUN wget https://github.com/jbeder/yaml-cpp/archive/yaml-cpp-0.6.3.tar.gz -O yaml-cpp.tar.gz \
     && tar -xzf yaml-cpp.tar.gz \
@@ -249,7 +282,7 @@ RUN git clone --single-branch --branch v7.0.0 --depth 1 \
     && cd /work/charm_7_0_0 \
     && git checkout v7.0.0 \
     && git apply /work/v7.0.0.patch \
-    && ./build LIBS multicore-linux-x86_64 gcc \
+    && ./build LIBS multicore-linux-${CHARM_ARCH} gcc \
       ${PARALLEL_MAKE_ARG} -g -O2 --build-shared \
     && rm -r /work/charm_7_0_0/doc /work/charm_7_0_0/examples
 
@@ -260,7 +293,7 @@ RUN git clone --single-branch --branch v7.0.0 --depth 1 \
 # - Symlink gfortran-9 to gfortran so it we can just specify gfortran in CMake
 # - The singularity containers work better if the locale is set properly
 ENV SPECTRE_CONTAINER 0
-ENV CHARM_ROOT="/work/charm_7_0_0/multicore-linux-x86_64-gcc"
+ENV CHARM_ROOT="/work/charm_7_0_0/multicore-linux-${CHARM_ARCH}-gcc"
 RUN ln -s $(which gfortran-9) /usr/local/bin/gfortran
 RUN apt-get update -y \
     && apt-get install -y locales language-pack-fi language-pack-en \
@@ -281,8 +314,8 @@ RUN wget http://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz \
     && wget https://raw.githubusercontent.com/sxs-collaboration/spectre/develop/support/TeXLive/texlive.profile \
     && install-tl-*/install-tl -profile=texlive.profile \
     && rm -r install-tl-* texlive.profile install-tl.log \
-    && /work/texlive/bin/x86_64-linux/tlmgr install bibtex
-ENV PATH="${PATH}:/work/texlive/bin/x86_64-linux"
+    && /work/texlive/bin/${TEX_ARCH}-linux/tlmgr install bibtex
+ENV PATH="${PATH}:/work/texlive/bin/${TEX_ARCH}-linux"
 
 # Remove the apt-get cache in order to reduce image size
 RUN apt-get -y clean
@@ -318,7 +351,7 @@ WORKDIR /work/charm_7_0_0
 # 4.0.3 which ships with Ubuntu 20.04. For more details see this issue:
 # https://bugs.launchpad.net/ubuntu/+source/openmpi/+bug/1941786
 ENV LDFLAGS="-lopen-pal"
-RUN ./build LIBS mpi-linux-x86_64-smp clang \
+RUN ./build LIBS mpi-linux-${CHARM_ARCH}-smp clang \
       ${PARALLEL_MAKE_ARG} -g -O2 --build-shared\
     && rm -rf /work/charm_7_0_0/doc /work/charm_7_0_0/examples
 
@@ -346,6 +379,20 @@ WORKDIR /work
 # Either way works, we just chose to build from remote instead.
 FROM sxscollaboration/spectre:dev AS demo
 
+# Platform-dependent arguments. For building on Apple Silicon, instead of the
+# default options given here, CHARM_ARCH must be set to arm8, and
+# TEX_ARCH must be set to aarch64. Dockerfiles do not support conditional
+# logic for ARG and ENV commands, so when building the container,
+# these must be set by adding the following options to each
+# docker build command:
+#
+#  --build-arg CHARM_ARCH=arm8 --build-arg TEX_ARCH=aarch64
+#
+# Note: on Apple Silicon, BUILDARCH is automatically set to 'arm64'.
+ARG BUILDARCH
+ARG CHARM_ARCH=x86_64
+ARG TEX_ARCH=x86_64
+
 # When building this image individually, the PARALLEL_MAKE_ARG from above is not
 # remembered (and it doesn't hurt to redefine the env variable).
 ARG PARALLEL_MAKE_ARG=-j2
@@ -357,11 +404,17 @@ RUN apt-get update -y \
     && apt-get install -y vim emacs-nox ffmpeg curl
 
 # Install headless paraview so we can run pvserver in the container
+# Note: there is no arm64 linux binary of paraview available, so don't
+# install paraview when building for Apple Silicon. Apple Silicon users
+# should install a binary of ParaView for Mac and move data to be
+# visualized outside of the container.
 WORKDIR /work
-RUN wget -O paraview.tar.gz --no-check-certificate "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v5.10&type=binary&os=Linux&downloadFile=ParaView-5.10.1-osmesa-MPI-Linux-Python3.9-x86_64.tar.gz" \
-  && tar -xzf paraview.tar.gz \
-  && rm paraview.tar.gz \
-  && mv ParaView-* /opt/paraview
+RUN if [ $BUILDARCH != "arm64" ] ; then \
+    wget -O paraview.tar.gz --no-check-certificate "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v5.10&type=binary&os=Linux&downloadFile=ParaView-5.10.1-osmesa-MPI-Linux-Python3.9-x86_64.tar.gz" \
+    && tar -xzf paraview.tar.gz \
+    && rm paraview.tar.gz \
+    && mv ParaView-* /opt/paraview; \
+  fi
 
 ENV PATH "/opt/paraview/bin:$PATH"
 
@@ -380,8 +433,7 @@ RUN mkdir spectre/build && cd spectre/build \
     -D CMAKE_C_COMPILER=clang-10 \
     -D CMAKE_CXX_COMPILER=clang++-10 \
     -D CMAKE_Fortran_COMPILER=gfortran-9 \
-    -D OVERRIDE_ARCH=x86-64 \
-    -D CHARM_ROOT=/work/charm_7_0_0/multicore-linux-x86_64-gcc \
+    -D CHARM_ROOT=/work/charm_7_0_0/multicore-linux-${CHARM_ARCH}-gcc \
     -D CMAKE_BUILD_TYPE=Release \
     -D DEBUG_SYMBOLS=OFF \
     -D BUILD_PYTHON_BINDINGS=ON \
