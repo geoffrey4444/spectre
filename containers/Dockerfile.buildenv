@@ -3,17 +3,20 @@
 
 # If you change this file please push a new image to DockerHub so that the
 # new image is used. Docker must be run as root on your machine. There are 3
-# different images in this Dockerfile. Here is how to build them:
+# different images in this Dockerfile. Here is how to build them for x86_64
+# (for Apple Silicon, replace linux/amd64 with linux/arm64):
 # 1. `dev`
 #
 #   cd $SPECTRE_HOME
 #   docker build --target dev -t sxscollaboration/spectre:dev \
+#                 --platform linux/amd64 \
 #                 -f ./containers/Dockerfile.buildenv .
 #
 # 2. `ci` (this should use the `dev` image you just built for most of it)
 #
 #   cd $SPECTRE_HOME
 #   docker build --target ci -t sxscollaboration/spectre:ci \
+#                 --platform linux/amd64 \
 #                 -f ./containers/Dockerfile.buildenv .
 #
 # 3. `demo` To build this, it is recommended to first push the `dev` and `ci`
@@ -29,6 +32,7 @@
 #   cd $SPECTRE_HOME
 #   rm -rf build/
 #   docker build --target demo -t sxscollaboration/spectre:demo \
+#                 --platform linux/amd64 \
 #                 -f ./containers/Dockerfile.buildenv .
 #
 #    and then to push the `demo` image to DockerHub:
@@ -39,28 +43,23 @@
 # someone who does. Since changes to this image effect our testing
 # infrastructure it is important all changes be carefully reviewed.
 #
-# NOTE: If building for Apple Silicon, then add the following arguments to
-# the docker build command in step 1 and in step 3 (building the ci target)
-# is not currently supported, since GitHub actions do not yet support
-# Apple Silicon:
-#
-#  --build-arg "CHARM_ARCH=arm8" --build-arg "TEX_ARCH=aarch64"
-#
+FROM ubuntu:20.04 AS base
 
-FROM --platform=linux/$BUILDARCH ubuntu:20.04 AS dev
+# See
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+# for how TARGETARCH is defined.
+ARG TARGETARCH
 
-# Platform-dependent arguments. For building on Apple Silicon, instead of the
-# default options given here, CHARM_ARCH must be set to arm8, and
-# TEX_ARCH must be set to aarch64. Dockerfiles do not support conditional
-# logic for ARG and ENV commands, so these must be set on the command line.
-#
-# Note that on Apple Silicon, BUILDARCH is automatically set to 'arm64'. Also
-# note that building the ci target is currently only supported for x86_64, since
-# GitHub Actions does not support Apple Silicon.
-#
-ARG BUILDARCH
-ARG CHARM_ARCH=x86_64
-ARG TEX_ARCH=x86_64
+FROM base AS base-amd64
+ENV CHARM_ARCH=x86_64
+ENV TEX_ARCH=x86_64
+
+FROM base AS base-arm64
+ENV CHARM_ARCH=arm8
+ENV TEX_ARCH=aarch64
+
+FROM base-${TARGETARCH} AS dev
+ARG TARGETARCH
 
 ARG PARALLEL_MAKE_ARG=-j2
 ARG DEBIAN_FRONTEND=noninteractive
@@ -196,7 +195,7 @@ RUN wget https://github.com/Libsharp/libsharp/archive/v1.0.0.tar.gz -O libsharp.
     && tar -xzf libsharp.tar.gz \
     && mv libsharp-* libsharp_build \
     && cd libsharp_build \
-    && { if [ "$BUILDARCH" != "arm64" ]; \
+    && { if [ "$TARGETARCH" != "arm64" ]; \
         then sed -i 's/march=native/march=x86-64/' configure.ac; fi } \
     && autoconf \
     && ./configure --prefix=/usr/local --enable-pic --disable-openmp \
@@ -207,7 +206,7 @@ RUN wget https://github.com/Libsharp/libsharp/archive/v1.0.0.tar.gz -O libsharp.
     && cd ../ \
     && rm -r libsharp*
 # - LibXSMM
-RUN if [ "$BUILDARCH" = "arm64" ] ; then \
+RUN if [ "$TARGETARCH" = "arm64" ] ; then \
         git clone --single-branch --branch main --depth 1 \
             https://github.com/libxsmm/libxsmm.git libxsmm \
         && cd libxsmm \
@@ -378,20 +377,7 @@ WORKDIR /work
 # FROM dev AS demo
 # Either way works, we just chose to build from remote instead.
 FROM sxscollaboration/spectre:dev AS demo
-
-# Platform-dependent arguments. For building on Apple Silicon, instead of the
-# default options given here, CHARM_ARCH must be set to arm8, and
-# TEX_ARCH must be set to aarch64. Dockerfiles do not support conditional
-# logic for ARG and ENV commands, so when building the container,
-# these must be set by adding the following options to each
-# docker build command:
-#
-#  --build-arg CHARM_ARCH=arm8 --build-arg TEX_ARCH=aarch64
-#
-# Note: on Apple Silicon, BUILDARCH is automatically set to 'arm64'.
-ARG BUILDARCH
-ARG CHARM_ARCH=x86_64
-ARG TEX_ARCH=x86_64
+ARG TARGETARCH
 
 # When building this image individually, the PARALLEL_MAKE_ARG from above is not
 # remembered (and it doesn't hurt to redefine the env variable).
@@ -409,7 +395,7 @@ RUN apt-get update -y \
 # should install a binary of ParaView for Mac and move data to be
 # visualized outside of the container.
 WORKDIR /work
-RUN if [ $BUILDARCH != "arm64" ] ; then \
+RUN if [ "$TARGETARCH" != "arm64" ] ; then \
     wget -O paraview.tar.gz --no-check-certificate "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v5.10&type=binary&os=Linux&downloadFile=ParaView-5.10.1-osmesa-MPI-Linux-Python3.9-x86_64.tar.gz" \
     && tar -xzf paraview.tar.gz \
     && rm paraview.tar.gz \
