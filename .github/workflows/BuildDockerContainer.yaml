@@ -12,7 +12,7 @@ on:
         description: >
           Image name to push to DockerHub
         required: true
-        default: 'sxscollaboration/spectre'
+        default: 'geoffrey4444/spectre'
 
 jobs:
   build_container:
@@ -26,10 +26,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       # Needed once we do multi-platform builds
-      # - name: Set up emulation support
-      #   uses: docker/setup-qemu-action@v2
-      #   with:
-      #     platforms: arm64
+      - name: Set up emulation support
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Login to DockerHub
@@ -52,7 +52,7 @@ jobs:
           file: "./containers/Dockerfile.buildenv"
           target: dev
           tags: ${{ inputs.image_name }}:dev
-          platforms: linux/amd64 #,linux/arm64
+          platforms: linux/amd64,linux/arm64
       - name: Build CI container
         uses: docker/build-push-action@v4
         with:
@@ -61,7 +61,7 @@ jobs:
           file: "./containers/Dockerfile.buildenv"
           target: ci
           tags: ${{ inputs.image_name }}:ci
-          platforms: linux/amd64 #,linux/arm64
+          platforms: linux/amd64,linux/arm64
 
   run_tests:
     name: Test
