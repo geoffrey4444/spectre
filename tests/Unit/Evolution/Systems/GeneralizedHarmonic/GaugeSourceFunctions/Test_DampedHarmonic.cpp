@@ -1,5 +1,7 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
+#include <iomanip>
+#include <iostream>
 
 #include "Framework/TestingFramework.hpp"
 
@@ -29,11 +31,15 @@
 #include "Helpers/DataStructures/DataBox/TestHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
 #include "Options/ParseOptions.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Phi.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Pi.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpacetimeDerivativeOfSpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpatialMetric.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -293,6 +299,82 @@ void test_derived_class(const Mesh<Dim>& mesh) {
   CHECK_ITERABLE_APPROX(gauge_h, expected_gauge_h);
   CHECK_ITERABLE_APPROX(d4_gauge_h, expected_d4_gauge_h);
 }
+
+void compare_with_spec() {
+  const double mass = 1.0;
+  const std::array<double, 3> spin{{0.0, 0.0, 0.0}};
+  const std::array<double, 3> center{{0.0, 0.0, 0.0}};
+  gr::Solutions::KerrSchild solution(mass, spin, center);
+  constexpr size_t num_points(1);
+  const DataVector used_for_size(num_points);
+  auto x = make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(
+      used_for_size, 0.0);
+  get<0>(x) = 4.0;
+  get<1>(x) = 5.0;
+  get<2>(x) = 6.0;
+  const double t = 0.0;
+
+  const auto vars = solution.variables(
+      x, t,
+      typename gr::Solutions::KerrSchild::tags<DataVector, Frame::Inertial>{});
+  const auto& lapse = get<gr::Tags::Lapse<DataVector>>(vars);
+  const auto& dt_lapse = get<Tags::dt<gr::Tags::Lapse<DataVector>>>(vars);
+  const auto& d_lapse = get<typename gr::Solutions::KerrSchild::DerivLapse<
+      DataVector, Frame::Inertial>>(vars);
+  const auto& shift =
+      get<gr::Tags::Shift<DataVector, 3, Frame::Inertial>>(vars);
+  const auto& d_shift = get<typename gr::Solutions::KerrSchild::DerivShift<
+      DataVector, Frame::Inertial>>(vars);
+  const auto& dt_shift =
+      get<Tags::dt<gr::Tags::Shift<DataVector, 3, Frame::Inertial>>>(vars);
+  const auto& spatial_metric =
+      get<gr::Tags::SpatialMetric<DataVector, 3, Frame::Inertial>>(vars);
+  const auto& inverse_spatial_metric =
+      get<gr::Tags::InverseSpatialMetric<DataVector, 3, Frame::Inertial>>(vars);
+  const auto& dt_spatial_metric =
+      get<Tags::dt<gr::Tags::SpatialMetric<DataVector, 3, Frame::Inertial>>>(
+          vars);
+  const auto& d_spatial_metric =
+      get<typename gr::Solutions::KerrSchild::DerivSpatialMetric<
+          DataVector, Frame::Inertial>>(vars);
+  const auto& sqrt_det_spatial_metric =
+      get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(vars);
+
+  const auto& phi =
+      gh::phi(lapse, d_lapse, shift, d_shift, spatial_metric, d_spatial_metric);
+  const auto& pi = gh::pi(lapse, dt_lapse, shift, dt_shift, spatial_metric,
+                          dt_spatial_metric, phi);
+  tnsr::abb<DataVector, 3, Frame::Inertial> da_spacetime_metric{};
+  gh::spacetime_derivative_of_spacetime_metric(
+      make_not_null(&da_spacetime_metric), lapse, shift, pi, phi);
+  const auto& spacetime_metric =
+      gr::spacetime_metric(lapse, shift, spatial_metric);
+  const auto& spacetime_normal_vector =
+      gr::spacetime_normal_vector(lapse, shift);
+  Scalar<DataVector> half_pi_two_normals{get(lapse).size(), 0.0};
+  tnsr::i<DataVector, 3, Frame::Inertial> half_phi_two_normals{
+      get(lapse).size(), 0.0};
+  gh::gauges::half_pi_and_phi_two_normals(make_not_null(&half_pi_two_normals),
+                                          make_not_null(&half_phi_two_normals),
+                                          spacetime_normal_vector, pi, phi);
+
+  tnsr::a<DataVector, 3, Frame::Inertial> gauge_h(num_points);
+  tnsr::ab<DataVector, 3, Frame::Inertial> da_gauge_h(num_points);
+  gh::gauges::damped_harmonic(
+      make_not_null(&gauge_h), make_not_null(&da_gauge_h),
+      lapse, shift, sqrt_det_spatial_metric, inverse_spatial_metric,
+      da_spacetime_metric, half_pi_two_normals, half_phi_two_normals,
+      spacetime_metric, phi, x, 1.0, 0.0, 1.0, 2, 2, 2, 17.015269548251432);
+      // Note: 17.01557094552422 is the exact solution for gaussian to
+      // be 1e-15 at radius 100: 100/sqrt(15 ln 10).
+      // But SpEC rounds 15 ln 10 ~ 34.54. So to get many digits agreement
+      // with spec, I should use 100/sqrt(34.54) = 17.015269548251432.
+
+  std::cout << std::setprecision(15) << lapse << "\n\n";
+  std::cout << gauge_h << "\n\n";
+  std::cout << da_gauge_h << "\n\n";
+  CHECK(false);
+}
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -327,5 +409,7 @@ SPECTRE_TEST_CASE(
         {5, basis_and_quadrature.first, basis_and_quadrature.second});
     test_derived_class<3>(
         {5, basis_and_quadrature.first, basis_and_quadrature.second});
+
+    compare_with_spec();
   }
 }
