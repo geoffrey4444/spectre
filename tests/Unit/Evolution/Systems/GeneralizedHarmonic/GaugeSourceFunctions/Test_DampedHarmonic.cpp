@@ -37,9 +37,9 @@
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpacetimeDerivativeOfSpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
-#include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpatialMetric.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -361,14 +361,14 @@ void compare_with_spec() {
   tnsr::a<DataVector, 3, Frame::Inertial> gauge_h(num_points);
   tnsr::ab<DataVector, 3, Frame::Inertial> da_gauge_h(num_points);
   gh::gauges::damped_harmonic(
-      make_not_null(&gauge_h), make_not_null(&da_gauge_h),
-      lapse, shift, sqrt_det_spatial_metric, inverse_spatial_metric,
-      da_spacetime_metric, half_pi_two_normals, half_phi_two_normals,
-      spacetime_metric, phi, x, 1.0, 0.0, 1.0, 2, 2, 2, 17.015269548251432);
-      // Note: 17.01557094552422 is the exact solution for gaussian to
-      // be 1e-15 at radius 100: 100/sqrt(15 ln 10).
-      // But SpEC rounds 15 ln 10 ~ 34.54. So to get many digits agreement
-      // with spec, I should use 100/sqrt(34.54) = 17.015269548251432.
+      make_not_null(&gauge_h), make_not_null(&da_gauge_h), lapse, shift,
+      sqrt_det_spatial_metric, inverse_spatial_metric, da_spacetime_metric,
+      half_pi_two_normals, half_phi_two_normals, spacetime_metric, phi, x, 1.0,
+      0.0, 1.0, 2, 2, 2, 17.015269548251432);
+  // Note: 17.01557094552422 is the exact solution for gaussian to
+  // be 1e-15 at radius 100: 100/sqrt(15 ln 10).
+  // But SpEC rounds 15 ln 10 ~ 34.54. So to get many digits agreement
+  // with spec, I should use 100/sqrt(34.54) = 17.015269548251432.
 
   std::cout << std::setprecision(15) << lapse << "\n\n";
   std::cout << gauge_h << "\n\n";
