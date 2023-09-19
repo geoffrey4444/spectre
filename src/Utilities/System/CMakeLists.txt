@@ -3,7 +3,7 @@
 
 set(LIBRARY SystemUtilities)
 
-add_spectre_library(${LIBRARY})
+add_spectre_library(${LIBRARY} ParallelInfo.hpp)
 
 spectre_target_sources(
   ${LIBRARY}
