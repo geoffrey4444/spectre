@@ -233,6 +233,7 @@ struct EvolutionMetavars {
       dg::Formulation::StrongInertial;
   using temporal_id = Tags::TimeStepId;
   static constexpr bool local_time_stepping = true;
+  static constexpr bool use_z_order_distribution = false; // round-robin
 
   using initialize_initial_data_dependent_quantities_actions = tmpl::list<
       Actions::MutateApply<gh::gauges::SetPiAndPhiFromConstraints<volume_dim>>,
