@@ -15,6 +15,7 @@
 #include "Domain/CoordinateMaps/TimeDependent/CubicScale.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/Rotation.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/Shape.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/ShapeMapTransitionFunctions/ShapeMapTransitionFunction.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Domain/Structure/ObjectLabel.hpp"
 #include "Options/Auto.hpp"
@@ -335,7 +336,8 @@ struct TimeDependentMapOptions {
    */
   template <domain::ObjectLabel Object>
   MapType<Frame::Grid, Frame::Distorted> grid_to_distorted_map(
-      bool include_distorted_map) const;
+      const std::optional<size_t>& relative_block_number_for_distorted_frame)
+      const;
 
   /*!
    * \brief This will construct the entire map from the `Frame::Grid` to the
@@ -348,7 +350,8 @@ struct TimeDependentMapOptions {
    */
   template <domain::ObjectLabel Object>
   MapType<Frame::Grid, Frame::Inertial> grid_to_inertial_map(
-      bool include_distorted_map) const;
+      const std::optional<size_t>& relative_block_number_for_distorted_frame)
+      const;
 
   // Names are public because they need to be used when constructing maps in the
   // BCO domain creators themselves
@@ -372,7 +375,7 @@ struct TimeDependentMapOptions {
   // Maps
   std::optional<Expansion> expansion_map_{};
   std::optional<Rotation> rotation_map_{};
-  std::array<std::optional<Shape>, 2> shape_maps_{};
+  std::array<std::array<std::optional<Shape>, 6>, 2> shape_maps_{};
 };
 
 }  // namespace domain::creators::bco
