@@ -179,8 +179,8 @@ TimeDependentMapOptions::create_functions_of_time(
 
 void TimeDependentMapOptions::build_maps(
     const std::array<std::array<double, 3>, 2>& centers,
-    const std::optional<std::pair<double, double>>& object_A_inner_outer_radii,
-    const std::optional<std::pair<double, double>>& object_B_inner_outer_radii,
+    const std::optional<std::array<double, 3>>& object_A_radii,
+    const std::optional<std::array<double, 3>>& object_B_radii,
     const double domain_outer_radius) {
   if (expansion_map_options_.has_value()) {
     expansion_map_ = Expansion{domain_outer_radius, expansion_name,
@@ -193,9 +193,9 @@ void TimeDependentMapOptions::build_maps(
   const auto orientation_maps = orientations_for_sphere_wrappings();
 
   for (size_t i = 0; i < 2; i++) {
-    const auto& inner_outer_radii =
-        i == 0 ? object_A_inner_outer_radii : object_B_inner_outer_radii;
-    if (inner_outer_radii.has_value()) {
+    const auto& radii_opt = i == 0 ? object_A_radii : object_B_radii;
+    if (radii_opt.has_value()) {
+      const auto& radii = radii_opt.value();
       if (not(i == 0 ? shape_options_A_.has_value()
                      : shape_options_B_.has_value())) {
         ERROR_NO_TRACE(
@@ -208,12 +208,22 @@ void TimeDependentMapOptions::build_maps(
       const size_t initial_l_max = i == 0 ? shape_options_A_.value().l_max
                                           : shape_options_B_.value().l_max;
 
+      const bool transition_ends_at_cube =
+          i == 0 ? shape_options_A_->transition_ends_at_cube
+                 : shape_options_B_->transition_ends_at_cube;
+
+      const double inner_sphericity = 1.0;
+      const double outer_sphericity = transition_ends_at_cube ? 0.0 : 1.0;
+
+      const double inner_radius = radii[0];
+      const double outer_radius = transition_ends_at_cube ? radii[2] : radii[1];
+
       for (size_t j = 0; j < orientation_maps.size(); j++) {
         std::unique_ptr<domain::CoordinateMaps::ShapeMapTransitionFunctions::
                             ShapeMapTransitionFunction>
             transition_func = std::make_unique<
                 domain::CoordinateMaps::ShapeMapTransitionFunctions::Wedge>(
-                inner_outer_radii->first, inner_outer_radii->second, 1.0, 0.0,
+                inner_radius, outer_radius, inner_sphericity, outer_sphericity,
                 gsl::at(orientation_maps, j));
 
         gsl::at(gsl::at(shape_maps_, i), j) =
@@ -266,13 +276,17 @@ TimeDependentMapOptions::MapType<Frame::Grid, Frame::Distorted>
 TimeDependentMapOptions::grid_to_distorted_map(
     const std::optional<size_t>& relative_block_number_for_distorted_frame)
     const {
-  if (relative_block_number_for_distorted_frame.has_value()) {
-    ASSERT(relative_block_number_for_distorted_frame.value() <
-               shape_maps_[0].size(),
-           "Block number for distorted frame is not within the number of "
-           "blocks "
-               << shape_maps_[0].size());
-    const size_t index = get_index(Object);
+  const size_t index = get_index(Object);
+  const bool transition_ends_at_cube =
+      Object == domain::ObjectLabel::A
+          ? shape_options_A_->transition_ends_at_cube
+          : shape_options_B_->transition_ends_at_cube;
+  const bool block_has_shape_map =
+      relative_block_number_for_distorted_frame.has_value() and
+      (transition_ends_at_cube or
+       relative_block_number_for_distorted_frame.value() < 6);
+
+  if (block_has_shape_map) {
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());
@@ -292,13 +306,17 @@ TimeDependentMapOptions::MapType<Frame::Grid, Frame::Inertial>
 TimeDependentMapOptions::grid_to_inertial_map(
     const std::optional<size_t>& relative_block_number_for_distorted_frame)
     const {
-  if (relative_block_number_for_distorted_frame.has_value()) {
-    ASSERT(relative_block_number_for_distorted_frame.value() <
-               shape_maps_[0].size(),
-           "Block number for distorted frame is not within the number of "
-           "blocks "
-               << shape_maps_[0].size());
-    const size_t index = get_index(Object);
+  const size_t index = get_index(Object);
+  const bool transition_ends_at_cube =
+      Object == domain::ObjectLabel::A
+          ? shape_options_A_->transition_ends_at_cube
+          : shape_options_B_->transition_ends_at_cube;
+  const bool block_has_shape_map =
+      relative_block_number_for_distorted_frame.has_value() and
+      (transition_ends_at_cube or
+       relative_block_number_for_distorted_frame.value() < 6);
+
+  if (block_has_shape_map) {
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());

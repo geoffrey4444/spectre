@@ -421,11 +421,14 @@ CylindricalBinaryCompactObject::CylindricalBinaryCompactObject(
   }
 
   if (time_dependent_options_.has_value()) {
+    ERROR_NO_TRACE(
+        "Don't use CylindricalBCO domain right now. Ask Kyle about why.");
+
     time_dependent_options_->build_maps(
         std::array{rotate_from_z_to_x_axis(center_A_),
                    rotate_from_z_to_x_axis(center_B_)},
-        std::make_pair(radius_A_, outer_radius_A_),
-        std::make_pair(radius_B_, outer_radius_B_), outer_radius_);
+        std::array{radius_A_, outer_radius_A_, 0.0},
+        std::array{radius_B_, outer_radius_B_, 0.0}, outer_radius_);
   }
 }
 
