@@ -60,8 +60,14 @@ std::optional<double> Wedge::original_radius_over_radius(
     const std::array<double, 3>& target_coords, double distorted_radius) const {
   const double radius = magnitude(target_coords);
   if (equal_within_roundoff(radius, 0.0) or
-      equal_within_roundoff(distorted_radius, 0.0)) {
+      equal_within_roundoff(distorted_radius, 1.0)) {
     return std::nullopt;
+  }
+
+  // If distorted radius is 0, this means the map is the identity so the radius
+  // and the original radius are equal. Also we don't want to divide by 0 below
+  if (equal_within_roundoff(distorted_radius, 0.0)) {
+    return std::optional{0.0};
   }
 
   const std::array<double, 3> rotated_coords =
@@ -172,8 +178,8 @@ std::array<T, 3> Wedge::gradient_impl(
   std::array<T, 3> result = -1.0 * rotated_coords * one_over_radius;
 
   const auto make_factor = [&one_over_radius](const Surface& surface) -> T {
-    return (1.0 - surface.sphericity) * surface.radius / sqrt(3.0) *
-           cube(one_over_radius);
+    return (1.0 - surface.sphericity) * surface.radius * cube(one_over_radius) /
+           sqrt(3.0);
   };
 
   // We can make some simplifications if either of the surfaces are spherical
@@ -240,7 +246,12 @@ bool Wedge::operator==(const ShapeMapTransitionFunction& other) const {
   if (dynamic_cast<const Wedge*>(&other) == nullptr) {
     return false;
   }
-  return true;
+  const Wedge& other_ref = *dynamic_cast<const Wedge*>(&other);
+  return inner_surface_.radius == other_ref.inner_surface_.radius and
+         inner_surface_.sphericity == other_ref.inner_surface_.sphericity and
+         outer_surface_.radius == other_ref.outer_surface_.radius and
+         outer_surface_.sphericity == other_ref.outer_surface_.sphericity and
+         orientation_map_ == other_ref.orientation_map_;
 }
 
 bool Wedge::operator!=(const ShapeMapTransitionFunction& other) const {
