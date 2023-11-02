@@ -584,7 +584,7 @@ Domain<3> BinaryCompactObject::create_domain() const {
     // time-dependent map instead.
     grid_to_inertial_block_maps[number_of_blocks_ - 1] =
         time_dependent_options_
-            ->grid_to_inertial_map<domain::ObjectLabel::None>(false);
+            ->grid_to_inertial_map<domain::ObjectLabel::None>(std::nullopt);
 
     // Inside the excision sphere we add the grid to inertial map from the outer
     // shell. This allows the center of the excisions/horizons to be mapped
