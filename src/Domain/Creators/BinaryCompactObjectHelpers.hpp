@@ -88,10 +88,19 @@ struct ShapeMapOptions {
         "Initial value and two derivatives of the size map."};
   };
 
-  using options = tmpl::list<LMax, SizeInitialValues>;
+  struct TransitionEndsAtCube {
+    using type = bool;
+    static constexpr Options::String help = {
+        "If 'true', the shape map transition function will be 0 at the cubical "
+        "boundary around the objects. If 'false' the transition function will "
+        "be 0 at the outer radius of the inner sphere around the object"};
+  };
+
+  using options = tmpl::list<LMax, SizeInitialValues, TransitionEndsAtCube>;
 
   size_t l_max{};
   std::array<double, 3> initial_size_values{};
+  bool transition_ends_at_cube{};
 };
 
 namespace detail {
@@ -303,10 +312,10 @@ struct TimeDependentMapOptions {
    * instead.
    */
   void build_maps(const std::array<std::array<double, 3>, 2>& centers,
-                  const std::optional<std::pair<double, double>>&
-                      object_A_inner_outer_radii,
-                  const std::optional<std::pair<double, double>>&
-                      object_B_inner_outer_radii,
+                  const std::optional<std::array<double, 3>>&
+                      object_A_radii,
+                  const std::optional<std::array<double, 3>>&
+                      object_B_radii,
                   double domain_outer_radius);
 
   /*!

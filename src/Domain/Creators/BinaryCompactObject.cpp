@@ -306,25 +306,25 @@ BinaryCompactObject::BinaryCompactObject(
           std::move(outer_boundary_condition), context) {
   time_dependent_options_ = std::move(time_dependent_options);
 
-  std::optional<std::pair<double, double>> inner_outer_radii_A{};
-  std::optional<std::pair<double, double>> inner_outer_radii_B{};
+  std::optional<std::array<double, 3>> radii_A{};
+  std::optional<std::array<double, 3>> radii_B{};
 
   if (is_excised_a_) {
-    inner_outer_radii_A =
-        std::make_pair(std::get<Object>(object_A_).inner_radius,
-                       sqrt(3.0) * 0.5 * length_inner_cube_);
+    radii_A = std::array{std::get<Object>(object_A_).inner_radius,
+                         std::get<Object>(object_A_).outer_radius,
+                         sqrt(3.0) * 0.5 * length_inner_cube_};
   }
   if (is_excised_b_) {
-    inner_outer_radii_B =
-        std::make_pair(std::get<Object>(object_B_).inner_radius,
-                       sqrt(3.0) * 0.5 * length_inner_cube_);
+    radii_B = std::array{std::get<Object>(object_B_).inner_radius,
+                         std::get<Object>(object_B_).outer_radius,
+                         sqrt(3.0) * 0.5 * length_inner_cube_};
   }
 
   if (time_dependent_options_.has_value()) {
     time_dependent_options_->build_maps(
         std::array{std::array{x_coord_a_, 0.0, 0.0},
                    std::array{x_coord_b_, 0.0, 0.0}},
-        inner_outer_radii_A, inner_outer_radii_B, outer_radius_);
+        radii_A, radii_B, outer_radius_);
   }
 }
 
@@ -613,7 +613,7 @@ Domain<3> BinaryCompactObject::create_domain() const {
     // Fill in the rest of the block maps by cloning the relevant maps
     for (size_t block = 0; block < number_of_blocks_ - 1; ++block) {
       if ((not use_single_block_a_) and block < first_block_object_B) {
-        const std::optional<size_t> block_for_distorted_frame = block % 6;
+        const std::optional<size_t> block_for_distorted_frame = block;
         grid_to_inertial_block_maps[block] =
             time_dependent_options_
                 ->grid_to_inertial_map<domain::ObjectLabel::A>(
@@ -627,7 +627,7 @@ Domain<3> BinaryCompactObject::create_domain() const {
       } else if ((not use_single_block_b_) and block >= first_block_object_B and
                  block < first_block_object_B + 12) {
         const std::optional<size_t> block_for_distorted_frame =
-            (block - first_block_object_B) % 6;
+            block - first_block_object_B;
         grid_to_inertial_block_maps[block] =
             time_dependent_options_
                 ->grid_to_inertial_map<domain::ObjectLabel::B>(
