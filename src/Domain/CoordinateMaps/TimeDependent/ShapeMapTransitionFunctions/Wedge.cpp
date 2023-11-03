@@ -19,6 +19,7 @@
 #include "Utilities/StdArrayHelpers.hpp"
 
 #include "Parallel/Printf.hpp"
+#include "Utilities/StdHelpers.hpp"
 
 namespace domain::CoordinateMaps::ShapeMapTransitionFunctions {
 template <typename T>
@@ -60,21 +61,31 @@ std::optional<double> Wedge::original_radius_over_radius(
     const std::array<double, 3>& target_coords, double distorted_radius) const {
   const double radius = magnitude(target_coords);
   if (equal_within_roundoff(radius, 0.0) or
-      equal_within_roundoff(distorted_radius, 1.0)) {
+      equal_within_roundoff(distorted_radius, 1.0) or distorted_radius > 1.0) {
     return std::nullopt;
   }
 
   // If distorted radius is 0, this means the map is the identity so the radius
   // and the original radius are equal. Also we don't want to divide by 0 below
   if (equal_within_roundoff(distorted_radius, 0.0)) {
-    return std::optional{0.0};
+    return std::optional{1.0};
   }
 
   const std::array<double, 3> rotated_coords =
       discrete_rotation(orientation_map_.inverse_map(), target_coords);
   const double outer_distance = outer_surface_.distance(rotated_coords);
-  const double distance_difference =
-      outer_distance - inner_surface_.distance(rotated_coords);
+  const double inner_distance = inner_surface_.distance(rotated_coords);
+  const double distance_difference = outer_distance - inner_distance;
+
+  // If we are at the outer distance, then the transition function is 0 so the
+  // map is again the identity so the radius and original radius are equal
+  if (equal_within_roundoff(radius, outer_distance)) {
+    return std::optional{1.0};
+  }
+
+  if (equal_within_roundoff(radius, inner_distance)) {
+    return std::optional{1.0 / (1.0 - distorted_radius)};
+  }
 
   // TODO: Comment functional form
   const double a = radius;
@@ -85,15 +96,19 @@ std::optional<double> Wedge::original_radius_over_radius(
   std::optional<std::array<double, 2>> roots = real_roots(a, b, c);
 
   if (roots.has_value()) {
-    // Parallel::printf(
-    //     "a = %.16f\n"
-    //     "b = %.16f\n"
-    //     "c = %.16f\n"
-    //     "sqrt(b^2 - 4ac) = %.16f\n"
-    //     "Roots: %s\n\n",
-    //     a, b, c, sqrt(square(b) - 4 * a * c), roots.value());
     return roots.value()[1];
   } else {
+    using ::operator<<;
+    Parallel::printf(
+        "Could not compute r/rtil:\n"
+        " Target coords = %s\n"
+        " Target radius = %.16f\n"
+        " Inner distance = %.16f\n"
+        " Outer distance = %.16f\n"
+        " a = %.16f\n"
+        " b = %.16f\n"
+        " c = %.16f\n",
+        target_coords, radius, inner_distance, outer_distance, a, b, c);
     return std::nullopt;
   }
 }
@@ -153,7 +168,8 @@ std::array<T, 3> Wedge::gradient_impl(
                                     (outer_surface_.distance(rotated_coords) -
                                      inner_surface_.distance(rotated_coords)));
 
-    return -source_coords * one_over_denom;
+    return discrete_rotation(orientation_map_,
+                             -rotated_coords * one_over_denom);
   }
 
   const T radius = magnitude(rotated_coords);
