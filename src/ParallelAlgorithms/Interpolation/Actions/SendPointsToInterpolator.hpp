@@ -13,9 +13,15 @@
 #include "Parallel/Printf.hpp"
 #include "ParallelAlgorithms/Interpolation/InterpolationTargetDetail.hpp"
 #include "ParallelAlgorithms/Interpolation/Tags.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/TMPL.hpp"
+
+#include "DataStructures/IdPair.hpp"
+#include "Domain/BlockLogicalCoordinates.hpp"
+#include "Domain/Structure/BlockId.hpp"
+#include "Utilities/StdHelpers.hpp"
 
 namespace intrp {
 namespace Actions {
@@ -52,6 +58,18 @@ struct SendPointsToInterpolator {
                     const size_t iteration = 0_st) {
     auto coords = InterpolationTarget_detail::block_logical_coords<
         InterpolationTargetTag>(box, cache, temporal_id);
+    for (const auto& block_coord : coords) {
+      if (not block_coord.has_value()) {
+        using ::operator<<;
+        const std::string preface =
+            InterpolationTarget_detail::target_output_prefix<
+                SendPointsToInterpolator, InterpolationTargetTag>(temporal_id);
+        ERROR_NO_TRACE(preface
+                       << ", Not all block logical coordinates exist. Full "
+                          "vector: "
+                       << coords);
+      }
+    }
     InterpolationTarget_detail::set_up_interpolation<InterpolationTargetTag>(
         make_not_null(&box), temporal_id, coords);
     auto& receiver_proxy =
