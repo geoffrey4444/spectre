@@ -276,7 +276,6 @@ TimeDependentMapOptions::MapType<Frame::Grid, Frame::Distorted>
 TimeDependentMapOptions::grid_to_distorted_map(
     const std::optional<size_t>& relative_block_number_for_distorted_frame)
     const {
-  const size_t index = get_index(Object);
   const bool transition_ends_at_cube =
       Object == domain::ObjectLabel::A
           ? shape_options_A_->transition_ends_at_cube
@@ -287,6 +286,7 @@ TimeDependentMapOptions::grid_to_distorted_map(
        relative_block_number_for_distorted_frame.value() < 6);
 
   if (block_has_shape_map) {
+    const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());
@@ -306,7 +306,6 @@ TimeDependentMapOptions::MapType<Frame::Grid, Frame::Inertial>
 TimeDependentMapOptions::grid_to_inertial_map(
     const std::optional<size_t>& relative_block_number_for_distorted_frame)
     const {
-  const size_t index = get_index(Object);
   const bool transition_ends_at_cube =
       Object == domain::ObjectLabel::A
           ? shape_options_A_->transition_ends_at_cube
@@ -317,6 +316,7 @@ TimeDependentMapOptions::grid_to_inertial_map(
        relative_block_number_for_distorted_frame.value() < 6);
 
   if (block_has_shape_map) {
+    const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());
