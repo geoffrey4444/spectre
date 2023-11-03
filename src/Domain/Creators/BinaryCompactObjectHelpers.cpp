@@ -289,7 +289,7 @@ TimeDependentMapOptions::grid_to_distorted_map(
     const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
-                relative_block_number_for_distorted_frame.value());
+                relative_block_number_for_distorted_frame.value() % 6);
     if (not shape.has_value()) {
       ERROR(
           "Requesting grid to distorted map with distorted frame but shape map "
@@ -319,7 +319,7 @@ TimeDependentMapOptions::grid_to_inertial_map(
     const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
-                relative_block_number_for_distorted_frame.value());
+                relative_block_number_for_distorted_frame.value() % 6);
     if (not shape.has_value()) {
       ERROR(
           "Requesting grid to inertial map with distorted frame but shape map "
