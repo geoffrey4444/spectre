@@ -58,16 +58,27 @@ struct SendPointsToInterpolator {
                     const size_t iteration = 0_st) {
     auto coords = InterpolationTarget_detail::block_logical_coords<
         InterpolationTargetTag>(box, cache, temporal_id);
-    for (const auto& block_coord : coords) {
+    for (size_t i = 0; i < coords.size(); i++) {
+      const auto& block_coord = coords[i];
       if (not block_coord.has_value()) {
         using ::operator<<;
         const std::string preface =
             InterpolationTarget_detail::target_output_prefix<
                 SendPointsToInterpolator, InterpolationTargetTag>(temporal_id);
-        ERROR_NO_TRACE(preface
-                       << ", Not all block logical coordinates exist. Full "
-                          "vector: "
-                       << coords);
+        const auto distorted_points =
+            InterpolationTargetTag::compute_target_points::points(
+                box, tmpl::type_<Metavariables>{}, temporal_id);
+        const std::array distorted_point{
+            get<0>(distorted_points)[i],
+            get<1>(distorted_points)[i],
+            get<2>(distorted_points)[i],
+        };
+        ERROR_NO_TRACE(preface << ", Not all block logical coordinates exist.\n"
+                                  " Index of first coord that doesn't exist = "
+                               << i
+                               << "\n Distorted point = " << distorted_point
+                               << "\n Full vector: " << coords
+                               << "\n Distorted points: " << distorted_points);
       }
     }
     InterpolationTarget_detail::set_up_interpolation<InterpolationTargetTag>(

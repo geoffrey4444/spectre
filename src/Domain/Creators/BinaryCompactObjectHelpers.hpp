@@ -384,7 +384,7 @@ struct TimeDependentMapOptions {
   // Maps
   std::optional<Expansion> expansion_map_{};
   std::optional<Rotation> rotation_map_{};
-  std::array<std::array<std::optional<Shape>, 6>, 2> shape_maps_{};
+  std::array<std::array<std::optional<Shape>, 12>, 2> shape_maps_{};
 };
 
 }  // namespace domain::creators::bco

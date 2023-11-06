@@ -10,6 +10,7 @@
 
 #include "DataStructures/DataVector.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ShapeMapTransitionFunctions/ShapeMapTransitionFunction.hpp"
+#include "Domain/Structure/Direction.hpp"
 #include "Domain/Structure/OrientationMap.hpp"
 
 namespace domain::CoordinateMaps::ShapeMapTransitionFunctions {
@@ -25,13 +26,19 @@ class Wedge final : public ShapeMapTransitionFunction {
     T distance(const std::array<T, 3>& coords) const;
 
     void pup(PUP::er& p);
+
+    bool operator==(const Surface& other) const;
+    bool operator!=(const Surface& other) const;
   };
 
  public:
   explicit Wedge() = default;
 
-  Wedge(double inner_radius, double outer_radius, double inner_sphericity,
-        double outer_sphericity, OrientationMap<3> orientation_map);
+  Wedge(double overall_inner_radius, double overall_outer_radius,
+        double overall_inner_sphericity, double overall_outer_sphericity,
+        double this_wedge_inner_radius, double this_wedge_outer_radius,
+        double this_wedge_inner_sphericity,
+        double this_wedge_outer_sphericity, OrientationMap<3> orientation_map);
 
   double operator()(const std::array<double, 3>& source_coords) const override;
   DataVector operator()(
@@ -75,9 +82,12 @@ class Wedge final : public ShapeMapTransitionFunction {
   template <typename T>
   void check_distances(const std::array<T, 3>& mag) const;
 
-  Surface inner_surface_{};
-  Surface outer_surface_{};
+  Surface overall_inner_surface_{};
+  Surface overall_outer_surface_{};
+  Surface this_wedge_inner_surface_{};
+  Surface this_wedge_outer_surface_{};
   OrientationMap<3> orientation_map_{};
+  Direction<3> direction_{};
   static constexpr double eps_ = std::numeric_limits<double>::epsilon() * 100;
 };
 }  // namespace domain::CoordinateMaps::ShapeMapTransitionFunctions

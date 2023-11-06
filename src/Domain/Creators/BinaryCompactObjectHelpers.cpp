@@ -212,19 +212,48 @@ void TimeDependentMapOptions::build_maps(
           i == 0 ? shape_options_A_->transition_ends_at_cube
                  : shape_options_B_->transition_ends_at_cube;
 
-      const double inner_sphericity = 1.0;
-      const double outer_sphericity = transition_ends_at_cube ? 0.0 : 1.0;
+      const double overall_inner_sphericity = 1.0;
+      const double overall_outer_sphericity =
+          transition_ends_at_cube ? 0.0 : 1.0;
 
-      const double inner_radius = radii[0];
-      const double outer_radius = transition_ends_at_cube ? radii[2] : radii[1];
+      const double overall_inner_radius = radii[0];
+      const double overall_outer_radius =
+          transition_ends_at_cube ? radii[2] : radii[1];
 
-      for (size_t j = 0; j < orientation_maps.size(); j++) {
+      for (size_t j = 0; j < shape_maps_[0].size(); j++) {
+        if (not transition_ends_at_cube and j >= 6) {
+          Parallel::printf(
+              "Not constructing shape map:\n"
+              " i: %d\n"
+              " j: %d\n",
+              i, j);
+          continue;
+        }
+        const double this_wedge_inner_sphericity = 1.0;
+        const double this_wedge_outer_sphericity = j < 6 ? 1.0 : 0.0;
+
+        const double this_wedge_inner_radius = j < 6 ? radii[0] : radii[1];
+        const double this_wedge_outer_radius = j < 6 ? radii[1] : radii[2];
+
         std::unique_ptr<domain::CoordinateMaps::ShapeMapTransitionFunctions::
                             ShapeMapTransitionFunction>
             transition_func = std::make_unique<
                 domain::CoordinateMaps::ShapeMapTransitionFunctions::Wedge>(
-                inner_radius, outer_radius, inner_sphericity, outer_sphericity,
-                gsl::at(orientation_maps, j));
+                overall_inner_radius, overall_outer_radius,
+                overall_inner_sphericity, overall_outer_sphericity,
+                this_wedge_inner_radius, this_wedge_outer_radius,
+                this_wedge_inner_sphericity, this_wedge_outer_sphericity,
+                gsl::at(orientation_maps, j % 6));
+
+        Parallel::printf(
+            "Shape map construction:\n"
+            " i: %d\n"
+            " j: %d\n"
+            " Center: %s\n"
+            " l_max: %d\n"
+            " orientation map: %s\n",
+            i, j, gsl::at(centers, i), initial_l_max,
+            gsl::at(orientation_maps, j % 6));
 
         gsl::at(gsl::at(shape_maps_, i), j) =
             Shape{gsl::at(centers, i),     initial_l_max,
@@ -285,11 +314,18 @@ TimeDependentMapOptions::grid_to_distorted_map(
       (transition_ends_at_cube or
        relative_block_number_for_distorted_frame.value() < 6);
 
+  const auto orientation_maps = orientations_for_sphere_wrappings();
+
   if (block_has_shape_map) {
     const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());
+    Parallel::printf(
+        "For object %s, block number = %d, orientation map = %s\n",
+        get_output(Object), relative_block_number_for_distorted_frame.value(),
+        gsl::at(orientation_maps,
+                relative_block_number_for_distorted_frame.value() % 6));
     if (not shape.has_value()) {
       ERROR(
           "Requesting grid to distorted map with distorted frame but shape map "
@@ -315,11 +351,18 @@ TimeDependentMapOptions::grid_to_inertial_map(
       (transition_ends_at_cube or
        relative_block_number_for_distorted_frame.value() < 6);
 
+  const auto orientation_maps = orientations_for_sphere_wrappings();
+
   if (block_has_shape_map) {
     const size_t index = get_index(Object);
     const std::optional<Shape>& shape =
         gsl::at(gsl::at(shape_maps_, index),
                 relative_block_number_for_distorted_frame.value());
+    Parallel::printf(
+        "For object %s, block number = %d, orientation map = %s\n",
+        get_output(Object), relative_block_number_for_distorted_frame.value(),
+        gsl::at(orientation_maps,
+                relative_block_number_for_distorted_frame.value() % 6));
     if (not shape.has_value()) {
       ERROR(
           "Requesting grid to inertial map with distorted frame but shape map "

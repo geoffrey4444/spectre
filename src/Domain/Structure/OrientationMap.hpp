@@ -95,6 +95,10 @@ class OrientationMap {
   /// The corresponding Orientation of the host in the frame of the neighbor.
   OrientationMap<VolumeDim> inverse_map() const;
 
+  const std::array<Direction<VolumeDim>, VolumeDim>& mapped_directions() const {
+    return mapped_directions_;
+  }
+
   /// Serialization for Charm++
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);
