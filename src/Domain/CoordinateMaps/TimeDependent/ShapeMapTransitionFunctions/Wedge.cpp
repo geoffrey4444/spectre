@@ -262,14 +262,14 @@ std::array<T, 3> Wedge::gradient_impl(
         ERROR("Index " << index << " coord is zero");
       }
 
-      get_element(gsl::at(grad, index), i) =
+      get_element(gsl::at(grad, index), i) *=
           -(square(get_element(radius, i)) -
             square(get_element(gsl::at(source_coords, index), i))) *
           get_element(one_over_radius, i) / square(index_coord);
-      get_element(gsl::at(grad, index_plus_one), i) =
+      get_element(gsl::at(grad, index_plus_one), i) *=
           get_element(gsl::at(source_coords, index_plus_one), i) *
           get_element(one_over_radius, i) / index_coord;
-      get_element(gsl::at(grad, index_plus_two), i) =
+      get_element(gsl::at(grad, index_plus_two), i) *=
           get_element(gsl::at(source_coords, index_plus_two), i) *
           get_element(one_over_radius, i) / index_coord;
     }
