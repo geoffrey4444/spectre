@@ -131,7 +131,7 @@ inline void register_init_node_and_proc(
     _registerInitCall(*init_node_func, 1);
   }
   for (const auto& init_proc_func :
-       {&enable_floating_point_exceptions, &enable_segfault_handler}) {
+       {&disable_floating_point_exceptions, &enable_segfault_handler}) {
     _registerInitCall(*init_proc_func, 0);
   }
 
