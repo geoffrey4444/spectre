@@ -112,11 +112,11 @@ TimeDependentMapOptions::create_functions_of_time(
   // Expansion function of time
   if (expansion_map_options_.has_value()) {
     DataVector expansion_f{
-        1, std::get<0>(expansion_map_options_.value().initial_values)};
+        1, gsl::at(expansion_map_options_.value().initial_values, 0)};
     DataVector expansion_df{
-        1, std::get<1>(expansion_map_options_.value().initial_values)};
+        1, gsl::at(expansion_map_options_.value().initial_values, 1)};
     DataVector expansion_d2f{
-        1, std::get<2>(expansion_map_options_.value().initial_values)};
+        1, gsl::at(expansion_map_options_.value().initial_values, 2)};
     const std::array<DataVector, 3> initial_func_and_derivs{
         expansion_f, expansion_df, expansion_d2f};
     const double t_match = expansion_map_options_.value().match_time;
@@ -130,14 +130,14 @@ TimeDependentMapOptions::create_functions_of_time(
   // Expansion outer boundary function of time
   if (expansion_map_options_.has_value()) {
     DataVector expansion_f{
-        1, std::get<0>(
-               expansion_map_options_.value().initial_values_outer_boundary)};
+        1, gsl::at(expansion_map_options_.value().initial_values_outer_boundary,
+                   0)};
     DataVector expansion_df{
-        1, std::get<1>(
-               expansion_map_options_.value().initial_values_outer_boundary)};
+        1, gsl::at(expansion_map_options_.value().initial_values_outer_boundary,
+                   1)};
     DataVector expansion_d2f{
-        1, std::get<2>(
-               expansion_map_options_.value().initial_values_outer_boundary)};
+        1, gsl::at(expansion_map_options_.value().initial_values_outer_boundary,
+                   2)};
     const std::array<DataVector, 3> initial_func_and_derivs{
         expansion_f, expansion_df, expansion_d2f};
     const double t_match = expansion_map_options_.value().match_time;
@@ -156,10 +156,10 @@ TimeDependentMapOptions::create_functions_of_time(
         get<2>(rotation_options_.value().initial_quaternion_values),
         get<3>(rotation_options_.value().initial_quaternion_values)};
     const DataVector df{
-        get<0>(rotation_options_.value().initial_quaternion_values),
-        get<1>(rotation_options_.value().initial_quaternion_values),
-        get<2>(rotation_options_.value().initial_quaternion_values),
-        get<3>(rotation_options_.value().initial_quaternion_values)};
+        get<0>(rotation_options_.value().initial_quaternion_first_derivatives),
+        get<1>(rotation_options_.value().initial_quaternion_first_derivatives),
+        get<2>(rotation_options_.value().initial_quaternion_first_derivatives),
+        get<3>(rotation_options_.value().initial_quaternion_first_derivatives)};
     const DataVector d2f{
         get<0>(rotation_options_.value().initial_quaternion_second_derivatives),
         get<1>(rotation_options_.value().initial_quaternion_second_derivatives),

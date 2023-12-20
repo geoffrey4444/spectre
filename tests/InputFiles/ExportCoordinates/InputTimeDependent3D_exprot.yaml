@@ -1,0 +1,89 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: ExportTimeDependentCoordinates3D
+Testing:
+  Check: parse;execute
+  Timeout: 10
+  Priority: High
+ExpectedOutput:
+  - ExportTimeDependentCoordinates3DVolume0.h5
+  - ExportTimeDependentCoordinates3DReductions.h5
+
+---
+
+Parallelization:
+  ElementDistribution: NumGridPointsAndGridSpacing
+
+Amr:
+  Criteria:
+  Verbosity: Quiet
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+  Singletons: Auto
+
+DomainCreator:
+  # Parameters are chosen for an equal-mass, non-spinning binary black hole
+  # using superposed-Kerr-Schild initial data created with the
+  # Spectral Einstein Code (SpEC). The time-dependent maps are given
+  # arbitrary time-dependence.
+  Sphere:
+    InnerRadius: 1.0
+    OuterRadius: 550.0
+    Interior: Excise
+    InitialRefinement: [1, 1, 1]
+    InitialGridPoints: [7, 7, 9]
+    UseEquiangularMap: true
+    EquatorialCompression: None
+    RadialPartitioning: [1.5, 3.0, 6.0, 12.0, 24.0, 48.0, 96.0, 200.0, 300.0, 400.0, 500.0]
+    RadialDistribution: Logarithmic
+    WhichWedges: All
+    TimeDependentMaps:
+      InitialTime: 4899.289999995487
+      ShapeMap:
+        LMax: 14
+        InitialValues: Spherical
+      # Expansion: None
+      Expansion:
+        InitialValues: [0.15039148025023105, -0.013615049504112992, -0.0015413149715757517]
+        InitialValuesOuterBoundary: [0.9951012202248827, -1.0001041209248444e-06, 4.249121497570639e-14]
+        OuterBoundaryRadius: 600.0
+        MatchTime: 4899.289999995487
+        DecayTime: 5.0
+      Rotation: None
+      # Rotation:    
+      #   InitialQuaternionValues: [0.3722410866544026, -1.3391320595550954e-05, -6.458346650180835e-06, 0.9281360747138923]
+      #   InitialQuaternionFirstDerivatives: [-0.11867886154794885, -5.123135919792685e-07, 1.586586712321518e-06, 0.04759770640584153]
+      #   InitialQuaternionSecondDerivatives: [-0.018015770441413528, 8.91230641064061e-08, 2.9649378275997684e-07, -0.010390721931619901]    
+      #   MatchTime: 4899.289999995487
+      #   DecayTime: 5.0
+
+
+
+SpatialDiscretization:
+  ActiveGrid: Dg
+  DiscontinuousGalerkin:
+    Quadrature: GaussLobatto
+
+Evolution:
+  InitialTime: 4899.289999995487
+  InitialTimeStep: 0.05
+  TimeStepper:
+    AdamsBashforth:
+      Order: 1
+
+EventsAndTriggers:
+  - Trigger:
+      TimeCompares:
+        Comparison: GreaterThanOrEqualTo
+        # Value: 4899.489999995487
+        Value: 4919.289999995487
+    Events:
+      - Completion
+
+Observers:
+  VolumeFileName: "ExportTimeDependentCoordinates3DVolume"
+  ReductionFileName: "ExportTimeDependentCoordinates3DReductions"
+
+PhaseChangeAndTriggers:
