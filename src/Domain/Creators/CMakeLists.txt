@@ -67,9 +67,12 @@ target_link_libraries(
   DomainBoundaryConditions
   DomainTimeDependence
   GeneralRelativitySolutions
+  H5
   INTERFACE
   ErrorHandling
   Options
+  SphericalHarmonics
+  SphericalHarmonicsIO
   )
 
 add_subdirectory(Python)

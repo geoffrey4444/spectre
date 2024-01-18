@@ -17,7 +17,10 @@
 #include "Domain/CoordinateMaps/TimeDependent/Shape.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/Translation.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/IO/ReadSurfaceYlm.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "Options/Auto.hpp"
+#include "Options/Context.hpp"
 #include "Options/String.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -62,6 +65,56 @@ struct KerrSchildFromBoyerLindquist {
                              std::numeric_limits<double>::signaling_NaN()};
 };
 
+struct YlmsFromFile {
+  struct H5Filename {
+    using type = std::string;
+    static constexpr Options::String help =
+        "Path to the data file containing the ylm coefficients and their "
+        "derivatives.";
+  };
+
+  struct SubfileNames {
+    using type = std::array<std::string, 3>;
+    static constexpr Options::String help =
+        "Subfile names for the different order derivatives of the ylm "
+        "coefficients.";
+  };
+
+  struct MatchTime {
+    using type = double;
+    static constexpr Options::String help =
+        "Time in the H5File to get the coefficients at. Will likely be the "
+        "same as the initial time";
+  };
+
+  struct MatchTimeEpsilon {
+    using type = Options::Auto<double>;
+    static constexpr Options::String help =
+        "Look for times in the H5File within this epsilon of the match time. "
+        "This is to avoid having to know the exact time to all digits. Default "
+        "is 1e-12.";
+  };
+
+  struct Y00Coef {
+    using type = Options::Auto<std::array<double, 3>, Options::AutoLabel::None>;
+    static constexpr Options::String help =
+        "The 00 coefficient of the shape map. All derivs will be set to zero. "
+        "(Not sure if you need this, but adding it just in case)";
+  };
+
+  using options = tmpl::list<H5Filename, SubfileNames, MatchTime,
+                             MatchTimeEpsilon, Y00Coef>;
+
+  static constexpr Options::String help = {
+      "Strings that locate ylm coefficients for ringdown domain."};
+
+  std::string h5_filename{};
+  std::array<std::string, 3> subfile_names{};
+  double match_time{};
+  std::optional<double> match_time_epsilon{};
+  std::optional<std::array<double, 3>> y00_coef{};
+};
+
 // Label for shape map options
 struct Spherical {};
 
@@ -94,6 +147,9 @@ struct TimeDependentMapOptions {
   using GridToInertialComposition =
       domain::CoordinateMap<Frame::Grid, Frame::Inertial, ShapeMap,
                             RotScaleTransMap>;
+  using GridToInertialComposition2 =
+      domain::CoordinateMap<Frame::Grid, Frame::Inertial, IdentityMap,
+                            RotScaleTransMap>;
   using GridToInertialSimple =
       domain::CoordinateMap<Frame::Grid, Frame::Inertial, RotScaleTransMap>;
   using DistortedToInertialComposition =
@@ -109,7 +165,7 @@ struct TimeDependentMapOptions {
                  IdentityForComposition<Frame::Distorted, Frame::Inertial>,
                  GridToDistortedComposition, GridToInertialShapeMap,
                  GridToInertialSimple, GridToInertialComposition,
-                 DistortedToInertialComposition>;
+                 GridToInertialComposition2, DistortedToInertialComposition>;
 
   /// \brief The initial time of the functions of time.
   struct InitialTime {
@@ -119,30 +175,30 @@ struct TimeDependentMapOptions {
   };
 
   struct ShapeMapOptions {
-    using type = ShapeMapOptions;
+    using type = Options::Auto<ShapeMapOptions, Options::AutoLabel::None>;
     static std::string name() { return "ShapeMap"; }
     static constexpr Options::String help = {
         "Options for a time-dependent shape map in the inner-most shell of the "
         "domain."};
 
     struct LMax {
-      using type = size_t;
+      using type = size_t;  // Options::Auto<size_t>;
       static constexpr Options::String help = {
           "Initial LMax for the shape map."};
     };
 
     struct InitialValues {
-      using type =
-          Options::Auto<std::variant<KerrSchildFromBoyerLindquist>, Spherical>;
+      using type = Options::Auto<
+          std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile>, Spherical>;
       static constexpr Options::String help = {
           "Initial Ylm coefficients for the shape map. Specify 'Spherical' for "
           "all coefficients to be initialized to zero."};
     };
-
     using options = tmpl::list<LMax, InitialValues>;
 
     size_t l_max{};
-    std::optional<std::variant<KerrSchildFromBoyerLindquist>> initial_values{};
+    std::optional<std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile>>
+        initial_values{};
   };
 
   struct RotationMapOptions {
@@ -169,8 +225,7 @@ struct TimeDependentMapOptions {
     using options = tmpl::list<InitialValues, DecayTimescaleRotation>;
 
     std::array<std::array<double, 4>, 3> initial_values{};
-    double decay_timescale{
-        std::numeric_limits<double>::signaling_NaN()};
+    double decay_timescale{std::numeric_limits<double>::signaling_NaN()};
   };
 
   struct ExpansionMapOptions {
@@ -251,10 +306,12 @@ struct TimeDependentMapOptions {
   TimeDependentMapOptions() = default;
 
   TimeDependentMapOptions(
-      double initial_time, const ShapeMapOptions& shape_map_options,
+      double initial_time,
+      const std::optional<ShapeMapOptions>& shape_map_options,
       std::optional<RotationMapOptions> rotation_map_options,
       std::optional<ExpansionMapOptions> expansion_map_options,
-      std::optional<TranslationMapOptions> translation_map_options);
+      std::optional<TranslationMapOptions> translation_map_options,
+      const Options::Context& context = {});
 
   /*!
    * \brief Create the function of time map using the options that were
@@ -337,7 +394,7 @@ struct TimeDependentMapOptions {
   RotScaleTransMap inner_rot_scale_trans_map_{};
   RotScaleTransMap transition_rot_scale_trans_map_{};
 
-  ShapeMapOptions shape_map_options_{};
+  std::optional<ShapeMapOptions> shape_map_options_{};
   std::optional<RotationMapOptions> rotation_map_options_{};
   std::optional<ExpansionMapOptions> expansion_map_options_{};
   std::optional<TranslationMapOptions> translation_map_options_{};
