@@ -11,11 +11,13 @@ import numpy as np
 import yaml
 from rich.pretty import pretty_repr
 
-import spectre.Evolution.Ringdown as Ringdown
 import spectre.IO.H5 as spectre_h5
+from spectre.DataStructures import DataVector
 from spectre.Domain import deserialize_functions_of_time
 from spectre.SphericalHarmonics import Strahlkorper, ylm_legend_and_data
 from spectre.support.Schedule import schedule, scheduler_options
+# next import out of order to avoid Unrecognized PUP::able::PUP_ID error
+import spectre.Evolution.Ringdown as Ringdown
 
 logger = logging.getLogger(__name__)
 
@@ -264,14 +266,17 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
 
     # QUESTION: do I need to use modal coefficients here? And assuming I do,
     # do I need to multiply the coefficients by -1 still?
+    fit_ahc_coefs_dv = -DataVector(fit_ahc_coefs)
+    fit_ahc_dt_coefs_dv = -DataVector(fit_ahc_dt_coefs)
+    fit_ahc__dt2coefs_dv = -DataVector(fit_ahc_dt2_coefs)
     fit_ahc_strahlkorper = Strahlkorper(
-        ahc_lmax, ahc_lmax, fit_ahc_coefs, ahc_center
+        ahc_lmax, ahc_lmax, fit_ahc_coefs_dv, ahc_center
     )
     fit_ahc_dt_strahlkorper = Strahlkorper(
-        ahc_lmax, ahc_lmax, fit_ahc_dt_coefs, ahc_center
+        ahc_lmax, ahc_lmax, fit_ahc_dt_coefs_dv, ahc_center
     )
     fit_ahc_dt2_strahlkorper = Strahlkorper(
-        ahc_lmax, ahc_lmax, fit_ahc_dt2_coefs, ahc_center
+        ahc_lmax, ahc_lmax, fit_ahc_dt2_coefs_dv, ahc_center
     )
     legend_ahc, fit_ahc_coefs_to_write = ylm_legend_and_data(
         fit_ahc_strahlkorper, match_time, ahc_lmax
