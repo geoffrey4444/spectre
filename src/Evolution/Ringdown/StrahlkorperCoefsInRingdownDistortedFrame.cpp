@@ -8,7 +8,6 @@
 #include "Domain/StrahlkorperTransformations.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/IO/ReadSurfaceYlm.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
-#include "Parallel/Printf.hpp"
 #include "Utilities/Gsl.hpp"
 
 #include <array>
