@@ -11,10 +11,11 @@ import numpy as np
 import yaml
 from rich.pretty import pretty_repr
 
+from spectre.Domain import deserialize_functions_of_time
 import spectre.Evolution.Ringdown as Ringdown
 import spectre.IO.H5 as spectre_h5
-from spectre.DataStructures import DataVector
-from spectre.Domain import deserialize_functions_of_time
+from spectre.SphericalHarmonics import Strahlkorper
+from spectre.SphericalHarmonics import ylm_legend_and_data
 from spectre.support.Schedule import schedule, scheduler_options
 
 logger = logging.getLogger(__name__)
@@ -107,9 +108,11 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
             fot_subfile_path = fot_subfile_path.split(".")[0]
         volfile = h5file.get_vol("/" + fot_subfile_path)
         obs_ids = volfile.list_observation_ids()
+        logger.info("About to deserialize functions of time")
         fot_times = list(map(volfile.get_observation_value, obs_ids))
         serialized_fots = volfile.get_functions_of_time(obs_ids[which_obs_id])
         functions_of_time = deserialize_functions_of_time(serialized_fots)
+        logger.info("Deserialized functions of time")
 
         # The inspiral expansion map includes two functions of time:
         # an expansion map allowing the black holes to move closer together in
@@ -148,12 +151,12 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
         )
 
         # Print out coefficients for insertion into BBH domain
-        logger.debug("Expansion: ", exp_func_and_2_derivs)
-        logger.debug("ExpansionOutrBdry: ", exp_outer_bdry_func_and_2_derivs)
-        logger.debug("Rotation: ", rot_func_and_2_derivs)
-        logger.debug("Match time: ", match_time)
-        logger.debug("Settling timescale: ", settling_timescale)
-        logger.debug("Lmax: ", ahc_lmax)
+        logger.info("Expansion: ", exp_func_and_2_derivs)
+        logger.info("ExpansionOutrBdry: ", exp_outer_bdry_func_and_2_derivs)
+        logger.info("Rotation: ", rot_func_and_2_derivs)
+        logger.info("Match time: ", match_time)
+        logger.info("Settling timescale: ", settling_timescale)
+        logger.info("Lmax: ", ahc_lmax)
 
         shape_coefs["Expansion"]: exp_func_and_2_derivs
         shape_coefs["ExpansionOutrBdry"]: exp_outer_bdry_func_and_2_derivs
@@ -227,24 +230,24 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
             -number_of_steps:
         ]
 
-    logger.debug("AhC times available: " + str(ahc_times.shape[0]))
-    logger.debug(
+    logger.info("AhC times available: " + str(ahc_times.shape[0]))
+    logger.info(
         "AhC available time range: "
         + str(np.min(ahc_times))
         + " - "
         + str(np.max(ahc_times))
     )
-    logger.debug("AhC times used: " + str(ahc_times_for_fit.shape[0]))
-    logger.debug(
+    logger.info("AhC times used: " + str(ahc_times_for_fit.shape[0]))
+    logger.info(
         "AhC used time range: "
         + str(np.min(ahc_times_for_fit))
         + " - "
         + str(np.max(ahc_times_for_fit))
     )
-    logger.debug(
+    logger.info(
         "Coef times available: " + str(coefs_at_different_times.shape[0])
     )
-    logger.debug(
+    logger.info(
         "Coef times used: " + str(coefs_at_different_times_for_fit.shape[0])
     )
 
@@ -259,37 +262,49 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
     # Note: assumes no translation, so inertial and distorted centers are the
     # same, i.e. are both the origin. A future update will incorporate
     # translation.
-    ahc_legend[1] = ahc_legend[1].replace("Inertial", "Distorted")
-    ahc_legend[2] = ahc_legend[2].replace("Inertial", "Distorted")
-    ahc_legend[3] = ahc_legend[3].replace("Inertial", "Distorted")
 
-    fit_ahc_coefs_dv = -DataVector(fit_ahc_coefs)
-    fit_ahc_dt_coefs_dv = -DataVector(fit_ahc_dt_coefs)
-    fit_ahc_dt2_coefs_dv = -DataVector(fit_ahc_dt2_coefs)
-    fit_ahc_coefs_to_write = Ringdown.wrap_fill_ylm_data(
-        fit_ahc_coefs_dv, match_time, ahc_center, ahc_lmax
+    # QUESTION: do I need to use modal coefficients here? And assuming I do,
+    # do I need to multiply the coefficients by -1 still?
+    fit_ahc_strahlkorper = Strahlkorper(
+        ahc_lmax, ahc_lmax, fit_ahc_coefs, ahc_center
     )
-    fit_ahc_dt_coefs_to_write = Ringdown.wrap_fill_ylm_data(
-        fit_ahc_dt_coefs_dv, match_time, ahc_center, ahc_lmax
+    fit_ahc_dt_strahlkorper = Strahlkorper(
+        ahc_lmax, ahc_lmax, fit_ahc_dt_coefs, ahc_center
     )
-    fit_ahc_dt2_coefs_to_write = Ringdown.wrap_fill_ylm_data(
-        fit_ahc_dt2_coefs_dv, match_time, ahc_center, ahc_lmax
+    fit_ahc_dt2_strahlkorper = Strahlkorper(
+        ahc_lmax, ahc_lmax, fit_ahc_dt2_coefs, ahc_center
     )
+    legend_ahc, fit_ahc_coefs_to_write = ylm_legend_and_data(
+        fit_ahc_strahlkorper, match_time, ahc_lmax
+    )
+    legend_ahc_dt, fit_ahc_dt_coefs_to_write = ylm_legend_and_data(
+        fit_ahc_dt_strahlkorper, match_time, ahc_lmax
+    )
+    legend_ahc_dt2, fit_ahc_dt2_coefs_to_write = ylm_legend_and_data(
+        fit_ahc_dt2_strahlkorper, match_time, ahc_lmax
+    )
+
     with spectre_h5.H5File(file_name=path_to_output_h5, mode="a") as h5file:
         ahc_datfile = h5file.insert_dat(
-            path="/" + output_subfile_ahc, legend=ahc_legend, version=0
+            path="/" + output_subfile_ahc,
+            legend=legend_ahc.replace("Inertial", "Distorted"),
+            version=0,
         )
         ahc_datfile.append(fit_ahc_coefs_to_write)
 
     with spectre_h5.H5File(file_name=path_to_output_h5, mode="a") as h5file:
         ahc_dt_datfile = h5file.insert_dat(
-            path="/" + output_subfile_dt_ahc, legend=ahc_legend, version=0
+            path="/" + output_subfile_dt_ahc,
+            legend=legend_ahc_dt.replace("Inertial", "Distorted"),
+            version=0,
         )
         ahc_dt_datfile.append(fit_ahc_dt_coefs_to_write)
 
     with spectre_h5.H5File(file_name=path_to_output_h5, mode="a") as h5file:
         ahc_dt2_datfile = h5file.insert_dat(
-            path="/" + output_subfile_dt2_ahc, legend=ahc_legend, version=0
+            path="/" + output_subfile_dt2_ahc,
+            legend=legend_ahc_dt2.replace("Inertial", "Distorted"),
+            version=0,
         )
         ahc_dt2_datfile.append(fit_ahc_dt2_coefs_to_write)
 
@@ -388,7 +403,7 @@ def start_ringdown(
         refinement_level=refinement_level,
         polynomial_order=polynomial_order,
     )
-    logger.debug(f"Ringdown parameters: {pretty_repr(ringdown_params)}")
+    logger.info(f"Ringdown parameters: {pretty_repr(ringdown_params)}")
 
     # Compute ringdown shape coefficients and function of time info
     # for ringdown
@@ -400,26 +415,23 @@ def start_ringdown(
         fot_times = np.array(list(map(volfile.get_observation_value, obs_ids)))
         which_obs_id = np.argmin(np.abs(fot_times - match_time))
 
-        logger.debug("Desired match time: " + str(match_time))
-        logger.debug("Selected ObservationID: " + str(which_obs_id))
-        logger.debug("Selected match time: " + str(fot_times[which_obs_id]))
-        serialized_fots = volfile.get_functions_of_time(obs_ids[which_obs_id])
-        functions_of_time = deserialize_functions_of_time(serialized_fots)
-        logger.debug("Succeeded in reading in functions of time:")
-        logger.debug(functions_of_time)
+        logger.info("Desired match time: " + str(match_time))
+        logger.info("Selected ObservationID: " + str(which_obs_id))
+        logger.info("Selected match time: " + str(fot_times[which_obs_id]))
 
     coefs, fot_info = compute_ahc_coefs_in_ringdown_distorted_frame(
-        str(inspiral_run_dir) + "/" + str(path_to_ah_h5),
+        str(path_to_ah_h5),
         ahc_subfile_path,
-        str(inspiral_run_dir) + "/" + str(path_to_fot_h5),
+        str(path_to_fot_h5),
         fot_subfile_path,
-        str(inspiral_run_dir) + "/" + str(path_to_output_h5),
+        str(path_to_output_h5),
         output_subfile_prefix,
         number_of_steps,
         which_obs_id,
         settling_timescale,
         zero_coefs,
     )
+    logger.info("Obtained ringdown coefs")
 
     # Add additional parameters to substitute in ringdown template
     # Primarily, these will initialize functions of time

@@ -32,7 +32,9 @@ std::vector<DataVector> strahlkorper_coefs_in_ringdown_distorted_frame(
   const size_t l_max{ahc_inertial_h5[0].l_max()};
 
   const domain::creators::sphere::TimeDependentMapOptions::ShapeMapOptions
-      shape_map_options{l_max, std::nullopt};
+      shape_map_options{
+          l_max, domain::creators::time_dependent_options::
+                     KerrSchildFromBoyerLindquist{1.0, {{0.0, 0.0, 0.0}}}};
   const domain::creators::sphere::TimeDependentMapOptions::ExpansionMapOptions
       expansion_map_options{exp_func_and_2_derivs, settling_timescale,
                             exp_outer_bdry_func_and_2_derivs,
@@ -40,7 +42,7 @@ std::vector<DataVector> strahlkorper_coefs_in_ringdown_distorted_frame(
   const domain::creators::sphere::TimeDependentMapOptions::RotationMapOptions
       rotation_map_options{rot_func_and_2_derivs, settling_timescale};
   const domain::creators::sphere::TimeDependentMapOptions
-      time_dependent_map_options{match_time, std::nullopt,
+      time_dependent_map_options{match_time, shape_map_options,
                                  rotation_map_options, expansion_map_options,
                                  std::nullopt};
   const domain::creators::Sphere domain_creator{
@@ -50,7 +52,7 @@ std::vector<DataVector> strahlkorper_coefs_in_ringdown_distorted_frame(
       domain::creators::Sphere::Excision{nullptr},
       static_cast<size_t>(0),
       static_cast<size_t>(5),
-      true,
+      false,
       std::nullopt,
       {100.0},
       domain::CoordinateMaps::Distribution::Linear,
