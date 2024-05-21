@@ -11,11 +11,10 @@ import numpy as np
 import yaml
 from rich.pretty import pretty_repr
 
-from spectre.Domain import deserialize_functions_of_time
 import spectre.Evolution.Ringdown as Ringdown
 import spectre.IO.H5 as spectre_h5
-from spectre.SphericalHarmonics import Strahlkorper
-from spectre.SphericalHarmonics import ylm_legend_and_data
+from spectre.Domain import deserialize_functions_of_time
+from spectre.SphericalHarmonics import Strahlkorper, ylm_legend_and_data
 from spectre.support.Schedule import schedule, scheduler_options
 
 logger = logging.getLogger(__name__)
