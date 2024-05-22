@@ -267,9 +267,9 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
 
     # QUESTION: do I need to use modal coefficients here? And assuming I do,
     # do I need to multiply the coefficients by -1 still?
-    fit_ahc_coef_mv = -ModalVector(fit_ahc_coefs)
-    fit_ahc_dt_coef_mv = -ModalVector(fit_ahc_dt_coefs)
-    fit_ahc_dt2_coef_mv = -ModalVector(fit_ahc_dt2_coefs)
+    fit_ahc_coef_mv = ModalVector(fit_ahc_coefs)
+    fit_ahc_dt_coef_mv = ModalVector(fit_ahc_dt_coefs)
+    fit_ahc_dt2_coef_mv = ModalVector(fit_ahc_dt2_coefs)
     fit_ahc_strahlkorper = Strahlkorper(
         ahc_lmax, ahc_lmax, fit_ahc_coef_mv, ahc_center
     )
