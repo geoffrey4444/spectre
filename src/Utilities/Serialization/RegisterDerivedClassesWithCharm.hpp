@@ -7,6 +7,7 @@
 #pragma once
 
 #include <boost/algorithm/string.hpp>
+#include <iostream>
 #include <pup.h>
 #include <typeinfo>
 
@@ -64,8 +65,26 @@ void register_classes_with_charm(
     // We use PUPable_reg2 because this takes as a second argument the name of
     // the class (as a `const char*`), while PUPable_reg converts the argument
     // verbatim to a string using the `#` preprocessor operator.
-    PUPable_reg2(class_to_register,
-                 registration_name<class_to_register>().c_str());
+    if (class_to_register::get_static_PUP_ID() == 0) {
+      PUPable_reg2(class_to_register,
+                  registration_name<class_to_register>().c_str());
+      std::cout << "Registered " << registration_name<class_to_register>()
+                << " = ";
+      auto hash = class_to_register::get_static_PUP_ID().hash;
+      for (size_t i = 0; i < 8; ++i) {
+        std::cout << std::hex << static_cast<size_t>(hash[i]);
+      }
+      std::cout << "\n";
+    } else {
+      std::cout << "Avoiding duplicate registration of "
+                << registration_name<class_to_register>()
+                << " = ";
+      auto hash = class_to_register::get_static_PUP_ID().hash;
+      for (size_t i = 0; i < 8; ++i) {
+        std::cout << std::hex << static_cast<size_t>(hash[i]);
+      }
+      std::cout << "\n";
+    }
   };
   (void)helper;
   EXPAND_PACK_LEFT_TO_RIGHT(helper(tmpl::type_<Registrants>{}));
