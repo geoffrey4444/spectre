@@ -8,6 +8,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <iostream>
+#include <pthread.h>
 #include <pup.h>
 #include <typeinfo>
 #include <unistd.h>
@@ -62,6 +63,7 @@ template <typename... Registrants>
 void register_classes_with_charm(
     const tmpl::list<Registrants...> /*meta*/ = {}) {
   std::cout << "Current, Parent PID: " << ::getpid() << ", " << ::getppid()
+            << " - thread " << ::pthread_self() << " "
             << " called register_classes_with_charm()\n";
   const auto helper = [](auto class_v) {
     using class_to_register = typename decltype(class_v)::type;
@@ -78,7 +80,7 @@ void register_classes_with_charm(
         std::cout << std::hex << static_cast<size_t>(hash[i]);
       }
       std::cout << " on (current, parent) PID (" << ::getpid() << ", "
-                << ::getppid() << ")\n";
+                << ::getppid() << ") - thread " << ::pthread_self() << "\n";
     } else {
       std::cout << "Avoiding duplicate registration of "
                 << registration_name<class_to_register>()
@@ -88,7 +90,7 @@ void register_classes_with_charm(
         std::cout << std::hex << static_cast<size_t>(hash[i]);
       }
       std::cout << " on (current, parent) PID (" << ::getpid() << ", "
-                << ::getppid() << ")\n";
+                << ::getppid() << ") - thread " << ::pthread_self() << "\n";
     }
   };
   (void)helper;
