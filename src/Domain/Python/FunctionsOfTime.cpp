@@ -20,7 +20,7 @@ namespace py = pybind11;
 namespace domain::py_bindings {
 
 void bind_functions_of_time(py::module& m) {  // NOLINT
-  domain::FunctionsOfTime::register_derived_with_charm();
+  // domain::FunctionsOfTime::register_derived_with_charm();
   py::class_<FunctionsOfTime::FunctionOfTime>(m, "FunctionOfTime")
       .def("time_bounds", &FunctionsOfTime::FunctionOfTime::time_bounds)
       .def("func", &FunctionsOfTime::FunctionOfTime::func, py::arg("t"))
@@ -37,6 +37,8 @@ void bind_functions_of_time(py::module& m) {  // NOLINT
             serialized_functions_of_time.data());
       },
       py::arg("serialized_functions_of_time"));
+  m.def("register_functions_of_time",
+        []() { domain::FunctionsOfTime::register_derived_with_charm(); });
 }
 
 }  // namespace domain::py_bindings

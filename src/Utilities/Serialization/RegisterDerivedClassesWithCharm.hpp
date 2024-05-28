@@ -10,6 +10,7 @@
 #include <iostream>
 #include <pup.h>
 #include <typeinfo>
+#include <unistd.h>
 
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
@@ -60,6 +61,8 @@ std::string registration_name() {
 template <typename... Registrants>
 void register_classes_with_charm(
     const tmpl::list<Registrants...> /*meta*/ = {}) {
+  std::cout << "Current, Parent PID: " << ::getpid() << ", " << ::getppid()
+            << " called register_classes_with_charm()\n";
   const auto helper = [](auto class_v) {
     using class_to_register = typename decltype(class_v)::type;
     // We use PUPable_reg2 because this takes as a second argument the name of
@@ -74,7 +77,8 @@ void register_classes_with_charm(
       for (size_t i = 0; i < 8; ++i) {
         std::cout << std::hex << static_cast<size_t>(hash[i]);
       }
-      std::cout << "\n";
+      std::cout << " on (current, parent) PID (" << ::getpid() << ", "
+                << ::getppid() << ")\n";
     } else {
       std::cout << "Avoiding duplicate registration of "
                 << registration_name<class_to_register>()
@@ -83,7 +87,8 @@ void register_classes_with_charm(
       for (size_t i = 0; i < 8; ++i) {
         std::cout << std::hex << static_cast<size_t>(hash[i]);
       }
-      std::cout << "\n";
+      std::cout << " on (current, parent) PID (" << ::getpid() << ", "
+                << ::getppid() << ")\n";
     }
   };
   (void)helper;
