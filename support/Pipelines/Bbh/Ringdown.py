@@ -11,14 +11,13 @@ import numpy as np
 import yaml
 from rich.pretty import pretty_repr
 
+# next import out of order to avoid Unrecognized PUP::able::PUP_ID error
+import spectre.Evolution.Ringdown as Ringdown
 import spectre.IO.H5 as spectre_h5
 from spectre.DataStructures import ModalVector
 from spectre.Domain import deserialize_functions_of_time
 from spectre.SphericalHarmonics import Strahlkorper, ylm_legend_and_data
 from spectre.support.Schedule import schedule, scheduler_options
-
-# next import out of order to avoid Unrecognized PUP::able::PUP_ID error
-import spectre.Evolution.Ringdown as Ringdown
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +141,6 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
             Ringdown.strahlkorper_coefs_in_ringdown_distorted_frame(
                 path_to_ah_h5,
                 ahc_subfile_path,
-                ahc_times,
                 number_of_steps,
                 match_time,
                 settling_timescale,
