@@ -151,12 +151,12 @@ def compute_ahc_coefs_in_ringdown_distorted_frame(
         )
 
         # Print out coefficients for insertion into BBH domain
-        logger.info("Expansion: ", exp_func_and_2_derivs)
-        logger.info("ExpansionOutrBdry: ", exp_outer_bdry_func_and_2_derivs)
-        logger.info("Rotation: ", rot_func_and_2_derivs)
-        logger.info("Match time: ", match_time)
-        logger.info("Settling timescale: ", settling_timescale)
-        logger.info("Lmax: ", ahc_lmax)
+        logger.info("Expansion: " + str(exp_func_and_2_derivs))
+        logger.info("ExpansionOutrBdry: " + str(exp_outer_bdry_func_and_2_derivs))
+        logger.info("Rotation: " + str(rot_func_and_2_derivs))
+        logger.info("Match time: " + str(match_time))
+        logger.info("Settling timescale: " + str(settling_timescale))
+        logger.info("Lmax: " + str(ahc_lmax))
 
         shape_coefs["Expansion"]: exp_func_and_2_derivs
         shape_coefs["ExpansionOutrBdry"]: exp_outer_bdry_func_and_2_derivs

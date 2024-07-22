@@ -85,6 +85,13 @@ struct TimeDependentMapOptions {
         "The initial time of the functions of time"};
   };
 
+  /// \brief The initial time of the functions of time.
+  struct InitialTimeForShapeMap {
+    using type = std::optional<double>;
+    static constexpr Options::String help = {
+        "The initial time of the shape functions of time."};
+  };
+
   using ShapeMapOptions =
       time_dependent_options::ShapeMapOptions<false, domain::ObjectLabel::None>;
 
@@ -184,8 +191,10 @@ struct TimeDependentMapOptions {
     std::array<std::array<double, 3>, 3> initial_values{};
   };
 
-  using options = tmpl::list<InitialTime, ShapeMapOptions, RotationMapOptions,
-                             ExpansionMapOptions, TranslationMapOptions>;
+  using options = tmpl::list<InitialTime, 
+                             ShapeMapOptions, RotationMapOptions,
+                             ExpansionMapOptions, TranslationMapOptions,
+                             InitialTimeForShapeMap>;
   static constexpr Options::String help{
       "The options for all the hard-coded time dependent maps in the "
       "Sphere domain."};
@@ -193,10 +202,12 @@ struct TimeDependentMapOptions {
   TimeDependentMapOptions() = default;
 
   TimeDependentMapOptions(
-      double initial_time, std::optional<ShapeMapOptions> shape_map_options,
+      double initial_time,
+      std::optional<ShapeMapOptions> shape_map_options,
       std::optional<RotationMapOptions> rotation_map_options,
       std::optional<ExpansionMapOptions> expansion_map_options,
-      std::optional<TranslationMapOptions> translation_map_options);
+      std::optional<TranslationMapOptions> translation_map_options,
+      std::optional<double> initial_time_for_shape_map = std::nullopt);
 
   /*!
    * \brief Create the function of time map using the options that were
@@ -281,6 +292,7 @@ struct TimeDependentMapOptions {
 
  private:
   double initial_time_{std::numeric_limits<double>::signaling_NaN()};
+  double initial_time_for_shape_map_{std::numeric_limits<double>::signaling_NaN()};
   std::optional<ShapeMap> shape_map_{};
   RotScaleTransMap inner_rot_scale_trans_map_{};
   RotScaleTransMap transition_rot_scale_trans_map_{};
