@@ -45,6 +45,7 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
   using argument_tags =
       tmpl::list<DampingFunctionGamma0<SpatialDim, Frame>,
+                 gr::Tags::Lapse<DataVector>,
                  domain::Tags::Coordinates<SpatialDim, Frame>, ::Tags::Time,
                  ::domain::Tags::FunctionsOfTime>;
   using return_type = Scalar<DataVector>;
@@ -53,12 +54,14 @@ struct ConstraintGamma0Compute : ConstraintGamma0, db::ComputeTag {
       const gsl::not_null<Scalar<DataVector>*> gamma,
       const ::gh::ConstraintDamping::DampingFunction<SpatialDim, Frame>&
           damping_function,
+      const Scalar<DataVector>& lapse,
       const tnsr::I<DataVector, SpatialDim, Frame>& coords, const double time,
       const std::unordered_map<
           std::string,
           std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time) {
     damping_function(gamma, coords, time, functions_of_time);
+    get(*gamma) /= get(lapse);
   }
 
   using base = ConstraintGamma0;
@@ -105,6 +108,7 @@ template <size_t SpatialDim, typename Frame>
 struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
   using argument_tags =
       tmpl::list<DampingFunctionGamma2<SpatialDim, Frame>,
+                 gr::Tags::Lapse<DataVector>,
                  domain::Tags::Coordinates<SpatialDim, Frame>, ::Tags::Time,
                  ::domain::Tags::FunctionsOfTime>;
   using return_type = Scalar<DataVector>;
@@ -113,12 +117,14 @@ struct ConstraintGamma2Compute : ConstraintGamma2, db::ComputeTag {
       const gsl::not_null<Scalar<DataVector>*> gamma,
       const ::gh::ConstraintDamping::DampingFunction<SpatialDim, Frame>&
           damping_function,
+      const Scalar<DataVector>& lapse,
       const tnsr::I<DataVector, SpatialDim, Frame>& coords, const double time,
       const std::unordered_map<
           std::string,
           std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time) {
     damping_function(gamma, coords, time, functions_of_time);
+    get(*gamma) /= get(lapse);
   }
 
   using base = ConstraintGamma2;
