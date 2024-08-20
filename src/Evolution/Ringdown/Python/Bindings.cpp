@@ -6,7 +6,7 @@
 // #include <pybind11/stl.h> if you want stl containers
 
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
-#include "Domain/Creators/SphereTimeDependentMaps.hpp"
+#include "Domain/Creators/Sphere.hpp"
 #include "Domain/Creators/TimeDependence/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Evolution/Ringdown/StrahlkorperCoefsInRingdownDistortedFrame.hpp"
