@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -193,8 +194,24 @@ SPECTRE_TEST_CASE("Unit.Time.Actions.ChangeStepSize", "[Unit][Time][Actions]") {
           slab.end() - slab.duration() / 4, slab_length / 5.,
           -slab.duration() / 8, reject_step);
     check(false, std::make_unique<TimeSteppers::AdamsBashforth>(1), {},
-          slab.end() - slab.duration() / 4, slab_length, -slab.duration() / 4,
-          reject_step);
+          slab.end() - slab.duration() / 4, slab_length,
+          reject_step ? -slab.duration() / 8 : -slab.duration() / 4,
+          reject_step ? std::optional{std::make_unique<StepRejector>(0.5)}
+                      : std::nullopt);
+
+    // Check for roundoff issues
+    check(true, std::make_unique<TimeSteppers::AdamsBashforth>(1), {},
+          slab.start() + slab.duration() / 4,
+          slab_length / 16. / (1.0 + std::numeric_limits<double>::epsilon()),
+          slab.duration() / 32,
+          reject_step ? std::optional{std::make_unique<StepRejector>(0.5)}
+                      : std::nullopt);
+    check(false, std::make_unique<TimeSteppers::AdamsBashforth>(1), {},
+          slab.end() - slab.duration() / 4,
+          slab_length / 16. / (1.0 + std::numeric_limits<double>::epsilon()),
+          -slab.duration() / 32,
+          reject_step ? std::optional{std::make_unique<StepRejector>(0.5)}
+                      : std::nullopt);
   }
 
   {
