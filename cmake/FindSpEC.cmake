@@ -21,7 +21,7 @@ endif()
 
 find_library(
   SPEC_PACKAGED_EXPORTER_LIB
-  NAMES libPackagedExporter.a
+  NAMES libPackagedExporter.so
   PATHS ${SPEC_EXPORTER_ROOT}
   NO_DEFAULT_PATHS
   )
