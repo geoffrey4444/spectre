@@ -107,6 +107,7 @@
 #include "ParallelAlgorithms/Amr/Criteria/DriveToTarget.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/Random.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/TruncationError.hpp"
+#include "ParallelAlgorithms/Amr/Events/RefineMesh.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/CopyFromCreatorOrLeaveAsIs.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/DefaultInitialize.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/Tensors.hpp"
@@ -475,6 +476,7 @@ struct EvolutionMetavars {
                 control_system::metafunctions::control_system_events<
                     control_systems>,
                 Events::time_events<system>,
+                amr::Events::RefineMesh,
                 dg::Events::ObserveTimeStepVolume<3>>>>,
         tmpl::pair<control_system::size::State,
                    control_system::size::States::factory_creatable_states>,
