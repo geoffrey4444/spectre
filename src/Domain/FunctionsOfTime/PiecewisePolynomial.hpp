@@ -44,6 +44,9 @@ class PiecewisePolynomial : public FunctionOfTime {
 
   auto get_clone() const -> std::unique_ptr<FunctionOfTime> override;
 
+  std::unique_ptr<FunctionOfTime> create_at_time(
+      double t, double expiration_time) const override;
+
   // clang-tidy: google-runtime-references
   // clang-tidy: cppcoreguidelines-owning-memory,-warnings-as-errors
   WRAPPED_PUPable_decl_template(PiecewisePolynomial<MaxDeriv>);  // NOLINT
