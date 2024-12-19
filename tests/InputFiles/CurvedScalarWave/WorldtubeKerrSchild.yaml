@@ -72,11 +72,14 @@ DomainCreator:
     TimeDependentMaps:
       InitialTime: 0.
       ExpansionMap:
-        InitialValues: [1., 0.]
+        InitialValues: [1., 0., 0.]
         AsymptoticVelocityOuterBoundary: 0.
-        DecayTimescaleOuterBoundaryVelocity: 1.
+        DecayTimescaleOuterBoundary: 1.
       RotationMap:
-        InitialAngularVelocity: [0., 0., 0.08944271909999159]
+        InitialQuaternions: [[1., 0., 0., 0.]]
+        InitialAngles:
+          - [0., 0., 0.]
+          - [0., 0., 0.08944271909999159]
       TranslationMap:
         InitialValues: [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
       ShapeMapA:
