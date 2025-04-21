@@ -103,6 +103,8 @@
 #include "ParallelAlgorithms/Amr/Criteria/DriveToTarget.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/Random.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/TruncationError.hpp"
+#include "ParallelAlgorithms/Amr/Events/ObserveAmrCriteria.hpp"
+#include "ParallelAlgorithms/Amr/Events/RefineMesh.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/CopyFromCreatorOrLeaveAsIs.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/DefaultInitialize.hpp"
 #include "ParallelAlgorithms/Amr/Projectors/Tensors.hpp"
@@ -449,6 +451,10 @@ struct EvolutionMetavars {
         tmpl::pair<
             amr::Criterion,
             tmpl::list<
+                amr::Criteria::Persson<
+                    volume_dim, typename system::variables_tag::tags_list>,
+                amr::Criteria::Loehner<
+                    volume_dim, typename system::variables_tag::tags_list>,
                 amr::Criteria::DriveToTarget<volume_dim>,
                 amr::Criteria::Constraints<
                     volume_dim,
@@ -473,6 +479,8 @@ struct EvolutionMetavars {
         tmpl::pair<
             Event,
             tmpl::flatten<tmpl::list<
+                amr::Events::RefineMesh,
+                amr::Events::ObserveAmrCriteria<EvolutionMetavars>,
                 intrp::Events::Interpolate<3, AhA, interpolator_source_vars>,
                 intrp::Events::Interpolate<3, AhB, interpolator_source_vars>,
                 ah::Events::FindCommonHorizon<
