@@ -80,7 +80,7 @@ struct EvolutionMetavars : public ScalarTensorTemplateBase<EvolutionMetavars> {
     using compute_items_on_target =
         ::ah::compute_items_on_target<volume_dim, Frame::Inertial>;
     using compute_target_points =
-        intrp::TargetPoints::ApparentHorizon<AhA, ::Frame::Inertial>;
+        ah::TargetPoints::ApparentHorizon<AhA, ::Frame::Inertial>;
     using post_interpolation_callbacks = tmpl::list<
         intrp::callbacks::FindApparentHorizon<AhA, ::Frame::Inertial>>;
     using horizon_find_failure_callbacks =
