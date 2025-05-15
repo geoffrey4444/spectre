@@ -101,6 +101,8 @@
 #include "ParallelAlgorithms/Amr/Criteria/Constraints.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/Criterion.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/DriveToTarget.hpp"
+#include "ParallelAlgorithms/Amr/Criteria/Loehner.hpp"
+#include "ParallelAlgorithms/Amr/Criteria/Persson.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/Random.hpp"
 #include "ParallelAlgorithms/Amr/Criteria/TruncationError.hpp"
 #include "ParallelAlgorithms/Amr/Events/ObserveAmrCriteria.hpp"
