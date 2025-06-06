@@ -197,7 +197,7 @@ struct ReceiveVolumeData {
                                     make_not_null(&fast_flow));
 
             // If we didn't error, move on to the next horizon find
-            break;
+            break;  // TODO not a todo, note: break out of iterations loop
           }
 
           if (debug_print) {
@@ -296,6 +296,17 @@ struct ReceiveVolumeData {
           // If we didn't error, move on to the next horizon find
           break;
         }
+
+        // TODO: Check what the L selectors think we should do
+        //   - Done?
+        //      - Same L next time
+        //      - -L next time
+        //   - Redo +L
+
+        // There will be a no loiop between loop over times, iterations, to
+        // handle the redo case... for redo, you would reset to do more
+        // iteration
+        //
 
         // We have converged to the apparent horizon. Invoke the callbacks and
         // clean up for the next horizon find

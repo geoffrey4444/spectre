@@ -140,9 +140,10 @@ struct ObserveFieldsOnHorizon : tt::ConformsTo<ah::protocols::Callback> {
     // coefficients regardless of the current value of l_max and (b) write a
     // constant number of columns for each row of data regardless of the current
     // l_max.
-    ylm::fill_ylm_legend_and_data(make_not_null(&ylm_legend),
-                                  make_not_null(&ylm_data), strahlkorper,
-                                  time.id, strahlkorper.l_max());
+    ylm::fill_ylm_legend_and_data(
+        make_not_null(&ylm_legend), make_not_null(&ylm_data), strahlkorper,
+        time.id,
+        strahlkorper.l_max());  // TODO max L max from adaptive AH finder.
 
     const std::string ylm_subfile_name{std::string{"/"} + surface_name +
                                        "_Ylm"};

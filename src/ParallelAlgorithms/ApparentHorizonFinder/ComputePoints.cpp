@@ -27,13 +27,21 @@ bool set_current_iteration_coords(
     const std::deque<ah::Storage::PreviousSurface<Fr>>& previous_surfaces,
     const size_t max_interpolation_retries, const Domain<3>& domain,
     const domain::FunctionsOfTimeMap& functions_of_time) {
+  // TODO: e.g. if also has an "and is not redo"
   if (fast_flow.current_iteration() == 0) {
     // Need to set the first surface. If this is the very first, set it to the
     // initial guess. If not, use the previous horizon surface. The surface will
     // potentially be extrapolated below
+    // TODO: some logic so that if this is a redo, you use not initial_guess
+    // or previous surfaces...you use the previous find, prolonged
+    // E.g. wrap this in e.g. if not time_storage.is_redo() then reset current
+    // iteration, but if not, then instead current iteration is whatever it is
     current_iteration->strahlkorper = UNLIKELY(previous_surfaces.empty())
                                           ? initial_guess
                                           : previous_surfaces.front().surface;
+    // TODO: const size_t new_l_max;
+    // TOTO: current iteration -> strahlkorper =
+    // ylm::strahlkorper<Fr>{new_l_max, current_iteration->strahlkorper};
 
     // If we have zero previous_surfaces, then the initial guess is already
     // in strahlkorper, so do nothing.
@@ -62,6 +70,8 @@ bool set_current_iteration_coords(
       const double fac_0 = dt_1 * dt_2 / ((dt_1 - dt_0) * (dt_2 - dt_0));
       const double fac_1 = dt_0 * dt_2 / ((dt_2 - dt_1) * (dt_0 - dt_1));
       const double fac_2 = 1.0 - fac_0 - fac_1;
+      // TODO: Prolong or restrict the previous surfaces when you use them
+      // "previous_surfaces[0].surface.ylm_spherepack().prolong_or_restrict()"
       current_iteration->strahlkorper.coefficients() =
           fac_0 * previous_surfaces[0].surface.coefficients() +
           fac_1 * previous_surfaces[1].surface.coefficients() +
@@ -107,6 +117,7 @@ bool set_current_iteration_coords(
       if (fast_flow.current_iteration() == 0) {
         // If this is the zeroth iteration and we couldn't interpolate, then
         // just try increasing the size of the horizon by 50%
+        // TODO: NOTE: not a todo but this fixes the failed observation finders
         current_iteration->strahlkorper.coefficients()[0] *= 1.5;
       } else {
         // Otherwise move the new trial surface halfway between the current

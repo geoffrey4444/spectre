@@ -106,6 +106,8 @@ struct SingleTimeStorage {
    */
   std::unordered_map<ElementId<3>, VolumeVariables<Fr>> all_volume_variables;
 
+  // TODO: store whatever you need for redos: current L? prev L? maxL?
+  // bool: this is a redo?
   /*!
    * \brief The `Iteration` data for the current fast flow iteration
    */
