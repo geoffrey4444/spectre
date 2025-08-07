@@ -39,12 +39,14 @@
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Tags.hpp"
+#include "Options/Protocols/FactoryCreation.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
 #include "Parallel/Phase.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
 #include "ParallelAlgorithms/Actions/InitializeItems.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Callbacks/FailedHorizonFind.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Factory.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FindApparentHorizon.hpp"
@@ -192,6 +194,7 @@ void test_apparent_horizon(
   // we are in the Distorted frame, then we pick 2.2 so it's within the blocks
   // that actually have a distorted frame
   ah::HorizonOptions<Fr> apparent_horizon_opts(
+      std::vector<std::unique_ptr<ah::Criterion>>{},
       ylm::Strahlkorper<Fr>{l_max,
                             std::is_same_v<Fr, ::Frame::Distorted> ? 2.2 : 2.8,
                             {{0.0, 0.0, 0.0}}},
@@ -229,7 +232,7 @@ void test_apparent_horizon(
           : std::nullopt);
 
   ActionTesting::MockRuntimeSystem<metavars> runner{
-      {domain_creator->create_domain(), apparent_horizon_opts,
+      {domain_creator->create_domain(), std::move(apparent_horizon_opts),
        blocks_for_interpolation},
       {domain_creator->functions_of_time()}};
 
