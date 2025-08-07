@@ -48,8 +48,12 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.Initialization",
   const FastFlow expected_fast_flow{
       FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5, 100};
   const ah::HorizonOptions<Frame::Grid> horizon_options{
+      std::vector<std::unique_ptr<ah::Criterion>>{},
       ylm::Strahlkorper<Frame::Grid>{4, 2.0, std::array{0.0, 0.0, 0.0}},
-      expected_fast_flow, ::Verbosity::Debug, 3, std::nullopt};
+      expected_fast_flow,
+      ::Verbosity::Debug,
+      3,
+      std::nullopt};
 
   ::Verbosity verbosity{};
   std::optional<LinkedMessageId<double>> current_time =
