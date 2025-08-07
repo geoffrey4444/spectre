@@ -45,5 +45,7 @@ class IncreaseResolution : public Criterion {
                     const FastFlow::IterInfo& /*info*/) const {
     return strahlkorper.l_max() + 2;
   }
+
+  bool operator==(const Criterion& other) const override;
 };
 }  // namespace ah::Criteria
