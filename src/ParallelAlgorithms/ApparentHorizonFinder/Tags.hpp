@@ -93,6 +93,16 @@ struct Dependency : db::SimpleTag {
 };
 
 /*!
+ * \brief Tag that holds the current resolution L.
+ *
+ * \details The value of this tag is `std::nulopt` if the current resolution L
+ * isn't set.
+ */
+ struct CurrentResolutionL : db::SimpleTag {
+  using type = std::optional<size_t>;
+};
+
+/*!
  * \brief Storage of all variables (volume or interpolated) for all times of the
  * horizon finder.
  */
