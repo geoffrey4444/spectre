@@ -156,6 +156,12 @@ struct MockMetavariables {
                  ah::Tags::ApparentHorizonOptions<HorizonMetavars<Fr, Dest>>>;
   using mutable_global_cache_tags =
       tmpl::list<domain::Tags::FunctionsOfTimeInitialize>;
+
+  struct factory_creation
+      : tt::ConformsTo<Options::protocols::FactoryCreation> {
+    using factory_classes =
+        tmpl::map<tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>>;
+  };
 };
 
 template <typename Callbacks>
@@ -200,7 +206,7 @@ void test_apparent_horizon(
                             {{0.0, 0.0, 0.0}}},
       FastFlow{FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5,
                max_its},
-      Verbosity::Silent, 3_st, std::nullopt);
+      Verbosity::Debug, 3_st, std::nullopt);
 
   std::unordered_map<std::string, std::unordered_set<std::string>>
       blocks_for_interpolation{};
