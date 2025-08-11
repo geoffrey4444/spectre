@@ -39,6 +39,10 @@ namespace ah {
  *
  * This function will try recomputing the coords using the above two rules
  * \p max_compute_coords_retries times before returning false.
+ * Note: if current_resolution_l is specified, the Strahlkorper will be
+ * prolonged or restricted if necessary so that it has this resolution,
+ * even if the resolution of the initial guess or of a previously found
+ * horizon are different.
  */
 template <typename Fr>
 bool set_current_iteration_coords(
@@ -48,5 +52,6 @@ bool set_current_iteration_coords(
     const ylm::Strahlkorper<Fr>& previous_iteration_surface,
     const std::deque<ah::Storage::PreviousSurface<Fr>>& previous_surfaces,
     size_t max_compute_coords_retries, const Domain<3>& domain,
-    const domain::FunctionsOfTimeMap& functions_of_time);
+    const domain::FunctionsOfTimeMap& functions_of_time,
+    const std::optional<size_t>& current_resolution_l = std::nullopt);
 }  // namespace ah

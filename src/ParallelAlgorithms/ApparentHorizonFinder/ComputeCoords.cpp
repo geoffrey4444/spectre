@@ -3,6 +3,8 @@
 
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeCoords.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <deque>
 
@@ -26,14 +28,40 @@ bool set_current_iteration_coords(
     const ylm::Strahlkorper<Fr>& previous_iteration_surface,
     const std::deque<ah::Storage::PreviousSurface<Fr>>& previous_surfaces,
     const size_t max_compute_coords_retries, const Domain<3>& domain,
-    const domain::FunctionsOfTimeMap& functions_of_time) {
+    const domain::FunctionsOfTimeMap& functions_of_time,
+    const std::optional<size_t>& current_resolution_l) {
   if (fast_flow.current_iteration() == 0) {
     // Need to set the first surface. If this is the very first, set it to the
     // initial guess. If not, use the previous horizon surface. The surface will
-    // potentially be extrapolated below
-    current_iteration->strahlkorper = UNLIKELY(previous_surfaces.empty())
-                                          ? initial_guess
-                                          : previous_surfaces.front().surface;
+    // potentially be extrapolated below.
+    //
+    // If current_resolution_l is set, make sure the initial guess has the
+    // correct resolution. Only prolong or restrict if current_resolution_l
+    // is different from the initial guess / previous surface l_max().
+    // Otherwise, just set the initial guess.
+    if (current_resolution_l.has_value()) {
+      if (UNLIKELY(previous_surfaces.empty())) {
+        if (UNLIKELY(current_resolution_l != initial_guess.l_max())) {
+          current_iteration->strahlkorper = ylm::Strahlkorper<Fr>(
+              *current_resolution_l, *current_resolution_l, initial_guess);
+        } else {
+          current_iteration->strahlkorper = initial_guess;
+        }
+      } else {
+        if (UNLIKELY(current_resolution_l !=
+                     previous_surfaces.front().surface.l_max())) {
+          current_iteration->strahlkorper = ylm::Strahlkorper<Fr>(
+              *current_resolution_l, *current_resolution_l,
+              previous_surfaces.front().surface);
+        } else {
+          current_iteration->strahlkorper = previous_surfaces.front().surface;
+        }
+      }
+    } else {
+      current_iteration->strahlkorper = UNLIKELY(previous_surfaces.empty())
+                                            ? initial_guess
+                                            : previous_surfaces.front().surface;
+    }
 
     // If we have zero previous_surfaces, then the initial guess is already
     // in strahlkorper, so do nothing.
@@ -49,11 +77,10 @@ bool set_current_iteration_coords(
     // by quadratic extrapolation in time using the last 3
     // previous_surfaces.
     //
-    // For extrapolation, we assume that
-    // * Expansion center of all the Strahlkorpers are equal.
-    // * Maximum L of all the Strahlkorpers are equal. It is easy to relax the
-    //   max L assumption once we start adaptively changing the L of the
-    //   strahlkorpers.
+    // For extrapolation, we assume that the expansion center of all the
+    // Strahlkorpers are equal. If any surface has a different resolution,
+    // prolong to the max resolution, extrapolate, then restrict to either
+    // current_resolution.
     if (LIKELY(previous_surfaces.size() > 2)) {
       // Quadratic extrapolation
       const double dt_0 = previous_surfaces[0].time.id - time.id;
@@ -62,21 +89,107 @@ bool set_current_iteration_coords(
       const double fac_0 = dt_1 * dt_2 / ((dt_1 - dt_0) * (dt_2 - dt_0));
       const double fac_1 = dt_0 * dt_2 / ((dt_2 - dt_1) * (dt_0 - dt_1));
       const double fac_2 = 1.0 - fac_0 - fac_1;
-      current_iteration->strahlkorper.coefficients() =
-          fac_0 * previous_surfaces[0].surface.coefficients() +
-          fac_1 * previous_surfaces[1].surface.coefficients() +
-          fac_2 * previous_surfaces[2].surface.coefficients();
+
+      // Determine if resolutions are equal and, if not, which is greatest
+      std::array<size_t, 3> prev_resolutions{
+          previous_surfaces[0].surface.l_max(),
+          previous_surfaces[1].surface.l_max(),
+          previous_surfaces[2].surface.l_max()};
+      const auto max_res_it = std::ranges::max_element(prev_resolutions.begin(),
+                                                       prev_resolutions.end());
+      const auto min_res_it = std::ranges::max_element(prev_resolutions.begin(),
+                                                       prev_resolutions.end());
+      const size_t max_resolution_l = *max_res_it;
+      const size_t min_resolution_l = *min_res_it;
+      const size_t which_surface_is_max = static_cast<size_t>(
+          std::ranges::distance(prev_resolutions.begin(), max_res_it));
+
+      if (UNLIKELY(min_resolution_l != max_resolution_l)) {
+        std::array<double, 3> facs{fac_0, fac_1, fac_2};
+        DataVector new_coefs = gsl::at(facs, which_surface_is_max) *
+                               gsl::at(previous_surfaces, which_surface_is_max)
+                                   .surface.coefficients();
+        for (size_t i = 0; i < 3; ++i) {
+          if (i == which_surface_is_max) {
+            continue;
+          }
+          new_coefs +=
+              gsl::at(facs, i) *
+              gsl::at(previous_surfaces, i)
+                  .surface.ylm_spherepack()
+                  .prolong_or_restrict(
+                      gsl::at(previous_surfaces, i).surface.coefficients(),
+                      gsl::at(previous_surfaces, which_surface_is_max)
+                          .surface.ylm_spherepack());
+        }
+        current_iteration->strahlkorper.coefficients() =
+            gsl::at(previous_surfaces, which_surface_is_max)
+                .surface.ylm_spherepack()
+                .prolong_or_restrict(
+                    new_coefs,
+                    current_iteration->strahlkorper.ylm_spherepack());
+      } else {
+        if (current_iteration->strahlkorper.l_max() !=
+            previous_surfaces[0].surface.l_max()) {
+          current_iteration->strahlkorper.coefficients() =
+              previous_surfaces[0].surface.ylm_spherepack().prolong_or_restrict(
+                  fac_0 * previous_surfaces[0].surface.coefficients() +
+                      fac_1 * previous_surfaces[1].surface.coefficients() +
+                      fac_2 * previous_surfaces[2].surface.coefficients(),
+                  current_iteration->strahlkorper.ylm_spherepack());
+        } else {
+          current_iteration->strahlkorper.coefficients() =
+              fac_0 * previous_surfaces[0].surface.coefficients() +
+              fac_1 * previous_surfaces[1].surface.coefficients() +
+              fac_2 * previous_surfaces[2].surface.coefficients();
+        }
+      }
     } else if (previous_surfaces.size() > 1) {
       // Linear extrapolation
       const double dt_0 = previous_surfaces[0].time.id - time.id;
       const double dt_1 = previous_surfaces[1].time.id - time.id;
       const double fac_0 = dt_1 / (dt_1 - dt_0);
       const double fac_1 = 1.0 - fac_0;
-      current_iteration->strahlkorper.coefficients() =
-          fac_0 * previous_surfaces[0].surface.coefficients() +
-          fac_1 * previous_surfaces[1].surface.coefficients();
+
+      const size_t l_0 = previous_surfaces[0].surface.l_max();
+      const size_t l_1 = previous_surfaces[1].surface.l_max();
+
+      if (l_0 == l_1) {
+        if (l_0 == current_iteration->strahlkorper.l_max()) {
+          current_iteration->strahlkorper.coefficients() =
+              fac_0 * previous_surfaces[0].surface.coefficients() +
+              fac_1 * previous_surfaces[1].surface.coefficients();
+        } else {
+          current_iteration->strahlkorper.coefficients() =
+              previous_surfaces[0].surface.ylm_spherepack().prolong_or_restrict(
+                  fac_0 * previous_surfaces[0].surface.coefficients() +
+                      fac_1 * previous_surfaces[1].surface.coefficients(),
+                  current_iteration->strahlkorper.ylm_spherepack());
+        }
+      } else {
+        const size_t which_surface_is_max = l_0 > l_1 ? 0 : 1;
+        const size_t which_surface_is_min = 1 - which_surface_is_max;
+        const std::array<double, 2> facs{fac_0, fac_1};
+        DataVector new_coefs = gsl::at(facs, which_surface_is_max) *
+                               gsl::at(previous_surfaces, which_surface_is_max)
+                                   .surface.coefficients();
+        new_coefs += gsl::at(facs, which_surface_is_min) *
+                     gsl::at(previous_surfaces, which_surface_is_min)
+                         .surface.ylm_spherepack()
+                         .prolong_or_restrict(
+                             gsl::at(previous_surfaces, which_surface_is_min)
+                                 .surface.coefficients(),
+                             gsl::at(previous_surfaces, which_surface_is_max)
+                                 .surface.ylm_spherepack());
+        current_iteration->strahlkorper.coefficients() =
+            gsl::at(previous_surfaces, which_surface_is_max)
+                .surface.ylm_spherepack()
+                .prolong_or_restrict(
+                    new_coefs,
+                    current_iteration->strahlkorper.ylm_spherepack());
+      }
     }
-  }
+  }  // if fastflow.current_iteration() == 0
 
   const auto set_coords = [&]() {
     const auto& strahlkorper = current_iteration->strahlkorper;
@@ -142,7 +255,8 @@ bool set_current_iteration_coords(
       const std::deque<ah::Storage::PreviousSurface<FRAME(data)>>&      \
           previous_surfaces,                                            \
       const size_t max_compute_coords_retries, const Domain<3>& domain, \
-      const domain::FunctionsOfTimeMap& functions_of_time);
+      const domain::FunctionsOfTimeMap& functions_of_time,              \
+      const std::optional<size_t>& current_resolution_l);
 
 GENERATE_INSTANTIATIONS(INSTANTIATE,
                         (Frame::Inertial, Frame::Distorted, Frame::Grid))
