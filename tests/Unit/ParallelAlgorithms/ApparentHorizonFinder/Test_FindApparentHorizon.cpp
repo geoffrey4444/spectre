@@ -43,10 +43,14 @@
 #include "Parallel/ParallelComponentHelpers.hpp"
 #include "Parallel/Phase.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
+#include "Parallel/Printf/Printf.hpp"
 #include "ParallelAlgorithms/Actions/InitializeItems.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Callbacks/FailedHorizonFind.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Factory.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/RegisterDerivedWithCharm.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Residual.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Shape.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FindApparentHorizon.hpp"
@@ -91,6 +95,7 @@ struct TestHorizonFindFailureCallback
 };
 
 size_t callback_count = 0;  // NOLINT
+std::vector<size_t> ah_found_resolutions{};  // NOLINT
 template <typename HorizonMetavars, size_t Index>
 struct TestHorizonFindCallback : tt::ConformsTo<ah::protocols::Callback> {
  private:
@@ -111,6 +116,9 @@ struct TestHorizonFindCallback : tt::ConformsTo<ah::protocols::Callback> {
         get<gr::Tags::InverseSpatialMetric<DataVector, 3, Fr>>(box);
     CHECK(strahlkorper.ylm_spherepack().physical_size() ==
           get<0, 0>(inv_metric).size());
+
+    const auto& current_resolution_l = strahlkorper.l_max();
+    ah_found_resolutions.push_back(current_resolution_l);
   }
 };
 
@@ -183,7 +191,8 @@ void test_apparent_horizon(
     const double mass, const std::array<double, 3>& dimensionless_spin,
     const bool is_time_dependent,
     const std::optional<std::string>& dependency = std::nullopt,
-    const size_t max_its = 100_st) {
+    const size_t max_its = 100_st,
+    std::vector<std::unique_ptr<ah::Criterion>> criteria = {}) {
   using metavars = MockMetavariables<Fr, Dest>;
   using horizon_metavars = HorizonMetavars<Fr, Dest>;
   using component = MockComponent<metavars, horizon_metavars>;
@@ -200,13 +209,13 @@ void test_apparent_horizon(
   // we are in the Distorted frame, then we pick 2.2 so it's within the blocks
   // that actually have a distorted frame
   ah::HorizonOptions<Fr> apparent_horizon_opts(
-      std::vector<std::unique_ptr<ah::Criterion>>{},
+      std::move(criteria),
       ylm::Strahlkorper<Fr>{l_max,
                             std::is_same_v<Fr, ::Frame::Distorted> ? 2.2 : 2.8,
                             {{0.0, 0.0, 0.0}}},
       FastFlow{FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5,
                max_its},
-      Verbosity::Debug, 3_st, std::nullopt);
+      Verbosity::Verbose, 3_st, std::nullopt);
 
   std::unordered_map<std::string, std::unordered_set<std::string>>
       blocks_for_interpolation{};
@@ -399,6 +408,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
                   "[ApparentHorizonFinder][Unit]") {
   domain::creators::register_derived_with_charm();
   domain::FunctionsOfTime::register_derived_with_charm();
+  ah::Criteria::register_derived_with_charm();
 
   const std::optional<std::string> dependency{"FakeDependency"};
 
@@ -412,7 +422,9 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
       3, 4, 1.1, {{0.2, 0.1, -0.4}}, false);
   CHECK(callback_count == 18);
   CHECK(callback_failure_count == 0);
+  CHECK(ah_found_resolutions == std::vector<size_t>(18, 3));
   callback_count = 0;
+  ah_found_resolutions.clear();
 
   // Time-dependent tests.
   test_apparent_horizon<Frame::Inertial>(3, 5, 1.1, {{0.2, 0.1, -0.4}}, true);
@@ -423,7 +435,28 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
   test_apparent_horizon<Frame::Grid>(3, 3, 1.0, {{0.0, 0.0, 0.0}}, true);
   CHECK(callback_count == 24);
   CHECK(callback_failure_count == 0);
+  CHECK(ah_found_resolutions == std::vector<size_t>(24, 3));
   callback_count = 0;
+  ah_found_resolutions.clear();
+
+  // Adaptivity tests
+  const ah::Criteria::Residual residual_criterion{1.0e-20, 1.0e-16, 4, 12};
+  const ah::Criteria::Shape shape_criterion{1.0e-20, 1.0e-16, 20, 4, 12};
+  std::vector<std::unique_ptr<ah::Criterion>> criteria{};
+  criteria.emplace_back(
+      std::make_unique<ah::Criteria::Residual>(residual_criterion));
+  criteria.emplace_back(std::make_unique<ah::Criteria::Shape>(shape_criterion));
+
+  Parallel::printf("About to test adaptivity\n");
+  test_apparent_horizon<Frame::Inertial>(3, 3, 1.0, {{0.0, 0.0, 0.0}}, false,
+                                         dependency, 100_st,
+                                         std::move(criteria));
+  CHECK(callback_count == 6);
+  CHECK(callback_failure_count == 0);
+  CHECK(ah_found_resolutions == std::vector<size_t>(6, 3));
+  Parallel::printf("Done testing adaptivity\n");
+  callback_count = 0;
+  ah_found_resolutions.clear();
 
   // Failure tests
   test_apparent_horizon<Frame::Inertial, ah::Destination::ControlSystem, true>(
