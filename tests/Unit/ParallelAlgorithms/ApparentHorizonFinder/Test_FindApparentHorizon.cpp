@@ -440,6 +440,8 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
   ah_found_resolutions.clear();
 
   // Adaptivity tests
+  // First, choose strict critera so the resolution increases
+  // by one each time.
   const ah::Criteria::Residual residual_criterion{1.0e-20, 1.0e-16, 4, 12};
   const ah::Criteria::Shape shape_criterion{1.0e-20, 1.0e-16, 20, 4, 12};
   std::vector<std::unique_ptr<ah::Criterion>> criteria{};
@@ -447,14 +449,32 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
       std::make_unique<ah::Criteria::Residual>(residual_criterion));
   criteria.emplace_back(std::make_unique<ah::Criteria::Shape>(shape_criterion));
 
-  Parallel::printf("About to test adaptivity\n");
   test_apparent_horizon<Frame::Inertial>(3, 3, 1.0, {{0.0, 0.0, 0.0}}, false,
                                          dependency, 100_st,
                                          std::move(criteria));
   CHECK(callback_count == 6);
   CHECK(callback_failure_count == 0);
-  CHECK(ah_found_resolutions == std::vector<size_t>(6, 3));
-  Parallel::printf("Done testing adaptivity\n");
+  CHECK(ah_found_resolutions == std::vector<size_t>{3, 3, 4, 4, 5, 5});
+
+  callback_count = 0;
+  ah_found_resolutions.clear();
+
+  // Second, choose loose critera so the resolution increases
+  // by one each time.
+  const ah::Criteria::Residual residual_criterion_loose{1.0e8, 1.0e12, 4, 12};
+  const ah::Criteria::Shape shape_criterion_loose{1.0e8, 1.0e12, 20, 4, 12};
+  criteria.clear();
+  criteria.emplace_back(
+      std::make_unique<ah::Criteria::Residual>(residual_criterion_loose));
+  criteria.emplace_back(
+      std::make_unique<ah::Criteria::Shape>(shape_criterion_loose));
+
+  test_apparent_horizon<Frame::Inertial>(12, 12, 1.0, {{0.0, 0.0, 0.0}}, false,
+                                         dependency, 100_st,
+                                         std::move(criteria));
+  CHECK(callback_count == 6);
+  CHECK(callback_failure_count == 0);
+  CHECK(ah_found_resolutions == std::vector<size_t>{12, 12, 11, 11, 10, 10});
   callback_count = 0;
   ah_found_resolutions.clear();
 
