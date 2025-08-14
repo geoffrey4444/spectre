@@ -216,6 +216,7 @@ struct FindApparentHorizon {
       }
 
       // Keep finding the horizon until it's found with sufficient resolution
+      bool rerunning_with_higher_resolution = false;
       while (true) {
         std::pair<FastFlow::Status, FastFlow::IterInfo> status_and_info;
 
@@ -228,7 +229,8 @@ struct FindApparentHorizon {
               current_time_storage.previous_iteration_surface;
 
           // Points haven't been set for this iteration so need to do so now
-          if (not current_iteration_storage.block_coord_holders.has_value()) {
+          if (not current_iteration_storage.block_coord_holders.has_value() or
+              rerunning_with_higher_resolution) {
             const bool coords_set_successfully = set_current_iteration_coords(
                 make_not_null(&current_iteration_storage), current_time,
                 fast_flow, options.initial_guess, previous_iteration_surface,
@@ -389,14 +391,21 @@ struct FindApparentHorizon {
                   : std::ranges::max(recommended_resolutions);
           if (next_resolution_l > *current_resolution_l) {
             current_resolution_l = next_resolution_l;
+            rerunning_with_higher_resolution = true;
 
             // Prepare for trying the find again with higher resolution:
             // Reset fast flow, but don't "clean up," which also erases the
             // storage for the current time, resets the current time, and
             // updates the completed times. None of those things happen yet,
             // because the current time horizon finding is not yet finished.
+            // Also reset the current iteration storage, since the next find
+            // is effectively a new iteration.
             fast_flow.reset_for_next_find();
+            current_time_storage.current_iteration.reset_for_next_iteration();
+
             continue;
+          } else {
+            rerunning_with_higher_resolution = false;
           }
 
           // We have converged to the apparent horizon. Invoke the callbacks and
