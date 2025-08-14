@@ -235,7 +235,8 @@ struct FindApparentHorizon {
                 make_not_null(&current_iteration_storage), current_time,
                 fast_flow, options.initial_guess, previous_iteration_surface,
                 previous_surfaces, options.max_compute_coords_retries, domain,
-                functions_of_time, current_resolution_l);
+                functions_of_time, current_resolution_l,
+                rerunning_with_higher_resolution);
 
             // Some points are outside the domain and we cannot recover
             if (not coords_set_successfully) {
@@ -323,13 +324,13 @@ struct FindApparentHorizon {
 
           if (verbose_print or (quiet_print and has_converged)) {
             Parallel::printf(
-                "%s: t=%.6g: its=%zu: %.1e<R<%.0e, |R|=%.1g, "
-                "|R_grid|=%.1g, %.4g<r<%.4g L=%zu\n",
+                "%s: t=%.6g: L=%zu: its=%zu: %.1e<R<%.0e, |R|=%.1g, "
+                "|R_grid|=%.1g, %.4g<r<%.4g\n",
                 pretty_type::name<HorizonMetavars>(), current_time.id,
-                info.iteration, info.min_residual, info.max_residual,
-                info.residual_ylm, info.residual_mesh, info.r_min, info.r_max,
                 all_storage.at(current_time)
-                    .current_iteration.strahlkorper.l_max());
+                    .current_iteration.strahlkorper.l_max(),
+                info.iteration, info.min_residual, info.max_residual,
+                info.residual_ylm, info.residual_mesh, info.r_min, info.r_max);
           }
 
           if (status == FastFlow::Status::SuccessfulIteration) {

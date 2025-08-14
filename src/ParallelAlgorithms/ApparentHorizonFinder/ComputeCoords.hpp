@@ -53,5 +53,6 @@ bool set_current_iteration_coords(
     const std::deque<ah::Storage::PreviousSurface<Fr>>& previous_surfaces,
     size_t max_compute_coords_retries, const Domain<3>& domain,
     const domain::FunctionsOfTimeMap& functions_of_time,
-    const std::optional<size_t>& current_resolution_l = std::nullopt);
+    const std::optional<size_t>& current_resolution_l = std::nullopt,
+    bool rerunning_with_higher_resolution = false);
 }  // namespace ah
