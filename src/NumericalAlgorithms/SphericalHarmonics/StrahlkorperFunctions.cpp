@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 #include <utility>
 
 #include "DataStructures/DataVector.hpp"
@@ -445,15 +446,14 @@ std::vector<std::array<double, 4>> fit_ylm_coeffs(
 
 namespace {
 template <size_t NumTimes>
-static DataVector compute_coefs(
-    const std::deque<double>& times,
-    const std::deque<const DataVector*>& coefficients) {
+DataVector compute_coefs(const std::deque<double>& times,
+                         const std::deque<DataVector>& coefficients) {
   const auto weights = fd::non_uniform_1d_weights<NumTimes>(times);
 
-  DataVector new_coefficients{coefficients.front()->size(), 0.0};
+  DataVector new_coefficients{coefficients.front().size(), 0.0};
 
   for (size_t i = 0; i < NumTimes; i++) {
-    new_coefficients += *coefficients[i] * gsl::at(gsl::at(weights, 1), i);
+    new_coefficients += coefficients[i] * gsl::at(gsl::at(weights, 1), i);
   }
 
   return new_coefficients;
@@ -466,18 +466,43 @@ void time_deriv_of_strahlkorper(
     const std::deque<std::pair<double, Strahlkorper<Frame>>>&
         previous_strahlkorpers) {
   std::deque<double> times{};
-  std::deque<const DataVector*> coefficients{};
+  std::deque<DataVector> coefficients{};
 
-  // Can't take time deriv of 1 strahlkorper
+  // Can't take time deriv of 1 strahlkorper, so just zero the time derivative's
+  // coefficients
   if (previous_strahlkorpers.size() == 1) {
-    time_deriv->coefficients() = DataVector{
-        previous_strahlkorpers.front().second.coefficients().size(), 0.0};
+    time_deriv->coefficients() = 0.0;
     return;
   }
 
-  for (const auto& [time, strahlkorper] : previous_strahlkorpers) {
-    times.emplace_back(time);
-    coefficients.emplace_back(&strahlkorper.coefficients());
+  // Find the maximum resolution of the previous Strahlkorpers and its index
+  size_t max_prev_l = 0;
+  size_t max_prev_l_index = 0;
+  size_t min_prev_l = std::numeric_limits<size_t>::max();
+  for (size_t i = 0; i < previous_strahlkorpers.size(); ++i) {
+    if (previous_strahlkorpers[i].second.l_max() > max_prev_l) {
+      max_prev_l = previous_strahlkorpers[i].second.l_max();
+      max_prev_l_index = i;
+    }
+    if (previous_strahlkorpers[i].second.l_max() < min_prev_l) {
+      min_prev_l = previous_strahlkorpers[i].second.l_max();
+    }
+  }
+
+  // If needed, prolong the coefficients of the previous
+  // strahlkorpers to the highest resolution of the previous
+  for (size_t i = 0; i < previous_strahlkorpers.size(); ++i) {
+    times.emplace_back(previous_strahlkorpers[i].first);
+    if (min_prev_l != max_prev_l and i != max_prev_l_index) {
+      coefficients.emplace_back(
+          previous_strahlkorpers[i].second.ylm_spherepack().prolong_or_restrict(
+              previous_strahlkorpers[i].second.coefficients(),
+              previous_strahlkorpers[max_prev_l_index]
+                  .second.ylm_spherepack()));
+    } else {
+      coefficients.emplace_back(
+          previous_strahlkorpers[i].second.coefficients());
+    }
   }
 
   DataVector new_coefficients{};
@@ -498,6 +523,14 @@ void time_deriv_of_strahlkorper(
             << previous_strahlkorpers.size());
   }
 
+  // If needed, prolong or restrict the new coefficients to match the
+  // resolution of the Strahlkorper whose time derivative is being taken here
+  if (new_coefficients.size() != time_deriv->coefficients().size()) {
+    new_coefficients = previous_strahlkorpers[max_prev_l_index]
+                           .second.ylm_spherepack()
+                           .prolong_or_restrict(new_coefficients,
+                                                time_deriv->ylm_spherepack());
+  }
   time_deriv->coefficients() = std::move(new_coefficients);
 }
 
