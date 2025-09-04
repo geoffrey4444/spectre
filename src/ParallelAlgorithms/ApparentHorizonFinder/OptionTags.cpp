@@ -44,7 +44,7 @@ bool operator==(const HorizonOptions<Fr>& lhs, const HorizonOptions<Fr>& rhs) {
     return false;
   }
   for (size_t i = 0; i < lhs.criteria.size(); ++i) {
-    if (*(lhs.criteria[i]) != *(rhs.criteria[i])) {
+    if (not(lhs.criteria[i]->is_equal(*(rhs.criteria[i])))) {
       return false;
     }
   }
