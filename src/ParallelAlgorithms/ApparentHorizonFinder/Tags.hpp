@@ -20,6 +20,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
 #include "Utilities/GetOutput.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TMPL.hpp"
 #include "Utilities/TypeTraits/CreateGetTypeAliasOrDefault.hpp"
 
@@ -130,7 +131,9 @@ struct ApparentHorizonOptions : db::SimpleTag {
       tmpl::list<OptionTags::ApparentHorizonOptions<HorizonMetavars>>;
 
   static constexpr bool pass_metavariables = false;
-  static type create_from_options(const type& option) { return option; }
+  static type create_from_options(const type& option) {
+    return {deserialize<type>(serialize<type>(option).data())};
+  }
 };
 
 namespace tags_detail {
