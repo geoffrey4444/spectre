@@ -196,8 +196,20 @@ void compute_vars_to_interpolate_to_target(
       const auto jac_grid_to_inertial =
           block.moving_mesh_grid_to_inertial_map().jacobian(
               map_logical_to_grid(logical_coords), time.id, functions_of_time);
-      const auto invjac_logical_to_grid =
-          map_logical_to_grid.inv_jacobian(logical_coords);
+      const auto mapped_coords = map_logical_to_grid(logical_coords);
+      const auto invjac_logical_to_grid_transpose =
+          determinant_and_inverse(
+              logical_partial_derivative(mapped_coords, mesh))
+              .second;
+      auto invjac_logical_to_grid = make_with_value<
+          InverseJacobian<DataVector, 3, Frame::ElementLogical, Frame::Grid>>(
+          invjac_logical_to_grid_transpose, 0.0);
+      for (size_t i = 0; i < 3; ++i) {
+        for (size_t j = 0; j < 3; ++j) {
+          invjac_logical_to_grid.get(i, j) =
+              invjac_logical_to_grid_transpose.get(j, i);
+        }
+      }
 
       compute_vars_to_interpolate_to_target_impl(
           volume_vars_storage, jac_grid_to_inertial, invjac_logical_to_grid);
@@ -219,9 +231,22 @@ void compute_vars_to_interpolate_to_target(
               element_logical_to_distorted_map(logical_coords, time.id,
                                                functions_of_time),
               time.id, functions_of_time);
-      const auto invjac_logical_to_distorted =
-          element_logical_to_distorted_map.inv_jacobian(logical_coords, time.id,
-                                                        functions_of_time);
+      const auto mapped_coords_distorted = element_logical_to_distorted_map(
+          logical_coords, time.id, functions_of_time);
+      const auto invjac_logical_to_distorted_transpose =
+          determinant_and_inverse(
+              logical_partial_derivative(mapped_coords_distorted, mesh))
+              .second;
+      auto invjac_logical_to_distorted =
+          make_with_value<InverseJacobian<DataVector, 3, Frame::ElementLogical,
+                                          Frame::Distorted>>(
+              invjac_logical_to_distorted_transpose, 0.0);
+      for (size_t i = 0; i < 3; ++i) {
+        for (size_t j = 0; j < 3; ++j) {
+          invjac_logical_to_distorted.get(i, j) =
+              invjac_logical_to_distorted_transpose.get(j, i);
+        }
+      }
 
       compute_vars_to_interpolate_to_target_impl(volume_vars_storage,
                                                  jac_distorted_to_inertial,
