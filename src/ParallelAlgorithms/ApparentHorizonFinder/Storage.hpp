@@ -54,8 +54,8 @@ struct VolumeVariables {
   bool done_computing_vars_to_interpolate_to_target = false;
 
   /*!
-   * \brief Indicates whether interpolation onto the horizon has already been
-   * performed during the current iteration.
+   * \brief A flag indicating whether interpolation onto the horizon has
+   * been performed for the current iteration.
    */
   bool interpolation_done_for_current_iteration = false;
 
@@ -100,9 +100,10 @@ struct Iteration {
    */
   std::set<size_t> indicies_interpolated_to_thus_far;
   /*!
-   * \brief Scratch buffer of element ids processed in the current call.
+   * \brief Scratch buffer of element ids to be interpolated during a call
+   * of `ah::interpolate_volume_data()`.
    */
-  std::vector<ElementId<3>> element_ids_to_interpolate{};
+  std::vector<ElementId<3>> element_ids_to_interpolate;
 
   /*!
    * \brief How many times we've tried to compute the coordinates for this
