@@ -32,15 +32,13 @@ void interpolate_volume_data(
         all_volume_variables,
     const LinkedMessageId<double>& time, const Domain<3>& domain,
     const domain::FunctionsOfTimeMap& functions_of_time) {
-  std::vector<ElementId<3>> element_ids;
+  auto& element_ids = current_iteration_storage->element_ids_to_interpolate;
+  element_ids.clear();
   element_ids.reserve(all_volume_variables->size());
-  for (const auto& [element_id, volume_vars] : *all_volume_variables) {
-    (void)volume_vars;  // Avoid clang-tidy warning
-    if (not current_iteration_storage->interpolation_is_done_for_these_elements
-                .contains(element_id)) {
+  for (auto& [element_id, volume_vars] : *all_volume_variables) {
+    if (not volume_vars.interpolation_done_for_current_iteration) {
       element_ids.push_back(element_id);
-      current_iteration_storage->interpolation_is_done_for_these_elements
-          .insert(element_id);
+      volume_vars.interpolation_done_for_current_iteration = true;
     }
   }
 

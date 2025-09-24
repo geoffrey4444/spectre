@@ -8,7 +8,6 @@
 #include <deque>
 #include <optional>
 #include <set>
-#include <unordered_set>
 #include <vector>
 
 #include "DataStructures/DataVector.hpp"
@@ -37,6 +36,7 @@ void test_storage() {
       Variables<ah::source_vars<3>>{4, 1.234},
       Variables<ah::vars_to_interpolate_to_target<3, Fr>>{4, 4.321}};
   CHECK(not volume_variables.done_computing_vars_to_interpolate_to_target);
+  CHECK(not volume_variables.interpolation_done_for_current_iteration);
   test_serialization(volume_variables);
 
   const ah::Storage::Iteration<Fr> iteration{
@@ -44,7 +44,7 @@ void test_storage() {
       std::optional<std::vector<BlockLogicalCoords<3>>>{{std::nullopt}},
       Variables<ah::vars_to_interpolate_to_target<3, Fr>>{6, 9.876},
       std::set<size_t>{1_st, 4_st, 5_st},
-      std::unordered_set<ElementId<3>>{ElementId<3>{0}, ElementId<3>{1}},
+      std::vector<ElementId<3>>{ElementId<3>{0}, ElementId<3>{1}},
       {2}};
   test_serialization(iteration);
 

@@ -301,7 +301,8 @@ struct FindApparentHorizon {
 
         if (status == FastFlow::Status::SuccessfulIteration) {
           // Reset so we compute and interpolate to new points
-          current_iteration_storage.reset_for_next_iteration();
+          current_iteration_storage.reset_for_next_iteration(
+              make_not_null(&all_volume_variables));
 
           // Continue in the iteration while loop
           continue;

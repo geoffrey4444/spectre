@@ -8,7 +8,6 @@
 #include <pup.h>
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "DataStructures/DataVector.hpp"
@@ -22,6 +21,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
+#include "Utilities/Gsl.hpp"
 
 namespace ah::Storage {
 /*!
@@ -52,6 +52,12 @@ struct VolumeVariables {
    * horizon are only computed once.
    */
   bool done_computing_vars_to_interpolate_to_target = false;
+
+  /*!
+   * \brief Indicates whether interpolation onto the horizon has already been
+   * performed during the current iteration.
+   */
+  bool interpolation_done_for_current_iteration = false;
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);
@@ -94,10 +100,9 @@ struct Iteration {
    */
   std::set<size_t> indicies_interpolated_to_thus_far;
   /*!
-   * \brief Holds the `ElementId`s of `Element`s for which interpolation has
-   * already been done.
+   * \brief Scratch buffer of element ids processed in the current call.
    */
-  std::unordered_set<ElementId<3>> interpolation_is_done_for_these_elements;
+  std::vector<ElementId<3>> element_ids_to_interpolate{};
 
   /*!
    * \brief How many times we've tried to compute the coordinates for this
@@ -105,7 +110,9 @@ struct Iteration {
    */
   size_t compute_coords_retries = 0;
 
-  void reset_for_next_iteration();
+  void reset_for_next_iteration(
+      gsl::not_null<std::unordered_map<ElementId<3>, VolumeVariables<Fr>>*>
+          all_volume_variables);
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);

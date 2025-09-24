@@ -17,6 +17,7 @@ void VolumeVariables<Fr>::pup(PUP::er& p) {
   p | source_vars;
   p | vars_to_interpolate_to_target;
   p | done_computing_vars_to_interpolate_to_target;
+  p | interpolation_done_for_current_iteration;
 }
 
 template <typename Fr>
@@ -26,7 +27,9 @@ bool operator==(const VolumeVariables<Fr>& lhs,
          lhs.vars_to_interpolate_to_target ==
              rhs.vars_to_interpolate_to_target and
          lhs.done_computing_vars_to_interpolate_to_target ==
-             rhs.done_computing_vars_to_interpolate_to_target;
+             rhs.done_computing_vars_to_interpolate_to_target and
+         lhs.interpolation_done_for_current_iteration ==
+             rhs.interpolation_done_for_current_iteration;
 }
 template <typename Fr>
 bool operator!=(const VolumeVariables<Fr>& lhs,
@@ -35,12 +38,18 @@ bool operator!=(const VolumeVariables<Fr>& lhs,
 }
 
 template <typename Fr>
-void Iteration<Fr>::reset_for_next_iteration() {
+void Iteration<Fr>::reset_for_next_iteration(
+    gsl::not_null<std::unordered_map<ElementId<3>, VolumeVariables<Fr>>*>
+        all_volume_variables) {
   // Leave the strahlkorper because this was set by FastFlow and is already
   // the next surface
   this->block_coord_holders.reset();
   this->indicies_interpolated_to_thus_far.clear();
-  this->interpolation_is_done_for_these_elements.clear();
+  this->element_ids_to_interpolate.clear();
+  for (auto& [element_id, volume_vars] : *all_volume_variables) {
+    (void)element_id;
+    volume_vars.interpolation_done_for_current_iteration = false;
+  }
   this->compute_coords_retries = 0;
 }
 
@@ -50,7 +59,7 @@ void Iteration<Fr>::pup(PUP::er& p) {
   p | block_coord_holders;
   p | interpolated_vars;
   p | indicies_interpolated_to_thus_far;
-  p | interpolation_is_done_for_these_elements;
+  p | element_ids_to_interpolate;
   p | compute_coords_retries;
 }
 
@@ -61,8 +70,7 @@ bool operator==(const Iteration<Fr>& lhs, const Iteration<Fr>& rhs) {
          lhs.interpolated_vars == rhs.interpolated_vars and
          lhs.indicies_interpolated_to_thus_far ==
              rhs.indicies_interpolated_to_thus_far and
-         lhs.interpolation_is_done_for_these_elements ==
-             rhs.interpolation_is_done_for_these_elements and
+         lhs.element_ids_to_interpolate == rhs.element_ids_to_interpolate and
          lhs.compute_coords_retries == rhs.compute_coords_retries;
 }
 template <typename Fr>
