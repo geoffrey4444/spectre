@@ -230,6 +230,22 @@ void test_apparent_horizon(
                 true}}
           : std::nullopt);
 
+  {
+    const Domain<3> domain_for_block_selection =
+        domain_creator->create_domain();
+    std::unordered_set<std::string> blocks_to_use{};
+    for (const auto& block : domain_for_block_selection.blocks()) {
+      if constexpr (std::is_same_v<Fr, ::Frame::Distorted>) {
+        if (not block.has_distorted_frame()) {
+          continue;
+        }
+      }
+      blocks_to_use.insert(block.name());
+    }
+    blocks_for_interpolation.emplace("TestingHorizonMetavars",
+                                     std::move(blocks_to_use));
+  }
+
   ActionTesting::MockRuntimeSystem<metavars> runner{
       {domain_creator->create_domain(), apparent_horizon_opts,
        blocks_for_interpolation},
@@ -257,6 +273,8 @@ void test_apparent_horizon(
   // Create element_ids.
   std::vector<ElementId<3>> element_ids{};
   const Domain<3> domain = domain_creator->create_domain();
+  const auto& blocks_to_use =
+      blocks_for_interpolation.at("TestingHorizonMetavars");
   const domain::FunctionsOfTimeMap functions_of_time =
       domain_creator->functions_of_time();
   for (const auto& block : domain.blocks()) {
@@ -283,6 +301,10 @@ void test_apparent_horizon(
   for (const auto& time : times) {
     for (const auto& element_id : element_ids) {
       const auto& block = domain.blocks()[element_id.block_id()];
+      // Only send volume data for blocks in blocks_to_use
+      if (blocks_to_use.find(block.name()) == blocks_to_use.end()) {
+        continue;
+      }
       const ::Mesh<3> mesh{
           domain_creator->initial_extents()[element_id.block_id()],
           Spectral::Basis::Legendre, Spectral::Quadrature::GaussLobatto};

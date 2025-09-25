@@ -26,10 +26,13 @@
 #include "Domain/Tags.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/TestCreation.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.tpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
+#include "Parallel/GlobalCache.hpp"
 #include "Parallel/Phase.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
@@ -38,6 +41,10 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/InterpolationTarget.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
 #include "ParallelAlgorithms/Events/Tags.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Phi.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Pi.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
@@ -178,9 +185,88 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
   const Mesh<3> mesh(5, Spectral::Basis::Legendre,
                      Spectral::Quadrature::GaussLobatto);
   const LinkedMessageId<double> observation_time{2.0, {1.0}};
-  Variables<ah::source_vars<3>> vars(mesh.number_of_grid_points(), 9.876);
-  std::optional<std::string> dependency{"FakeDependency"};
   auto& cache = ActionTesting::cache<elem_component>(runner, array_index);
+
+  // Fill source vars with an analytic solution so that
+  // ah::vars_to_interpolate_to_target can be computed from
+  // the ah::source_vars. Previously, the source vars were all just set
+  // to a constant value in this test. But in that case, the call to
+  // FindApparentHorizon::apply() doesn't receive well-defined values, now
+  // that it receives vars_to_interpolate_to_target instead of source_vars.
+  Variables<ah::source_vars<3>> vars{};
+  {
+    const double mass = 1.0;
+    const std::array<double, 3> spin{{0.1, 0.2, 0.3}};
+    const gr::Solutions::KerrSchild solution(mass, spin, {0.0, 0.0, 0.0});
+
+    const auto& domain = Parallel::get<domain::Tags::Domain<3>>(cache);
+    const auto& block = domain.blocks()[element_id.block_id()];
+
+    const auto logical_coords = logical_coordinates(mesh);
+    InverseJacobian<DataVector, 3, Frame::ElementLogical, Frame::Inertial>
+        inv_jacobian_logical_to_inertial{mesh.number_of_grid_points(), 0.0};
+    tnsr::I<DataVector, 3, Frame::Inertial> inertial_coords{};
+    if (block.is_time_dependent()) {
+      const ElementMap<3, Frame::Grid> map_logical_to_grid{
+          element_id, block.moving_mesh_logical_to_grid_map().get_clone()};
+      inertial_coords = block.moving_mesh_grid_to_inertial_map()(
+          map_logical_to_grid(logical_coords), observation_time.id,
+          functions_of_time);
+
+      const auto inv_jacobian_logical_to_grid =
+          map_logical_to_grid.inv_jacobian(logical_coords);
+      const auto inv_jacobian_grid_to_inertial =
+          block.moving_mesh_grid_to_inertial_map().inv_jacobian(
+              map_logical_to_grid(logical_coords), observation_time.id,
+              functions_of_time);
+      inv_jacobian_logical_to_inertial = tenex::evaluate<ti::I, ti::j>(
+          inv_jacobian_logical_to_grid(ti::I, ti::k) *
+          inv_jacobian_grid_to_inertial(ti::K, ti::j));
+    } else {
+      const ElementMap<3, Frame::Inertial> map_logical_to_inertial{
+          element_id, block.stationary_map().get_clone()};
+      inertial_coords = map_logical_to_inertial(logical_coords);
+      inv_jacobian_logical_to_inertial =
+          map_logical_to_inertial.inv_jacobian(logical_coords);
+    }
+
+    const auto solution_vars = solution.variables(
+        inertial_coords, observation_time.id,
+        typename gr::Solutions::KerrSchild::tags<DataVector,
+                                                 Frame::Inertial>{});
+
+    const auto& lapse = get<gr::Tags::Lapse<DataVector>>(solution_vars);
+    const auto& dt_lapse =
+        get<Tags::dt<gr::Tags::Lapse<DataVector>>>(solution_vars);
+    const auto& d_lapse = get<typename gr::Solutions::KerrSchild::DerivLapse<
+        DataVector, Frame::Inertial>>(solution_vars);
+    const auto& shift = get<gr::Tags::Shift<DataVector, 3>>(solution_vars);
+    const auto& dt_shift =
+        get<Tags::dt<gr::Tags::Shift<DataVector, 3>>>(solution_vars);
+    const auto& d_shift = get<typename gr::Solutions::KerrSchild::DerivShift<
+        DataVector, Frame::Inertial>>(solution_vars);
+    const auto& spatial_metric =
+        get<gr::Tags::SpatialMetric<DataVector, 3>>(solution_vars);
+    const auto& dt_spatial_metric =
+        get<Tags::dt<gr::Tags::SpatialMetric<DataVector, 3>>>(solution_vars);
+    const auto& d_spatial_metric =
+        get<typename gr::Solutions::KerrSchild::DerivSpatialMetric<
+            DataVector, Frame::Inertial>>(solution_vars);
+
+    vars.initialize(get(lapse).size());
+    get<gr::Tags::SpacetimeMetric<DataVector, 3>>(vars) =
+        gr::spacetime_metric(lapse, shift, spatial_metric);
+    get<gh::Tags::Phi<DataVector, 3>>(vars) = gh::phi(
+        lapse, d_lapse, shift, d_shift, spatial_metric, d_spatial_metric);
+    get<gh::Tags::Pi<DataVector, 3>>(vars) =
+        gh::pi(lapse, dt_lapse, shift, dt_shift, spatial_metric,
+               dt_spatial_metric, get<gh::Tags::Phi<DataVector, 3>>(vars));
+    get<Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
+                    Frame::Inertial>>(vars) =
+        partial_derivative(get<gh::Tags::Phi<DataVector, 3>>(vars), mesh,
+                           inv_jacobian_logical_to_inertial);
+  }
+  std::optional<std::string> dependency{"FakeDependency"};
 
   // Test the event version
   auto box =
