@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "ControlSystem/UpdateFunctionOfTime.hpp"
@@ -44,11 +45,13 @@
 
 namespace {
 struct MockFindApparentHorizon {
+  using frame = ::Frame::Grid;
+
   struct Results {
     LinkedMessageId<double> time{};
     ElementId<3> element_id{};
     Mesh<3> mesh;
-    Variables<ah::source_vars<3>> vars;
+    Variables<ah::vars_to_interpolate_to_target<3, frame>> vars;
     std::optional<std::string> dependency;
   };
   static Results results;  // NOLINT
@@ -61,13 +64,14 @@ struct MockFindApparentHorizon {
       const ArrayIndex& /*array_index*/,
       const LinkedMessageId<double>& incoming_time,
       const ElementId<3>& incoming_element_id, const ::Mesh<3>& incoming_mesh,
-      Variables<ah::source_vars<3>>&& incoming_source_vars,
+      Variables<ah::vars_to_interpolate_to_target<3, frame>>&&
+          incoming_vars_to_interpolate,
       const std::optional<std::string>& dependency,
       const bool /*source_vars_have_already_been_received*/ = false) {
     results.time = incoming_time;
     results.element_id = incoming_element_id;
     results.mesh = incoming_mesh;
-    results.vars = incoming_source_vars;
+    results.vars = std::move(incoming_vars_to_interpolate);
     results.dependency = dependency;
   }
 };
@@ -209,7 +213,15 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
     CHECK(results.time == observation_time);
     CHECK(results.element_id == element_id);
     CHECK(results.mesh == mesh);
-    CHECK(results.vars == vars);
+
+    Variables<ah::vars_to_interpolate_to_target<3, ::Frame::Grid>> target_vars{
+        vars.number_of_grid_points()};
+    ah::compute_vars_to_interpolate_to_target(
+        make_not_null(&target_vars), vars, observation_time,
+        domain_creator.create_domain(), mesh, element_id,
+        std::make_optional(domain_creator.functions_of_time()));
+    CHECK(results.vars == target_vars);
+
     CHECK(results.dependency == dependency);
   };
 

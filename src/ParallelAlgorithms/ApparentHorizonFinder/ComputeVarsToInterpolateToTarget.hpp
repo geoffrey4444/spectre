@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include "DataStructures/LinkedMessageId.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Domain/Domain.hpp"
@@ -19,8 +21,10 @@ namespace ah {
  */
 template <typename Fr>
 void compute_vars_to_interpolate_to_target(
-    gsl::not_null<ah::Storage::VolumeVariables<Fr>*> volume_vars_storage,
+    gsl::not_null<Variables<ah::vars_to_interpolate_to_target<3, Fr>>*>
+        target_vars,
+    const Variables<ah::source_vars<3>>& source_vars,
     const LinkedMessageId<double>& time, const Domain<3>& domain,
-    const ElementId<3>& element_id,
-    const domain::FunctionsOfTimeMap& functions_of_time);
+    const Mesh<3>& mesh, const ElementId<3>& element_id,
+    const std::optional<domain::FunctionsOfTimeMap>& functions_of_time_opt);
 }  // namespace ah

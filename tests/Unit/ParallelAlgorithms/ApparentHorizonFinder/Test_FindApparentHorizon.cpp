@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -45,6 +46,7 @@
 #include "ParallelAlgorithms/Actions/InitializeItems.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Callbacks/FailedHorizonFind.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FindApparentHorizon.hpp"
@@ -325,7 +327,7 @@ void test_apparent_horizon(
                                                    ::Frame::Inertial>{});
 
       // Fill output variables with solution.
-      Variables<ah::source_vars<3>> output_vars(mesh.number_of_grid_points());
+      Variables<ah::source_vars<3>> source_vars(mesh.number_of_grid_points());
 
       const auto& lapse = get<gr::Tags::Lapse<DataVector>>(solution_vars);
       const auto& dt_lapse =
@@ -345,24 +347,31 @@ void test_apparent_horizon(
           get<typename gr::Solutions::KerrSchild ::DerivSpatialMetric<
               DataVector, ::Frame::Inertial>>(solution_vars);
 
-      get<::gr::Tags::SpacetimeMetric<DataVector, 3>>(output_vars) =
+      get<::gr::Tags::SpacetimeMetric<DataVector, 3>>(source_vars) =
           gr::spacetime_metric(lapse, shift, g);
-      get<::gh::Tags::Phi<DataVector, 3>>(output_vars) =
+      get<::gh::Tags::Phi<DataVector, 3>>(source_vars) =
           gh::phi(lapse, d_lapse, shift, d_shift, g, d_g);
-      get<::gh::Tags::Pi<DataVector, 3>>(output_vars) =
+      get<::gh::Tags::Pi<DataVector, 3>>(source_vars) =
           gh::pi(lapse, dt_lapse, shift, dt_shift, g, dt_g,
-                 get<::gh::Tags::Phi<DataVector, 3>>(output_vars));
+                 get<::gh::Tags::Phi<DataVector, 3>>(source_vars));
 
       // Need to compute numerical deriv of Phi.
       get<Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
-                      Frame::Inertial>>(output_vars) =
-          partial_derivative(get<::gh::Tags::Phi<DataVector, 3>>(output_vars),
+                      Frame::Inertial>>(source_vars) =
+          partial_derivative(get<::gh::Tags::Phi<DataVector, 3>>(source_vars),
                              mesh, inv_jacobian_logical_to_inertial);
+
+      // TO-DO: make target_vars from the source_vars in the correct frame
+      Variables<ah::vars_to_interpolate_to_target<3, Fr>> target_vars{
+          get(lapse).size()};
+      ah::compute_vars_to_interpolate_to_target(
+          make_not_null(&target_vars), source_vars, time, domain, mesh,
+          element_id, std::make_optional(functions_of_time));
 
       // Queue the action so we can invoke in a random order below
       ActionTesting::queue_simple_action<
           component, ah::FindApparentHorizon<horizon_metavars>>(
-          make_not_null(&runner), 0, time, element_id, mesh, output_vars,
+          make_not_null(&runner), 0, time, element_id, mesh, target_vars,
           dependency);
     }
   }
