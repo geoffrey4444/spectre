@@ -366,7 +366,7 @@ void test_apparent_horizon(
           get(lapse).size()};
       ah::compute_vars_to_interpolate_to_target(
           make_not_null(&target_vars), source_vars, time, domain, mesh,
-          element_id, std::make_optional(functions_of_time));
+          element_id, &functions_of_time);
 
       // Queue the action so we can invoke in a random order below
       ActionTesting::queue_simple_action<

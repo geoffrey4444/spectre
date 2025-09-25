@@ -3,7 +3,6 @@
 
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
 
-#include <optional>
 #include <type_traits>
 
 #include "DataStructures/LinkedMessageId.hpp"
@@ -182,24 +181,25 @@ void compute_vars_to_interpolate_to_target(
     const Variables<ah::source_vars<3>>& source_vars,
     const LinkedMessageId<double>& time, const Domain<3>& domain,
     const Mesh<3>& mesh, const ElementId<3>& element_id,
-    const std::optional<domain::FunctionsOfTimeMap>& functions_of_time_opt) {
+    const domain::FunctionsOfTimeMap* functions_of_time) {
   // This will only change the size if it isn't already the correct size
   target_vars->initialize(source_vars.number_of_grid_points());
 
   const auto& block = domain.blocks()[element_id.block_id()];
   if (block.is_time_dependent()) {
-    ASSERT(functions_of_time_opt.has_value(),
+    ASSERT(functions_of_time != nullptr,
            "Functions of time are not passed to "
            "compute_vars_to_interpolate_to_target but the block is "
            "time-dependent.");
-    const auto& functions_of_time = functions_of_time_opt.value();
+    const auto& functions_of_time_ref = *functions_of_time;
     if constexpr (std::is_same_v<Fr, ::Frame::Grid>) {
       const ElementMap<3, Fr> map_logical_to_grid{
           element_id, block.moving_mesh_logical_to_grid_map().get_clone()};
       const auto logical_coords = logical_coordinates(mesh);
       const auto jac_grid_to_inertial =
           block.moving_mesh_grid_to_inertial_map().jacobian(
-              map_logical_to_grid(logical_coords), time.id, functions_of_time);
+              map_logical_to_grid(logical_coords), time.id,
+              functions_of_time_ref);
       const auto invjac_logical_to_grid =
           map_logical_to_grid.inv_jacobian(logical_coords);
 
@@ -222,11 +222,11 @@ void compute_vars_to_interpolate_to_target(
       const auto jac_distorted_to_inertial =
           block.moving_mesh_distorted_to_inertial_map().jacobian(
               element_logical_to_distorted_map(logical_coords, time.id,
-                                               functions_of_time),
-              time.id, functions_of_time);
+                                               functions_of_time_ref),
+              time.id, functions_of_time_ref);
       const auto invjac_logical_to_distorted =
-          element_logical_to_distorted_map.inv_jacobian(logical_coords, time.id,
-                                                        functions_of_time);
+          element_logical_to_distorted_map.inv_jacobian(
+              logical_coords, time.id, functions_of_time_ref);
 
       compute_vars_to_interpolate_to_target_impl(target_vars, source_vars, mesh,
                                                  jac_distorted_to_inertial,
@@ -256,7 +256,7 @@ void compute_vars_to_interpolate_to_target(
       const Variables<ah::source_vars<3>>& source_vars,                  \
       const LinkedMessageId<double>& time, const Domain<3>& domain,      \
       const Mesh<3>& mesh, const ElementId<3>& element_id,               \
-      const std::optional<domain::FunctionsOfTimeMap>& functions_of_time_opt);
+      const domain::FunctionsOfTimeMap* functions_of_time);
 
 GENERATE_INSTANTIATIONS(INSTANTIATE,
                         (Frame::Inertial, Frame::Distorted, Frame::Grid))

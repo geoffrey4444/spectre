@@ -216,10 +216,11 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
 
     Variables<ah::vars_to_interpolate_to_target<3, ::Frame::Grid>> target_vars{
         vars.number_of_grid_points()};
+    const auto functions_of_time = domain_creator.functions_of_time();
     ah::compute_vars_to_interpolate_to_target(
         make_not_null(&target_vars), vars, observation_time,
         domain_creator.create_domain(), mesh, element_id,
-        std::make_optional(domain_creator.functions_of_time()));
+        &functions_of_time);
     CHECK(results.vars == target_vars);
 
     CHECK(results.dependency == dependency);

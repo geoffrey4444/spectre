@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <optional>
-
 #include "DataStructures/LinkedMessageId.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Domain/Domain.hpp"
@@ -26,5 +24,5 @@ void compute_vars_to_interpolate_to_target(
     const Variables<ah::source_vars<3>>& source_vars,
     const LinkedMessageId<double>& time, const Domain<3>& domain,
     const Mesh<3>& mesh, const ElementId<3>& element_id,
-    const std::optional<domain::FunctionsOfTimeMap>& functions_of_time_opt);
+    const domain::FunctionsOfTimeMap* functions_of_time);
 }  // namespace ah

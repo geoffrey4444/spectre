@@ -215,7 +215,7 @@ void test_compute_horizon_volume_quantities(const bool is_time_dependent) {
   // Compute other vars
   ah::compute_vars_to_interpolate_to_target(
       make_not_null(&target_vars), source_vars, time, domain, mesh,
-      element_ids[0], std::make_optional(functions_of_time));
+      element_ids[0], &functions_of_time);
 
   // Now make sure those computed vars are correct.
   const auto solution_vars_target_frame = solution.variables(

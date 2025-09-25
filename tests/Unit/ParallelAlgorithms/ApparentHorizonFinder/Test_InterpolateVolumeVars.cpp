@@ -164,8 +164,7 @@ void test_interpolate_volume_vars() {
     ah::compute_vars_to_interpolate_to_target(
         make_not_null(
             &all_volume_variables[element_id].vars_to_interpolate_to_target),
-        source_vars, time, domain, mesh, element_id,
-        std::make_optional(functions_of_time));
+        source_vars, time, domain, mesh, element_id, &functions_of_time);
 
     ah::interpolate_volume_data(make_not_null(&current_iteration),
                                 make_not_null(&all_volume_variables));

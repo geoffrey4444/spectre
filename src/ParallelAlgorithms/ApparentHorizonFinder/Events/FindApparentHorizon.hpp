@@ -18,6 +18,7 @@
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Invoke.hpp"
+#include "Parallel/ParallelComponentHelpers.hpp"
 #include "ParallelAlgorithms/Actions/GetItemFromDistributedObject.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
@@ -109,16 +110,23 @@ class FindApparentHorizon : public Event {
     // fill it by calling compute_vars_to_interpolate_to_target().
     // Then pass this variables to the FindApparentHorizon simple action.
     using horizon_frame = typename HorizonMetavars::frame;
-    const auto& functions_of_time_opt =
-        block.is_time_dependent()
-            ? std::optional<domain::FunctionsOfTimeMap>{Parallel::get<
-                  domain::Tags::FunctionsOfTime>(cache)}
-            : std::nullopt;
+    const domain::FunctionsOfTimeMap* functions_of_time = nullptr;
+    if (block.is_time_dependent()) {
+      if constexpr (Parallel::is_in_global_cache<
+                        Metavariables, domain::Tags::FunctionsOfTime>) {
+        functions_of_time =
+            &Parallel::get<domain::Tags::FunctionsOfTime>(cache);
+      } else {
+        ERROR(
+            "Block is time-dependent but FunctionsOfTime are not available "
+            "in the global cache.");
+      }
+    }
     Variables<ah::vars_to_interpolate_to_target<3, horizon_frame>>
         vars_to_interpolate_to_target{mesh.number_of_grid_points()};
     ah::compute_vars_to_interpolate_to_target(
         make_not_null(&vars_to_interpolate_to_target), source_vars, time,
-        domain, mesh, array_index, functions_of_time_opt);
+        domain, mesh, array_index, functions_of_time);
 
     auto& horizon_finder_proxy = Parallel::get_parallel_component<
         ah::Component<Metavariables, HorizonMetavars>>(cache);
