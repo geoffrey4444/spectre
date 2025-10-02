@@ -74,3 +74,7 @@ TAGS
 tags
 # Keep Tags/ directories on case-insensitive file systems
 !Tags/
+
+# AI configuration files
+AGENTS.md
+CLAUDE.md
