@@ -292,6 +292,7 @@ Interpolator:
   Verbosity: Silent
 
 ApparentHorizons:
+  MaxOutputL: *MaximumL
   ApparentHorizon: &Ah
     Criteria:
     InitialGuess:

@@ -289,4 +289,17 @@ struct ObserveCenters : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const type& option) { return option; }
 };
+
+/// \ingroup DataBoxTagsGroup
+/// DataBox tag that holds the maximum L for horizon output
+struct MaxOutputL : db::SimpleTag {
+  using type = std::optional<size_t>;
+
+  using option_tags = tmpl::list<OptionTags::MaxOutputL>;
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options(
+      const Options::Auto<size_t, Options::AutoLabel::None>& max_l) {
+    return {max_l};
+  }
+};
 }  // namespace ah::Tags

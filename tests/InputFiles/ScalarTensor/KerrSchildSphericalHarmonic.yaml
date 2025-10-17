@@ -250,6 +250,7 @@ ApparentHorizons:
     BlocksForHorizonFind: ["Shell0"]
   ControlSystemSingleAh: *Ah
   ControlSystemCharSpeedAh: *Ah
+  MaxOutputL: *LMax
 
 InterpolationTargets:
   ExcisionBoundaryA: &ExBdry

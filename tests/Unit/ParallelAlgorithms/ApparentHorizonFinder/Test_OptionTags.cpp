@@ -19,6 +19,7 @@
 #include "Framework/TestCreation.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
+#include "Options/Auto.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Factory.hpp"
@@ -162,5 +163,20 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
           std::unordered_set<std::string>{"Shell0UpperZ", "Shell0LowerZ",
                                           "Shell0UpperY", "Shell0LowerY",
                                           "Shell0UpperX", "Shell0LowerX"});
+  }
+
+  // Test MaxOutputL option tag
+  {
+    const Options::Auto<size_t, Options::AutoLabel::None> max_l_none{};
+    const auto tag_from_none =
+        ah::Tags::MaxOutputL::create_from_options(max_l_none);
+    CHECK_FALSE(tag_from_none.has_value());
+  }
+  {
+    const Options::Auto<size_t, Options::AutoLabel::None> max_l_20{20_st};
+    const auto tag_from_20 =
+        ah::Tags::MaxOutputL::create_from_options(max_l_20);
+    REQUIRE(tag_from_20.has_value());
+    CHECK(*tag_from_20 == 20_st);
   }
 }

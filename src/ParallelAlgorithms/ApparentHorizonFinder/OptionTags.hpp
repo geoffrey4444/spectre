@@ -109,5 +109,17 @@ struct ApparentHorizonOptions {
   static std::string name() { return pretty_type::name<HorizonMetavars>(); }
   using group = ApparentHorizonGroup;
 };
+
+/// \ingroup OptionTagsGroup
+/// Maximum L for output when using adaptive horizon finding. This ensures
+/// fixed column count in HDF5 files when resolution changes.
+struct MaxOutputL {
+  using type = Options::Auto<size_t, Options::AutoLabel::None>;
+  static constexpr Options::String help = {
+      "Maximum L for horizon output. When adaptive horizon finding changes "
+      "resolution, output is padded to this L. If None, uses the current "
+      "resolution (will cause HDF5 errors unless horizon L remains constant)."};
+  using group = ApparentHorizonGroup;
+};
 }  // namespace OptionTags
 }  // namespace ah

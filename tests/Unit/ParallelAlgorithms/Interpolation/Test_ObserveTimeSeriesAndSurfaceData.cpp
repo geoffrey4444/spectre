@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <pup.h>
 #include <random>
 #include <string>
@@ -432,6 +433,7 @@ struct MockComputeTargetPoints : public OriginalComputeTargetPoints {
 };
 
 struct MockMetavariables {
+  using const_global_cache_tags = tmpl::list<ah::Tags::MaxOutputL>;
   struct SurfaceA : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     using temporal_id = ::Tags::Time;
     using vars_to_interpolate_to_target =
@@ -606,14 +608,15 @@ void run_test() {
       ylm::AngularOrdering::Strahlkorper);
   const auto domain_creator = make_sphere<ValidPoints>();
   const auto block_names = domain_creator.block_names();
-  tuples::TaggedTuple<
-      observers::Tags::ReductionFileName, observers::Tags::SurfaceFileName,
-      ::intrp::Tags::KerrHorizon<metavars::SurfaceA>,
-      ah::Tags::BlocksForInterpolation, domain::Tags::Domain<3>,
-      ::intrp::Tags::KerrHorizon<metavars::SurfaceB>,
-      ::intrp::Tags::KerrHorizon<metavars::SurfaceC>,
-      ::intrp::Tags::KerrHorizon<metavars::SurfaceD>,
-      ::intrp::Tags::KerrHorizon<metavars::SurfaceE>, ::intrp::Tags::Verbosity>
+  tuples::TaggedTuple<observers::Tags::ReductionFileName,
+                      observers::Tags::SurfaceFileName,
+                      ::intrp::Tags::KerrHorizon<metavars::SurfaceA>,
+                      ah::Tags::BlocksForInterpolation, domain::Tags::Domain<3>,
+                      ::intrp::Tags::KerrHorizon<metavars::SurfaceB>,
+                      ::intrp::Tags::KerrHorizon<metavars::SurfaceC>,
+                      ::intrp::Tags::KerrHorizon<metavars::SurfaceD>,
+                      ::intrp::Tags::KerrHorizon<metavars::SurfaceE>,
+                      ah::Tags::MaxOutputL, ::intrp::Tags::Verbosity>
       tuple_of_opts{
           h5_file_prefix,
           surfaces_file_prefix,
@@ -629,6 +632,7 @@ void run_test() {
           kerr_horizon_opts_C,
           kerr_horizon_opts_D,
           kerr_horizon_opts_E,
+          std::optional<size_t>{},
           ::Verbosity::Silent};
 
   // Three mock nodes, with 2, 1, and 4 mock cores.
@@ -890,6 +894,133 @@ void run_test() {
   check_ylm_data_with_greater_max_l();
 }
 
+struct AdaptiveSurfaceTarget {};
+
+void test_observe_surface_data_with_resolution_change() {
+  const std::string reduction_file_prefix = "AdaptiveSurfaceReduction";
+  const std::string surface_file_prefix = "AdaptiveSurfaceSurfaceData";
+  const std::string reduction_file_name = reduction_file_prefix + ".h5";
+  const std::string surface_file_name = surface_file_prefix + ".h5";
+  if (file_system::check_if_file_exists(reduction_file_name)) {
+    file_system::rm(reduction_file_name, true);
+  }
+  if (file_system::check_if_file_exists(surface_file_name)) {
+    file_system::rm(surface_file_name, true);
+  }
+
+  constexpr size_t max_output_l = 6;
+  constexpr size_t low_l = 4;
+  constexpr size_t high_l = max_output_l;
+  const std::array<double, 3> center{{0.1, -0.2, 0.3}};
+
+  MAKE_GENERATOR(generator);
+  const std::uniform_real_distribution<> radius_distribution{0.8, 1.2};
+  const ylm::Spherepack spherepack_high{high_l, high_l};
+  const auto radius_high = make_with_random_values<DataVector>(
+      make_not_null(&generator), radius_distribution,
+      DataVector(spherepack_high.physical_size(), 0.0));
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper_high{
+      high_l, high_l, radius_high, center};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper_low{low_l, low_l,
+                                                            strahlkorper_high};
+
+  struct AdaptiveSurfaceMetavariables {
+    using observed_reduction_data_tags = tmpl::list<>;
+    using const_global_cache_tags = tmpl::list<ah::Tags::MaxOutputL>;
+    using component_list =
+        tmpl::list<MockObserverWriter<AdaptiveSurfaceMetavariables>>;
+  };
+
+  using ObsWriter = MockObserverWriter<AdaptiveSurfaceMetavariables>;
+  tuples::TaggedTuple<observers::Tags::ReductionFileName,
+                      observers::Tags::SurfaceFileName, ah::Tags::MaxOutputL>
+      tuple_of_opts{reduction_file_prefix, surface_file_prefix,
+                    std::optional<size_t>{max_output_l}};
+  ActionTesting::MockRuntimeSystem<AdaptiveSurfaceMetavariables> runner{
+      std::move(tuple_of_opts)};
+
+  ActionTesting::set_phase(make_not_null(&runner),
+                           Parallel::Phase::Initialization);
+  ActionTesting::emplace_nodegroup_component<ObsWriter>(&runner);
+  for (size_t i = 0; i < 2; ++i) {
+    ActionTesting::next_action<ObsWriter>(make_not_null(&runner), 0);
+  }
+  ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
+  auto& cache = ActionTesting::cache<ObsWriter>(runner, 0_st);
+
+  const auto make_box = [](const ylm::Strahlkorper<Frame::Inertial>&
+                               strahlkorper) {
+    const auto coords = ylm::cartesian_coords(strahlkorper);
+    return db::create<tmpl::list<ylm::Tags::Strahlkorper<Frame::Inertial>,
+                                 ylm::Tags::CartesianCoords<Frame::Inertial>>>(
+        strahlkorper, coords);
+  };
+
+  using Callback =
+      intrp::callbacks::ObserveSurfaceData<tmpl::list<>, AdaptiveSurfaceTarget,
+                                           ::Frame::Inertial>;
+
+  auto low_box = make_box(strahlkorper_low);
+  auto high_box = make_box(strahlkorper_high);
+  Callback::apply(low_box, cache, 1.0);
+  Callback::apply(high_box, cache, 2.0);
+
+  while (ActionTesting::number_of_queued_threaded_actions<ObsWriter>(runner,
+                                                                     0) > 0) {
+    ActionTesting::invoke_queued_threaded_action<ObsWriter>(
+        make_not_null(&runner), 0);
+  }
+
+  const auto file = h5::H5File<h5::AccessType::ReadOnly>(reduction_file_name);
+  const std::string surface_name = pretty_type::name<AdaptiveSurfaceTarget>();
+  file.close_current_object();
+  const auto& ylm_dat =
+      file.get<h5::Dat>(std::string{"/"} + surface_name + "_Ylm");
+  const Matrix ylm_data = ylm_dat.get_data();
+  const auto& legend = ylm_dat.get_legend();
+  const size_t expected_columns = 5 + square(max_output_l + 1);
+
+  CHECK(ylm_data.rows() == 2);
+  CHECK(ylm_data.columns() == expected_columns);
+  CHECK(legend.size() == expected_columns);
+
+  const auto check_row =
+      [](const Matrix& data, const size_t row, const double expected_time,
+         const ylm::Strahlkorper<Frame::Inertial>& strahlkorper,
+         const size_t expected_l_max) {
+        CHECK(data(row, 0) == expected_time);
+        const auto& expansion_center = strahlkorper.expansion_center();
+        CHECK(data(row, 1) == expansion_center[0]);
+        CHECK(data(row, 2) == expansion_center[1]);
+        CHECK(data(row, 3) == expansion_center[2]);
+        CHECK(data(row, 4) == expected_l_max);
+        size_t column = 5;
+        for (size_t l = 0; l <= max_output_l; ++l) {
+          for (int m = -static_cast<int>(l); m <= static_cast<int>(l); ++m) {
+            double expected_value = 0.0;
+            if (l <= strahlkorper.l_max()) {
+              ylm::SpherepackIterator iterator(strahlkorper.l_max(),
+                                               strahlkorper.m_max());
+              iterator.set(l, m);
+              expected_value = strahlkorper.coefficients()[iterator()];
+            }
+            CHECK(data(row, column) == expected_value);
+            ++column;
+          }
+        }
+      };
+
+  check_row(ylm_data, 0, 1.0, strahlkorper_low, low_l);
+  check_row(ylm_data, 1, 2.0, strahlkorper_high, high_l);
+
+  if (file_system::check_if_file_exists(reduction_file_name)) {
+    file_system::rm(reduction_file_name, true);
+  }
+  if (file_system::check_if_file_exists(surface_file_name)) {
+    file_system::rm(surface_file_name, true);
+  }
+}
+
 SPECTRE_TEST_CASE(
     "Unit.NumericalAlgorithms.Interpolator.ObserveTimeSeriesAndSurfaceData",
     "[Unit]") {
@@ -901,5 +1032,6 @@ SPECTRE_TEST_CASE(
   // properly would require passing in the list of valid points.  The
   // only difference between the cases All and Some would be that
   // invalid points print nan, which is only tested by None.
+  test_observe_surface_data_with_resolution_change();
 }
 }  // namespace

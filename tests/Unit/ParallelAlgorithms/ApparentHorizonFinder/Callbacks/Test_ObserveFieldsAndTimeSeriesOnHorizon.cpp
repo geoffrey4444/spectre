@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <pup.h>
 #include <random>
 #include <string>
@@ -478,9 +479,145 @@ void run_test() {
   }
 }
 
+void test_observe_fields_on_horizon_with_resolution_change() {
+  const std::string reduction_file_prefix = "AdaptiveHorizonReduction";
+  const std::string surface_file_prefix = "AdaptiveHorizonSurfaceData";
+  const std::string reduction_file_name = reduction_file_prefix + ".h5";
+  const std::string surface_file_name = surface_file_prefix + ".h5";
+  if (file_system::check_if_file_exists(reduction_file_name)) {
+    file_system::rm(reduction_file_name, true);
+  }
+  if (file_system::check_if_file_exists(surface_file_name)) {
+    file_system::rm(surface_file_name, true);
+  }
+
+  constexpr size_t max_output_l = 6;
+  constexpr size_t low_l = 4;
+  constexpr size_t high_l = max_output_l;
+  const double base_radius = 1.7;
+  const std::array<double, 3> center{{0.05, -0.01, 0.08}};
+
+  MAKE_GENERATOR(generator);
+  const std::uniform_real_distribution<> radius_distribution{0.9 * base_radius,
+                                                             1.1 * base_radius};
+  const ylm::Spherepack spherepack_high(high_l, high_l);
+  const auto radius_high = make_with_random_values<DataVector>(
+      make_not_null(&generator), radius_distribution,
+      DataVector{spherepack_high.physical_size(), 0.0});
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper_high{
+      high_l, high_l, radius_high, center};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper_low{low_l, low_l,
+                                                            strahlkorper_high};
+
+  struct AdaptiveHorizonMetavariables {
+    using observed_reduction_data_tags = tmpl::list<>;
+    using const_global_cache_tags = tmpl::list<ah::Tags::MaxOutputL>;
+    using component_list =
+        tmpl::list<MockObserverWriter<AdaptiveHorizonMetavariables>>;
+  };
+
+  using ObsWriter = MockObserverWriter<AdaptiveHorizonMetavariables>;
+  tuples::TaggedTuple<observers::Tags::ReductionFileName,
+                      observers::Tags::SurfaceFileName, ah::Tags::MaxOutputL>
+      tuple_of_opts{reduction_file_prefix, surface_file_prefix,
+                    std::optional<size_t>{max_output_l}};
+  ActionTesting::MockRuntimeSystem<AdaptiveHorizonMetavariables> runner{
+      std::move(tuple_of_opts)};
+
+  ActionTesting::set_phase(make_not_null(&runner),
+                           Parallel::Phase::Initialization);
+  ActionTesting::emplace_nodegroup_component<ObsWriter>(&runner);
+  for (size_t i = 0; i < 2; ++i) {
+    ActionTesting::next_action<ObsWriter>(make_not_null(&runner), 0);
+  }
+  ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
+  auto& cache = ActionTesting::cache<ObsWriter>(runner, 0_st);
+
+  using HorizonMetavars = MockMetavariables::HorizonD;
+  using Callback =
+      ah::callbacks::ObserveFieldsOnHorizon<tmpl::list<>, HorizonMetavars>;
+
+  const auto make_box =
+      [](const ylm::Strahlkorper<Frame::Inertial>& strahlkorper,
+         const LinkedMessageId<double>& time_id) {
+        const auto coords = ylm::cartesian_coords(strahlkorper);
+        return db::create<tmpl::list<
+            ah::Tags::CurrentTime, ylm::Tags::Strahlkorper<Frame::Inertial>,
+            ylm::Tags::CartesianCoords<Frame::Inertial>>>(
+            std::optional<LinkedMessageId<double>>{time_id}, strahlkorper,
+            coords);
+      };
+
+  const LinkedMessageId<double> time1{1.5, std::nullopt};
+  const LinkedMessageId<double> time2{2.5, std::optional{time1.id}};
+
+  auto low_box = make_box(strahlkorper_low, time1);
+  auto high_box = make_box(strahlkorper_high, time2);
+
+  Callback::apply(low_box, cache, FastFlow::Status::AbsTol);
+  Callback::apply(high_box, cache, FastFlow::Status::AbsTol);
+
+  while (ActionTesting::number_of_queued_threaded_actions<ObsWriter>(runner,
+                                                                     0) > 0) {
+    ActionTesting::invoke_queued_threaded_action<ObsWriter>(
+        make_not_null(&runner), 0);
+  }
+
+  const auto file = h5::H5File<h5::AccessType::ReadOnly>(reduction_file_name);
+  const std::string surface_name = pretty_type::name<HorizonMetavars>();
+  file.close_current_object();
+  const auto& ylm_dat =
+      file.get<h5::Dat>(std::string{"/"} + surface_name + "_Ylm");
+  const Matrix ylm_data = ylm_dat.get_data();
+  const auto& legend = ylm_dat.get_legend();
+  const size_t expected_columns = 5 + square(max_output_l + 1);
+
+  CHECK(ylm_data.rows() == 2);
+  CHECK(ylm_data.columns() == expected_columns);
+  CHECK(legend.size() == expected_columns);
+
+  const auto check_row =
+      [](const Matrix& data, const size_t row,
+         const LinkedMessageId<double>& time_id,
+         const ylm::Strahlkorper<Frame::Inertial>& strahlkorper,
+         const size_t expected_l_max) {
+        CHECK(data(row, 0) == time_id.id);
+        const auto& expansion_center = strahlkorper.expansion_center();
+        CHECK(data(row, 1) == expansion_center[0]);
+        CHECK(data(row, 2) == expansion_center[1]);
+        CHECK(data(row, 3) == expansion_center[2]);
+        CHECK(data(row, 4) == expected_l_max);
+        size_t column = 5;
+        for (size_t l = 0; l <= max_output_l; ++l) {
+          for (int m = -static_cast<int>(l); m <= static_cast<int>(l); ++m) {
+            double expected_value = 0.0;
+            if (l <= strahlkorper.l_max()) {
+              ylm::SpherepackIterator iterator{strahlkorper.l_max(),
+                                               strahlkorper.m_max()};
+              iterator.set(l, m);
+              expected_value = strahlkorper.coefficients()[iterator()];
+            }
+            CHECK(data(row, column) == expected_value);
+            ++column;
+          }
+        }
+      };
+
+  check_row(ylm_data, 0, time1, strahlkorper_low, low_l);
+  check_row(ylm_data, 1, time2, strahlkorper_high, high_l);
+
+  if (file_system::check_if_file_exists(reduction_file_name)) {
+    file_system::rm(reduction_file_name, true);
+  }
+  if (file_system::check_if_file_exists(surface_file_name)) {
+    file_system::rm(surface_file_name, true);
+  }
+}
+
 SPECTRE_TEST_CASE(
     "Unit.ApparentHorizonFinder.ObserveFieldsAndTimeSeriesOnHorizon",
     "[ApparentHorizonFinder][Unit]") {
   run_test();
+  test_observe_fields_on_horizon_with_resolution_change();
 }
 }  // namespace
