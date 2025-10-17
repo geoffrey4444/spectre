@@ -227,6 +227,20 @@ struct Verbosity : db::SimpleTag {
   }
 };
 
+/// \ingroup DataBoxTagsGroup
+/// \ingroup ControlSystemGroup
+/// DataBox tag that holds the maximum L for Shape control system output
+struct MaxOutputLForShape : db::SimpleTag {
+  using type = std::optional<size_t>;
+
+  using option_tags = tmpl::list<OptionTags::MaxOutputLForShape>;
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options(
+      const Options::Auto<size_t, Options::AutoLabel::None>& max_l) {
+    return max_l;
+  }
+};
+
 /*!
  * \brief Tag meant to be stored in the GlobalCache that stores a map between
  * names of control systems and the "combined" name that that control system is

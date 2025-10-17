@@ -164,6 +164,19 @@ struct Verbosity {
       "control systems."};
   using group = ControlSystemGroup;
 };
+
+/// \ingroup OptionTagsGroup
+/// \ingroup ControlSystemGroup
+/// Maximum L for output when using adaptive horizon finding. This ensures
+/// fixed column count in HDF5 files when resolution changes.
+struct MaxOutputLForShape {
+  using type = Options::Auto<size_t, Options::AutoLabel::None>;
+  static constexpr Options::String help = {
+      "Maximum L for Shape control system output. When adaptive horizon "
+      "finding changes resolution, output is padded to this L. If None, "
+      "uses the current resolution (may cause HDF5 errors)."};
+  using group = ControlSystemGroup;
+};
 }  // namespace OptionTags
 
 /// \ingroup ControlSystemGroup
