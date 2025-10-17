@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "ControlSystem/Tags/SystemTags.hpp"
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/TagName.hpp"
 #include "IO/H5/TensorData.hpp"
@@ -27,6 +28,7 @@
 #include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/Interpolation/InterpolationTargetDetail.hpp"
 #include "ParallelAlgorithms/Interpolation/Protocols/PostInterpolationCallback.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Functional.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/PrettyType.hpp"
@@ -158,9 +160,27 @@ struct ObserveSurfaceData
     // coefficients regardless of the current value of l_max and (b) write a
     // constant number of columns for each row of data regardless of the current
     // l_max.
+    size_t max_l_to_write = strahlkorper.l_max();
+    if constexpr (Parallel::is_in_global_cache<
+                      Metavariables,
+                      control_system::Tags::MaxOutputLForShape>) {
+      const auto& max_output_l =
+          Parallel::get<control_system::Tags::MaxOutputLForShape>(cache);
+      if (max_output_l.has_value()) {
+        if (UNLIKELY(*max_output_l < strahlkorper.l_max())) {
+          ERROR("The option MaxOutputLForShape ("
+                << *max_output_l << ") is smaller than the current "
+                << "Strahlkorper resolution L=" << strahlkorper.l_max()
+                << ". Increase MaxOutputLForShape or the horizon criteria "
+                << "maximum L to avoid truncating data.");
+        }
+        max_l_to_write = *max_output_l;
+      }
+    }
+
     ylm::fill_ylm_legend_and_data(make_not_null(&ylm_legend),
                                   make_not_null(&ylm_data), strahlkorper, time,
-                                  strahlkorper.l_max());
+                                  max_l_to_write);
 
     const std::string ylm_subfile_name{std::string{"/"} + surface_name +
                                        "_Ylm"};
