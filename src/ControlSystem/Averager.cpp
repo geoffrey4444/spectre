@@ -73,16 +73,33 @@ void Averager<DerivOrder>::clear() {
 template <size_t DerivOrder>
 void Averager<DerivOrder>::update(const double time, const DataVector& raw_q,
                                   const DataVector& timescales) {
+  // Handle resolution changes by padding or truncating raw_q
+  DataVector adjusted_raw_q{};
+
   if (not raw_qs_.empty()) {
     if (UNLIKELY(raw_q.size() != raw_qs_[0].size())) {
-      ERROR("The number of components in the raw_q provided ("
-            << raw_q.size()
-            << ") does not match the size of previously supplied raw_q ("
-            << raw_qs_[0].size() << ").");
+      const size_t old_size = raw_qs_[0].size();
+      const size_t new_size = raw_q.size();
+      const size_t copy_size = std::min(old_size, new_size);
+
+      // Adjust raw_q to match the averager's expected size
+      adjusted_raw_q.destructive_resize(old_size);
+
+      // Copy the overlapping data
+      std::copy(raw_q.begin(), raw_q.begin() + copy_size,
+                adjusted_raw_q.begin());
+
+      // Pad with zeros if resolution decreased
+      if (new_size < old_size) {
+        std::fill(adjusted_raw_q.begin() + new_size, adjusted_raw_q.end(), 0.0);
+      }
+    } else {
+      adjusted_raw_q = raw_q;
     }
   } else {
     // This is the first call to update: initialize averaged values, weights and
     // effective time (with proper number of components)
+    adjusted_raw_q = raw_q;
     averaged_values_ =
         make_array<DerivOrder + 1>(DataVector(raw_q.size(), 0.0));
     weight_k_ = 0.0;
@@ -90,14 +107,33 @@ void Averager<DerivOrder>::update(const double time, const DataVector& raw_q,
   }
 
   // Ensure that the number of timescales matches the number of components
-  if (UNLIKELY(timescales.size() != raw_q.size())) {
-    ERROR("The number of supplied timescales ("
-          << timescales.size() << ") does not match the number of components ("
-          << raw_q.size() << ").");
+  // Note: We need to handle the case where timescales size might differ from
+  // adjusted_raw_q size due to resolution changes
+  DataVector adjusted_timescales{};
+  if (UNLIKELY(timescales.size() != adjusted_raw_q.size())) {
+    const size_t old_size = adjusted_raw_q.size();
+    const size_t new_size = timescales.size();
+    const size_t copy_size = std::min(old_size, new_size);
+
+    adjusted_timescales.destructive_resize(old_size);
+
+    // Copy the overlapping data
+    std::copy(timescales.begin(), timescales.begin() + copy_size,
+              adjusted_timescales.begin());
+
+    // Pad with minimum timescale if resolution decreased
+    if (new_size < old_size) {
+      const double min_timescale_val = min(timescales);
+      std::fill(adjusted_timescales.begin() + new_size,
+                adjusted_timescales.end(), min_timescale_val);
+    }
+  } else {
+    adjusted_timescales = timescales;
   }
+
   // Get the minimum damping time from all component timescales. This will be
   // used to determine the averaging timescale for ALL components.
-  const double min_timescale = min(timescales);
+  const double min_timescale = min(adjusted_timescales);
 
   // Do not allow updates at or before last update time
   if (UNLIKELY(not times_.empty() and time <= last_time_updated())) {
@@ -109,7 +145,7 @@ void Averager<DerivOrder>::update(const double time, const DataVector& raw_q,
 
   // update deques
   times_.emplace_front(time);
-  raw_qs_.emplace_front(raw_q);
+  raw_qs_.emplace_front(adjusted_raw_q);
   if (times_.size() > DerivOrder + 1) {
     // get rid of old data once we have a sufficient number of points
     times_.pop_back();
