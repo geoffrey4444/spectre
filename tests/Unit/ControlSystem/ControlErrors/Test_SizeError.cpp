@@ -107,7 +107,7 @@ void test_size_error_one_step(
     const double distorted_horizon_velocity, const double target_char_speed,
     const std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>&
         function_of_time,
-    const double expected_error) {
+    const double expected_error, const size_t horizon_l_max = 8) {
   const std::string initial_state = pretty_type::name<InitialState>();
   const std::string final_state = pretty_type::name<FinalState>();
   CAPTURE(initial_state);
@@ -142,15 +142,15 @@ void test_size_error_one_step(
                                   initial_suggested_time_scale,
                                   false};
 
-  const size_t l_max = 8;
+  const size_t excision_l_max = 8;
 
   const std::array<double, 3> center{{0.0, 0.0, 0.0}};
-  ylm::Strahlkorper<Frame::Distorted> horizon(l_max, distorted_horizon_radius,
-                                              center);
+  ylm::Strahlkorper<Frame::Distorted> horizon(horizon_l_max,
+                                              distorted_horizon_radius, center);
   ylm::Strahlkorper<Frame::Distorted> excision_boundary(
-      l_max, distorted_excision_boundary_radius_initial, center);
+      excision_l_max, distorted_excision_boundary_radius_initial, center);
   ylm::Strahlkorper<Frame::Distorted> time_deriv_horizon(
-      l_max, distorted_horizon_velocity, center);
+      horizon_l_max, distorted_horizon_velocity, center);
 
   // Get Cartesian coordinates on excision boundary
   // (and other temp variables that are necessary to compute it).
@@ -386,7 +386,8 @@ void test_size_error(const double grid_excision_boundary_radius,
                      const double distorted_horizon_radius,
                      const double distorted_horizon_velocity,
                      const double target_char_speed,
-                     const double expected_error) {
+                     const double expected_error,
+                     const size_t horizon_l_max = 8) {
   const double initial_time = 0.0;
   std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime> function_of_time(
       new domain::FunctionsOfTime::PiecewisePolynomial<3>(
@@ -415,7 +416,7 @@ void test_size_error(const double grid_excision_boundary_radius,
       grid_excision_boundary_radius, distorted_excision_boundary_radius_initial,
       distorted_excision_boundary_velocity, distorted_horizon_radius,
       distorted_horizon_velocity, target_char_speed, function_of_time,
-      expected_error);
+      expected_error, horizon_l_max);
 }
 }  // namespace
 
@@ -427,6 +428,10 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
   test_size_error<control_system::size::States::Initial,
                   control_system::size::States::DeltaR>(1.98, 1.98, 0.0, 2.0,
                                                         0.0, 0.0, 0.0);
+  // Same as above but with a lower-resolution horizon to check prolongation.
+  test_size_error<control_system::size::States::Initial,
+                  control_system::size::States::DeltaR>(1.98, 1.98, 0.0, 2.0,
+                                                        0.0, 0.0, 0.0, 6);
   // Should remain in Initial state, since ComovingMinCharSpeed will
   // be negative.  Note that the way we make ComovingMinCharSpeed negative
   // is we put the excision boundary outside (!) the horizon, which normally

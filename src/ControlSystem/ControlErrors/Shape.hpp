@@ -13,6 +13,7 @@
 #include "ControlSystem/Tags/SystemTags.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "Domain/Structure/ObjectLabel.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
@@ -124,12 +125,28 @@ struct Shape : tt::ConformsTo<protocols::ControlError> {
             measurements);
     const auto& ah_coefs = ah.coefficients();
 
-    ASSERT(lambda_lm_coefs.size() == ah_coefs.size(),
+    const size_t lambda_spectral_size = lambda_lm_coefs.size();
+    ASSERT(lambda_spectral_size % 2 == 0,
            "Number of coefficients for shape map '"
-               << function_of_time_name << "' (" << lambda_lm_coefs.size()
-               << ") does not match the number of coefficients in the AH "
-                  "Strahlkorper ("
-               << ah_coefs.size() << ").");
+               << function_of_time_name << "' (" << lambda_spectral_size
+               << ") is not compatible "
+                  "with a Spherepack "
+                  "spectral size.");
+    const size_t square_size = lambda_spectral_size / 2;
+    const auto l_shape_map_plus_one =
+        static_cast<size_t>(std::sqrt(static_cast<double>(square_size)));
+    ASSERT(l_shape_map_plus_one != 0 and
+               l_shape_map_plus_one * l_shape_map_plus_one == square_size,
+           "Number of coefficients for shape map '"
+               << function_of_time_name << "' (" << lambda_spectral_size
+               << ") is not equal to 2*(L+1)^2.");
+    const size_t l_shape_map = l_shape_map_plus_one - 1;
+    const ylm::Spherepack shape_spherepack{l_shape_map, l_shape_map};
+    const DataVector ah_coefs_shape_resolution =
+        lambda_spectral_size == ah_coefs.size()
+            ? ah_coefs
+            : ah.ylm_spherepack().prolong_or_restrict(ah_coefs,
+                                                      shape_spherepack);
 
     const auto& excision_spheres = domain.excision_spheres();
 
@@ -143,17 +160,18 @@ struct Shape : tt::ConformsTo<protocols::ControlError> {
         excision_spheres.at(detail::excision_sphere_name<Object>()).radius();
 
     const double Y00 = sqrt(0.25 / M_PI);
-    ylm::SpherepackIterator iter{ah.l_max(), ah.m_max()};
+    ylm::SpherepackIterator iter{l_shape_map, l_shape_map};
     // See above docs for why we have the sqrt(pi/2) in the denominator
     const double relative_size_factor =
         (radius_excision_sphere_grid_frame / Y00 - lambda_00_coef) /
-        (sqrt(0.5 * M_PI) * ah_coefs[iter.set(0, 0)()]);
+        (sqrt(0.5 * M_PI) * ah_coefs_shape_resolution[iter.set(0, 0)()]);
 
     // The map parameters are in terms of SPHEREPACK coefficients (just like
     // strahlkorper coefficients), *not* spherical harmonic coefficients, thus
     // the control error for each l,m is in terms of SPHEREPACK coefficients
     // and no extra factors of sqrt(2/pi) are needed
-    DataVector Q = -relative_size_factor * ah_coefs - lambda_lm_coefs;
+    DataVector Q =
+        -relative_size_factor * ah_coefs_shape_resolution - lambda_lm_coefs;
 
     // Shape control is only for l > 1 so enforce that Q=0 for l=0,l=1. These
     // components of the control error won't be 0 automatically because the AH

@@ -36,6 +36,7 @@
 #include "Framework/ActionTesting.hpp"
 #include "Helpers/ControlSystem/SystemHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "Parallel/Phase.hpp"
@@ -199,6 +200,71 @@ void test_shape_control_error() {
   }
 
   CHECK_ITERABLE_APPROX(control_error, expected_control_error);
+
+  // Repeat with a horizon measurement at a different spectral resolution
+  Strahlkorper coarse_ah{8, 8, make_array<double, 3>(origin)};
+  auto& coarse_ah_coefs = coarse_ah.coefficients();
+  coarse_ah_coefs = make_with_random_values<DataVector>(
+      make_not_null(&generator), coef_dist, coarse_ah_coefs);
+
+  QueueTuple coarse_measurement_tuple{coarse_ah};
+
+  const DataVector mismatch_control_error =
+      ControlError{}(::TimescaleTuner<true>{}, cache, check_time, shape_name,
+                     coarse_measurement_tuple);
+
+  const ylm::Spherepack shape_spherepack{fake_ah.l_max(), fake_ah.m_max()};
+  const DataVector coarse_coefs_prolonged =
+      coarse_ah.ylm_spherepack().prolong_or_restrict(coarse_ah_coefs,
+                                                     shape_spherepack);
+
+  ylm::SpherepackIterator shape_iter{shape_spherepack.l_max(),
+                                     shape_spherepack.m_max()};
+  DataVector expected_mismatch =
+      -(excision_radius / Y00 - lambda_00_coef) /
+          (sqrt(0.5 * M_PI) * coarse_coefs_prolonged[shape_iter.set(0, 0)()]) *
+          coarse_coefs_prolonged -
+      lambda_lm_coefs;
+  for (shape_iter.reset(); shape_iter; ++shape_iter) {
+    if (shape_iter.l() == 0 or shape_iter.l() == 1) {
+      expected_mismatch[shape_iter()] = 0.0;
+    }
+  }
+
+  CHECK_ITERABLE_APPROX(mismatch_control_error, expected_mismatch);
+
+  // Repeat with a horizon measurement at a higher spectral resolution
+  Strahlkorper fine_ah{12, 12, make_array<double, 3>(origin)};
+  auto& fine_ah_coefs = fine_ah.coefficients();
+  fine_ah_coefs = make_with_random_values<DataVector>(make_not_null(&generator),
+                                                      coef_dist, fine_ah_coefs);
+
+  QueueTuple fine_measurement_tuple{fine_ah};
+
+  const DataVector fine_control_error =
+      ControlError{}(::TimescaleTuner<true>{}, cache, check_time, shape_name,
+                     fine_measurement_tuple);
+
+  const DataVector fine_coefs_restricted =
+      fine_ah.ylm_spherepack().prolong_or_restrict(fine_ah_coefs,
+                                                   shape_spherepack);
+
+  ylm::SpherepackIterator shape_iter_restricted{shape_spherepack.l_max(),
+                                                shape_spherepack.m_max()};
+  DataVector expected_fine =
+      -(excision_radius / Y00 - lambda_00_coef) /
+          (sqrt(0.5 * M_PI) *
+           fine_coefs_restricted[shape_iter_restricted.set(0, 0)()]) *
+          fine_coefs_restricted -
+      lambda_lm_coefs;
+  for (shape_iter_restricted.reset(); shape_iter_restricted;
+       ++shape_iter_restricted) {
+    if (shape_iter_restricted.l() == 0 or shape_iter_restricted.l() == 1) {
+      expected_fine[shape_iter_restricted()] = 0.0;
+    }
+  }
+
+  CHECK_ITERABLE_APPROX(fine_control_error, expected_fine);
 }
 
 SPECTRE_TEST_CASE("Unit.ControlSystem.ControlErrors.Shape",

@@ -57,6 +57,9 @@ ErrorDiagnostics control_error(
     const Scalar<DataVector>& deriv_comoving_char_speed) {
   const double Y00 = 0.25 * M_2_SQRTPI;
 
+  const ylm::Strahlkorper<Frame> apparent_horizon_on_excision_resolution{
+      excision_boundary.l_max(), excision_boundary.m_max(), apparent_horizon};
+
   // Define various quantities on excision boundary.
   // Declare a TempBuffer to do this with a single memory allocation.
   using excision_theta_phi_tag =
@@ -190,7 +193,8 @@ ErrorDiagnostics control_error(
 
   // Difference between horizon and excision boundary.
   gr::surfaces::radial_distance(make_not_null(&radial_distance),
-                                apparent_horizon, excision_boundary);
+                                apparent_horizon_on_excision_resolution,
+                                excision_boundary);
 
   // Update zero-crossing predictors.
   predictor_char_speed->add(time,
@@ -273,7 +277,8 @@ ErrorDiagnostics control_error(
       control_error,
       info->state->number(),
       min(get(radial_distance)),
-      min(get(radial_distance)) / apparent_horizon.average_radius(),
+      min(get(radial_distance)) /
+          apparent_horizon_on_excision_resolution.average_radius(),
       min_comoving_char_speed,
       char_speed_crossing_time.value_or(0.0),
       comoving_char_speed_crossing_time.value_or(0.0),
