@@ -111,14 +111,13 @@ struct ApparentHorizonOptions {
 };
 
 /// \ingroup OptionTagsGroup
-/// Maximum L for output when using adaptive horizon finding. This ensures
-/// fixed column count in HDF5 files when resolution changes.
-struct MaxOutputL {
-  using type = Options::Auto<size_t, Options::AutoLabel::None>;
+/// Maximum L used both for adaptive horizon resolution and output padding.
+struct MaxResolutionAndOutputL {
+  using type = size_t;
   static constexpr Options::String help = {
-      "Maximum L for horizon output. When adaptive horizon finding changes "
-      "resolution, output is padded to this L. If None, uses the current "
-      "resolution (will cause HDF5 errors unless horizon L remains constant)."};
+      "Maximum L for horizon resolution and output. Adaptive criteria clamp "
+      "the surface to this L, and output at smaller L is zero padded to "
+      "match this maximum L."};
   using group = ApparentHorizonGroup;
 };
 }  // namespace OptionTags

@@ -227,9 +227,7 @@ struct EvolutionMetavars : public ScalarTensorTemplateBase<EvolutionMetavars> {
                    control_system::size::States::factory_creatable_states>>;
   };
 
-  using const_global_cache_tags =
-      tmpl::push_back<typename st_base::const_global_cache_tags,
-                      ah::Tags::MaxOutputL>;
+  using const_global_cache_tags = typename st_base::const_global_cache_tags;
 
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
       tmpl::at<typename factory_creation::factory_classes, Event>>;

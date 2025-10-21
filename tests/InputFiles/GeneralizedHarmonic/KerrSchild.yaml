@@ -236,13 +236,13 @@ Interpolator:
   Verbosity: Silent
 
 ApparentHorizons:
+  MaxResolutionAndOutputL: 60
   ApparentHorizon: &Ah
     Criteria:
       - Residual:
           MinResidual: 1.e-2
           MaxResidual: 1.e-1
           MinResolutionL: 4
-          MaxResolutionL: 60
     InitialGuess:
       LMax: &LMax 8
       Radius: 2.2
@@ -261,7 +261,6 @@ ApparentHorizons:
     BlocksForHorizonFind: All
   ControlSystemSingleAh: *Ah
   ControlSystemCharSpeedAh: *Ah
-  MaxOutputL: 60
 
 InterpolationTargets:
   BondiSachsInterpolation:

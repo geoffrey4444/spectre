@@ -80,7 +80,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
   // Options for ApparentHorizon
   std::vector<std::unique_ptr<ah::Criterion>> criteria;
   criteria.emplace_back(
-      std::make_unique<ah::Criteria::Residual>(1.e-12, 1.e-2, 2, 12));
+      std::make_unique<ah::Criteria::Residual>(1.e-12, 1.e-2, 2));
   ah::HorizonOptions<::Frame::Grid> apparent_horizon_opts(
       std::move(criteria),
       ylm::Strahlkorper<Frame::Grid>{l_max, radius, center}, FastFlow{},
@@ -95,7 +95,6 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
           "      MinResidual: 1.e-12\n"
           "      MaxResidual: 1.e-2\n"
           "      MinResolutionL: 2\n"
-          "      MaxResolutionL: 12\n"
           "FastFlow:\n"
           "  Flow: Fast\n"
           "  Alpha: 1.0\n"
@@ -165,18 +164,11 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
                                           "Shell0UpperX", "Shell0LowerX"});
   }
 
-  // Test MaxOutputL option tag
+  // Test MaxResolutionAndOutputL option tag
   {
-    const Options::Auto<size_t, Options::AutoLabel::None> max_l_none{};
-    const auto tag_from_none =
-        ah::Tags::MaxOutputL::create_from_options(max_l_none);
-    CHECK_FALSE(tag_from_none.has_value());
-  }
-  {
-    const Options::Auto<size_t, Options::AutoLabel::None> max_l_20{20_st};
+    constexpr size_t max_l_20 = 20_st;
     const auto tag_from_20 =
-        ah::Tags::MaxOutputL::create_from_options(max_l_20);
-    REQUIRE(tag_from_20.has_value());
-    CHECK(*tag_from_20 == 20_st);
+        ah::Tags::MaxResolutionAndOutputL::create_from_options(max_l_20);
+    CHECK(tag_from_20 == max_l_20);
   }
 }

@@ -543,8 +543,7 @@ struct EvolutionMetavars {
       tmpl::list<gh::gauges::Tags::GaugeCondition,
                  gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
                  gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
-                 ah::Tags::MaxOutputL>;
+                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;

@@ -232,7 +232,7 @@ EventsAndTriggersAtSlabs:
       - Completion
 
 ApparentHorizons:
-  MaxOutputL: 4
+  MaxResolutionAndOutputL: 4
   AhA:
     InitialGuess:
       LMax: 4

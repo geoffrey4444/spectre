@@ -230,10 +230,11 @@ Interpolator:
   Verbosity: Silent
 
 ApparentHorizons:
+  MaxResolutionAndOutputL: &LMax 4
   ApparentHorizon: &Ah
     Criteria:
     InitialGuess:
-      LMax: &LMax 4
+      LMax: *LMax
       Radius: 2.2
       Center: [0., 0., 0.]
     FastFlow:
@@ -250,7 +251,6 @@ ApparentHorizons:
     BlocksForHorizonFind: ["Shell0"]
   ControlSystemSingleAh: *Ah
   ControlSystemCharSpeedAh: *Ah
-  MaxOutputL: *LMax
 
 InterpolationTargets:
   ExcisionBoundaryA: &ExBdry

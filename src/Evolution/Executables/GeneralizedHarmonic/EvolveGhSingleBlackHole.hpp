@@ -212,9 +212,7 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
                    control_system::size::States::factory_creatable_states>>;
   };
 
-  using const_global_cache_tags =
-      tmpl::push_back<typename gh_base::const_global_cache_tags,
-                      ah::Tags::MaxOutputL>;
+  using const_global_cache_tags = typename gh_base::const_global_cache_tags;
 
   using observed_reduction_data_tags =
       observers::collect_reduction_data_tags<tmpl::push_back<

@@ -99,7 +99,7 @@ struct Dependency : db::SimpleTag {
  * \details The value of this tag is `std::nullopt` if the current resolution L
  * isn't set.
  */
- struct CurrentResolutionL : db::SimpleTag {
+struct CurrentResolutionL : db::SimpleTag {
   using type = std::optional<size_t>;
 };
 
@@ -291,15 +291,12 @@ struct ObserveCenters : db::SimpleTag {
 };
 
 /// \ingroup DataBoxTagsGroup
-/// DataBox tag that holds the maximum L for horizon output
-struct MaxOutputL : db::SimpleTag {
-  using type = std::optional<size_t>;
+/// DataBox tag that holds the maximum L for horizon resolution and output.
+struct MaxResolutionAndOutputL : db::SimpleTag {
+  using type = size_t;
 
-  using option_tags = tmpl::list<OptionTags::MaxOutputL>;
+  using option_tags = tmpl::list<OptionTags::MaxResolutionAndOutputL>;
   static constexpr bool pass_metavariables = false;
-  static type create_from_options(
-      const Options::Auto<size_t, Options::AutoLabel::None>& max_l) {
-    return {max_l};
-  }
+  static type create_from_options(const size_t max_l) { return max_l; }
 };
 }  // namespace ah::Tags
