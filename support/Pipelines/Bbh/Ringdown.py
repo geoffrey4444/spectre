@@ -333,6 +333,17 @@ def start_ringdown(
         # make this smarter later (e.g. scale with the number of elements).
         scheduler_kwargs["num_procs"] = 180
 
+    # Determine truncation error max, for adaptivity
+    truncation_error_max = (
+        1.0e-3  # default if no resolution options are defined
+    )
+    if lev is not None:
+        truncation_error_max = 0.000216536 * 4 ** (-1 * lev)
+    elif polynomial_order is not None:
+        truncation_error_max = 0.000216536 * 4 ** (-1 * (polynomial_order - 7))
+
+    ringdown_params["TruncationErrorMax"] = truncation_error_max
+
     # Schedule!
     return schedule(
         ringdown_input_file_template,

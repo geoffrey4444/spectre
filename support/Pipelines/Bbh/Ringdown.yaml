@@ -322,6 +322,15 @@ ApparentHorizons:
   LMax: *MaximumL
   ApparentHorizon: &Ah
     Criteria:
+      - Residual:
+          MinResidual:  {{ TruncationErrorMax / 10.0 }}
+          MaxResidual:  {{ TruncationErrorMax }}
+          MinResolutionL: &AhAMinResolutionL 8
+      - Shape:
+          MinTruncationError: {{ TruncationErrorMax / 10.0 }}
+          MaxTruncationError: {{ TruncationErrorMax }}
+          MaxPileUpModes: 4
+          MinResolutionL: *AhAMinResolutionL
     InitialGuess:
       LMax: *MaximumL
       Radius: 2.2

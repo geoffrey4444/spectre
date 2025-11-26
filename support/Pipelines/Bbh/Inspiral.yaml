@@ -173,7 +173,7 @@ DomainCreator:
         InitialValuesY: [0.0, 0.0, 0.0]
         InitialValuesZ: [0.0, 0.0, 0.0]
       ShapeMapA:
-        LMax: &ShapeLMax 10
+        LMax: &ShapeLMax 40
   {% if SpecDataDirectory is defined %}
         InitialValues: Spherical
   {% else %}
@@ -498,11 +498,20 @@ Interpolator:
   Verbosity: Silent
 
 ApparentHorizons:
-  LMax: 33
+  LMax: *ShapeLMax
   ObservationAhA: &AhA
     Criteria:
+      - Residual:
+          MinResidual: &AhAMinResidual {{ TruncationErrorMax / 10.0 }}
+          MaxResidual: &AhAMaxResidual {{ TruncationErrorMax }}
+          MinResolutionL: &AhAMinResolutionL 6
+      - Shape:
+          MinTruncationError: &AhATruncErrorMin {{ TruncationErrorMax / 100.0 }}
+          MaxTruncationError: &AhATruncErrorMax {{ TruncationErrorMax }}
+          MaxPileUpModes: &AhAMaxPileUpModes 4
+          MinResolutionL: *AhAMinResolutionL
     InitialGuess:
-      LMax: &ObsLMax 10
+      LMax: *AhAMinResolutionL
       Radius: {{ ExcisionRadiusA * 1.5 }}
       Center: [*XCoordA, *YOffset, *ZOffset]
     FastFlow: &DefaultFastFlow
@@ -519,8 +528,17 @@ ApparentHorizons:
     BlocksForHorizonFind: ["ObjectAShell", "ObjectACube"]
   ObservationAhB: &AhB
     Criteria:
+      - Residual:
+          MinResidual: *AhAMinResidual
+          MaxResidual: *AhAMaxResidual
+          MinResolutionL: *AhAMinResolutionL
+      - Shape:
+          MinTruncationError: *AhATruncErrorMin
+          MaxTruncationError: *AhATruncErrorMax
+          MaxPileUpModes: *AhAMaxPileUpModes
+          MinResolutionL: *AhAMinResolutionL
     InitialGuess:
-      LMax: *ObsLMax
+      LMax: *AhAMinResolutionL
       Radius: {{ ExcisionRadiusB * 1.5 }}
       Center: [*XCoordB, *YOffset, *ZOffset]
     FastFlow: *DefaultFastFlow
@@ -529,8 +547,12 @@ ApparentHorizons:
     BlocksForHorizonFind: ["ObjectBShell", "ObjectBCube"]
   ObservationAhC:
     Criteria:
+      - Residual:
+          MinResidual: 1.e-4
+          MaxResidual: 1.e-3
+          MinResolutionL: *AhAMinResolutionL
     InitialGuess:
-      LMax: 33
+      LMax: 16
       Radius: 10.0
       Center: [0.0, 0.0, 0.0]
     FastFlow: *DefaultFastFlow
@@ -554,12 +576,12 @@ InterpolationTargets:
     Center: [0, 0, 0]
     AngularOrdering: Cce
   ObservationExcisionBoundaryA: &ExBdryA
-    LMax: *ObsLMax
+    LMax: *ShapeLMax
     Center: [*XCoordA, *YOffset, *ZOffset]
     Radius: *ExcisionRadiusA
     AngularOrdering: "Strahlkorper"
   ObservationExcisionBoundaryB: &ExBdryB
-    LMax: *ObsLMax
+    LMax: *ShapeLMax
     Center: [*XCoordB, *YOffset, *ZOffset]
     Radius: *ExcisionRadiusB
     AngularOrdering: "Strahlkorper"

@@ -485,6 +485,17 @@ def start_inspiral(
         }
     )
 
+    # Determine truncation error max, for adaptivity
+    truncation_error_max = (
+        1.0e-3  # default if no resolution options are defined
+    )
+    if lev is not None:
+        truncation_error_max = 0.000216536 * 4 ** (-1 * lev)
+    elif polynomial_order is not None:
+        truncation_error_max = 0.000216536 * 4 ** (-1 * (polynomial_order - 7))
+
+    inspiral_params["TruncationErrorMax"] = truncation_error_max
+
     # Set final time for eccentricity control to 2-3 orbits. This can be set
     # more dynamically in the future.
     if eccentricity_control:
