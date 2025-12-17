@@ -148,6 +148,14 @@
 #include "Utilities/ProtocolHelpers.hpp"
 #include "Utilities/TMPL.hpp"
 
+// Check if SpEC is linked and therefore we can load SpEC initial data
+#ifdef HAS_SPEC_EXPORTER
+#include "PointwiseFunctions/AnalyticData/GeneralRelativity/SpecInitialData.hpp"
+    using SpecInitialData = gr::AnalyticData::SpecInitialData;
+#else
+    using SpecInitialData = NoSuchType;
+#endif
+
 /// \cond
 namespace Frame {
 
@@ -307,9 +315,14 @@ struct FactoryCreation : tt::ConformsTo<Options::protocols::FactoryCreation> {
       tmpl::pair<
           evolution::initial_data::InitialData,
           tmpl::append<gh::Solutions::all_solutions<volume_dim>,
-                       tmpl::conditional_t<volume_dim == 3,
-                                           tmpl::list<gh::NumericInitialData>,
-                                           tmpl::list<>>>>,
+                       tmpl::conditional_t<
+                           volume_dim == 3,
+                           tmpl::flatten<tmpl::list<
+                               gh::NumericInitialData,
+                               tmpl::conditional_t<
+                                   std::is_same_v<SpecInitialData, NoSuchType>,
+                                   tmpl::list<>, SpecInitialData>>>,
+                           tmpl::list<>>>>,
       tmpl::pair<LtsTimeStepper, TimeSteppers::lts_time_steppers>,
       tmpl::pair<MathFunction<1, Frame::Inertial>,
                  MathFunctions::all_math_functions<1, Frame::Inertial>>,
