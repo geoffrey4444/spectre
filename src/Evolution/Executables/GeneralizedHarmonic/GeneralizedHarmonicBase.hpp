@@ -151,9 +151,9 @@
 // Check if SpEC is linked and therefore we can load SpEC initial data
 #ifdef HAS_SPEC_EXPORTER
 #include "PointwiseFunctions/AnalyticData/GeneralRelativity/SpecInitialData.hpp"
-    using SpecInitialData = gr::AnalyticData::SpecInitialData;
+using SpecInitialData = gr::AnalyticData::SpecInitialData;
 #else
-    using SpecInitialData = NoSuchType;
+using SpecInitialData = NoSuchType;
 #endif
 
 /// \cond
