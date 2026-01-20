@@ -105,6 +105,56 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
     CHECK(shape_and_size.at("Size")->func_and_2_derivs(0.1) ==
           make_array<3>(DataVector{0.0}));
   }
+  {
+    INFO("Spherical with size derivatives");
+    const auto shape_map_options = TestHelpers::test_option_tag<
+        ShapeMapOptions<false, domain::ObjectLabel::None>>(
+        "LMax: 8\n"
+        "CoefficientTruncationLimit: 0.0\n"
+        "InitialValues: Spherical\n"
+        "SizeInitialValues:\n"
+        "  Value: Auto\n"
+        "  Derivatives: [1.2, 2.3]\n");
+
+    REQUIRE(shape_map_options.has_value());
+    REQUIRE(std::holds_alternative<
+            ShapeMapOptions<false, domain::ObjectLabel::None>>(
+        shape_map_options.value()));
+
+    const FunctionsOfTimeMap shape_and_size = get_shape_and_size(
+        shape_map_options.value(), 0.1, 0.8, 0.9, inner_radius);
+
+    CHECK(shape_and_size.at("Shape")->func_and_2_derivs(0.1) ==
+          make_array<3>(
+              DataVector{ylm::Spherepack::spectral_size(l_max, l_max), 0.0}));
+    CHECK(shape_and_size.at("Size")->func_and_2_derivs(0.1) ==
+          std::array{DataVector{0.0}, DataVector{1.2}, DataVector{2.3}});
+  }
+  {
+    INFO("Spherical with size value and derivatives");
+    const auto shape_map_options = TestHelpers::test_option_tag<
+        ShapeMapOptions<false, domain::ObjectLabel::None>>(
+        "LMax: 8\n"
+        "CoefficientTruncationLimit: 0.0\n"
+        "InitialValues: Spherical\n"
+        "SizeInitialValues:\n"
+        "  Value: 0.5\n"
+        "  Derivatives: [1.0, 2.4]\n");
+
+    REQUIRE(shape_map_options.has_value());
+    REQUIRE(std::holds_alternative<
+            ShapeMapOptions<false, domain::ObjectLabel::None>>(
+        shape_map_options.value()));
+
+    const FunctionsOfTimeMap shape_and_size = get_shape_and_size(
+        shape_map_options.value(), 0.1, 0.8, 0.9, inner_radius);
+
+    CHECK(shape_and_size.at("Shape")->func_and_2_derivs(0.1) ==
+          make_array<3>(
+              DataVector{ylm::Spherepack::spectral_size(l_max, l_max), 0.0}));
+    CHECK(shape_and_size.at("Size")->func_and_2_derivs(0.1) ==
+          std::array{DataVector{0.5}, DataVector{1.0}, DataVector{2.4}});
+  }
   // We choose a Schwarzschild BH so all coefs are zero and it's easy to check
   {
     INFO("KerrSchild");

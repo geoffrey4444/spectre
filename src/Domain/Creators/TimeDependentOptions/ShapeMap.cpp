@@ -391,6 +391,14 @@ FunctionsOfTimeMap get_shape_and_size(
       gsl::at(size_funcs, i)[0] =
           gsl::at(hard_coded_options.initial_size_values.value(), i);
     }
+  } else if (hard_coded_options.initial_size_derivatives.has_value()) {
+    if (hard_coded_options.initial_size_value.has_value()) {
+      size_funcs[0][0] = hard_coded_options.initial_size_value.value();
+    }
+    size_funcs[1][0] =
+        gsl::at(hard_coded_options.initial_size_derivatives.value(), 0);
+    size_funcs[2][0] =
+        gsl::at(hard_coded_options.initial_size_derivatives.value(), 1);
   }
 
   result[shape_name] =

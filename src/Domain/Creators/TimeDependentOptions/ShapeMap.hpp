@@ -279,7 +279,34 @@ struct ShapeMapOptions {
   };
 
   struct SizeInitialValues {
-    using type = Options::Auto<std::array<double, 3>>;
+    struct Value {
+      using type = Options::Auto<double>;
+      static std::string name() { return "Value"; }
+      static constexpr Options::String help = {
+          "Initial value of the 00 coefficient. Specify 'Auto' to use the 00 "
+          "coefficient specified in the 'InitialValues' option."};
+    };
+    struct Derivatives {
+      using type = std::array<double, 2>;
+      static std::string name() { return "Derivatives"; }
+      static constexpr Options::String help = {
+          "First two time derivatives of the 00 coefficient."};
+    };
+    struct ValueAndDerivatives {
+      using options = tmpl::list<Value, Derivatives>;
+      static constexpr Options::String help = {
+          "Initial value and two derivatives of the 00 coefficient."};
+      ValueAndDerivatives() = default;
+      ValueAndDerivatives(std::optional<double> value_in,
+                          std::array<double, 2> derivatives_in)
+          : value(value_in), derivatives(std::move(derivatives_in)) {}
+
+      std::optional<double> value;
+      std::array<double, 2> derivatives{};
+    };
+
+    using type =
+        Options::Auto<std::variant<std::array<double, 3>, ValueAndDerivatives>>;
     static constexpr Options::String help = {
         "Initial value and two derivatives of the 00 coefficient. Specify "
         "'Auto' to use the 00 coefficient specified in the 'InitialValues' "
@@ -296,17 +323,61 @@ struct ShapeMapOptions {
       tmpl::push_back<common_options, detail::TransitionEndsAtCube>,
       common_options>;
   ShapeMapOptions() = default;
+  ShapeMapOptions(
+      size_t l_max_in,
+      std::optional<std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile,
+                                 YlmsFromSpEC>>
+          initial_values_in,
+      std::optional<
+          std::variant<std::array<double, 3>,
+                       typename SizeInitialValues::ValueAndDerivatives>>
+          initial_size_values_in = std::nullopt,
+      double coefficient_truncation_limit_in = 0.0,
+      bool transition_ends_at_cube_in = false)
+      : l_max(l_max_in),
+        initial_values(std::move(initial_values_in)),
+        coefficient_truncation_limit(coefficient_truncation_limit_in),
+        transition_ends_at_cube(transition_ends_at_cube_in) {
+    if (initial_size_values_in.has_value()) {
+      if (std::holds_alternative<std::array<double, 3>>(
+              initial_size_values_in.value())) {
+        initial_size_values =
+            std::get<std::array<double, 3>>(initial_size_values_in.value());
+      } else {
+        const auto& value_and_derivatives =
+            std::get<typename SizeInitialValues::ValueAndDerivatives>(
+                initial_size_values_in.value());
+        initial_size_value = value_and_derivatives.value;
+        initial_size_derivatives = value_and_derivatives.derivatives;
+      }
+    }
+  }
   ShapeMapOptions(size_t l_max_in,
                   std::optional<std::variant<KerrSchildFromBoyerLindquist,
                                              YlmsFromFile, YlmsFromSpEC>>
                       initial_values_in,
-                  std::optional<std::array<double, 3>> initial_size_values_in =
-                      std::nullopt,
+                  std::array<double, 3> initial_size_values_in,
+                  double coefficient_truncation_limit_in = 0.0,
+                  bool transition_ends_at_cube_in = false)
+      : ShapeMapOptions(
+            l_max_in, std::move(initial_values_in),
+            std::optional<
+                std::variant<std::array<double, 3>,
+                             typename SizeInitialValues::ValueAndDerivatives>>{
+                std::move(initial_size_values_in)},
+            coefficient_truncation_limit_in, transition_ends_at_cube_in) {}
+  ShapeMapOptions(size_t l_max_in,
+                  std::optional<std::variant<KerrSchildFromBoyerLindquist,
+                                             YlmsFromFile, YlmsFromSpEC>>
+                      initial_values_in,
+                  std::optional<double> initial_size_value_in,
+                  const std::array<double, 2>& initial_size_derivatives_in,
                   double coefficient_truncation_limit_in = 0.0,
                   bool transition_ends_at_cube_in = false)
       : l_max(l_max_in),
         initial_values(std::move(initial_values_in)),
-        initial_size_values(initial_size_values_in),
+        initial_size_value(initial_size_value_in),
+        initial_size_derivatives(initial_size_derivatives_in),
         coefficient_truncation_limit(coefficient_truncation_limit_in),
         transition_ends_at_cube(transition_ends_at_cube_in) {}
 
@@ -315,6 +386,8 @@ struct ShapeMapOptions {
       std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile, YlmsFromSpEC>>
       initial_values;
   std::optional<std::array<double, 3>> initial_size_values;
+  std::optional<double> initial_size_value;
+  std::optional<std::array<double, 2>> initial_size_derivatives;
   double coefficient_truncation_limit{0.0};
   bool transition_ends_at_cube{false};
 };

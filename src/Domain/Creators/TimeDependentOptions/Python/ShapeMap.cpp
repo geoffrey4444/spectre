@@ -52,11 +52,41 @@ void bind_shape_map_impl(py::module& m) {
                            KerrSchildFromBoyerLindquist,
                        domain::creators::time_dependent_options::YlmsFromFile,
                        domain::creators::time_dependent_options::YlmsFromSpEC>>,
-                   std::optional<std::array<double, 3>>, double, bool>(),
+                   std::optional<double>, std::array<double, 2>, double,
+                   bool>(),
           py::arg("l_max"), py::arg("initial_values"),
-          py::arg("initial_size_values") = std::nullopt,
+          py::arg("initial_size_value"), py::arg("initial_size_derivatives"),
           py::arg("coefficient_truncation_limit") = 0.0,
-          py::arg("transition_ends_at_cube") = true);
+          py::arg("transition_ends_at_cube") = true)
+      .def(py::init(
+               [](size_t l_max,
+                  std::optional<std::variant<
+                      domain::creators::time_dependent_options::
+                          KerrSchildFromBoyerLindquist,
+                      domain::creators::time_dependent_options::YlmsFromFile,
+                      domain::creators::time_dependent_options::YlmsFromSpEC>>
+                      initial_values,
+                  std::optional<std::array<double, 3>> initial_size_values,
+                  double coefficient_truncation_limit,
+                  bool transition_ends_at_cube) {
+                 using SizeInitialValues =
+                     typename time_dependent_options::ShapeMapOptions<
+                         true, Object>::SizeInitialValues;
+                 using SizeInitialValuesVariant = std::variant<
+                     std::array<double, 3>,
+                     typename SizeInitialValues::ValueAndDerivatives>;
+                 std::optional<SizeInitialValuesVariant> size_values{};
+                 if (initial_size_values.has_value()) {
+                   size_values = initial_size_values.value();
+                 }
+                 return time_dependent_options::ShapeMapOptions<true, Object>{
+                     l_max, std::move(initial_values), std::move(size_values),
+                     coefficient_truncation_limit, transition_ends_at_cube};
+               }),
+           py::arg("l_max"), py::arg("initial_values"),
+           py::arg("initial_size_values") = std::nullopt,
+           py::arg("coefficient_truncation_limit") = 0.0,
+           py::arg("transition_ends_at_cube") = true);
 }
 }  // namespace
 
