@@ -4,7 +4,8 @@
 set(LIBRARY "Test_Ringdown")
 
 set(LIBRARY_SOURCES
-  Test_StrahlkorperCoefsInRingdownDistortedFrame.cpp
+  Test_MinimumAhCExcisionRadius.cpp
+  Test_StrahlkorperCoefsAndCenters.cpp
   )
 
 add_test_library(${LIBRARY} "${LIBRARY_SOURCES}")
@@ -23,6 +24,13 @@ target_link_libraries(
   SphericalHarmonics
   SphericalHarmonicsIO
   Utilities
+  )
+
+spectre_python_add_dependencies(
+  ${LIBRARY}
+  PyCoordinateMaps
+  PyDomain
+  PyDomainTimeDependentOptions
   )
 
 add_subdirectory(Python)

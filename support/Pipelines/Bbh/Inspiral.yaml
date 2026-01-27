@@ -477,10 +477,10 @@ EventsAndTriggersAtSlabs:
     Events:
       - Completion
 {% endif %}
-  # Discard old data to reduce memory use
-  - Trigger: Always
-    Events:
-      - CleanFunctionsOfTime
+  # # Discard old data to reduce memory use
+  # - Trigger: Always
+  #   Events:
+  #     - CleanFunctionsOfTime
 
 EventsAndTriggersAtSteps:
 
@@ -525,7 +525,8 @@ ApparentHorizons:
       MaxIts: 100
     Verbosity: Quiet
     MaxComputeCoordsRetries: 3
-    BlocksForHorizonFind: ["ObjectAShell", "ObjectACube"]
+    BlocksForHorizonFind: ["ObjectAShell", "ObjectACube",
+                           "ObjectBShell", "ObjectBCube"]
   ObservationAhB: &AhB
     Criteria:
     InitialGuess:
@@ -535,7 +536,8 @@ ApparentHorizons:
     FastFlow: *DefaultFastFlow
     Verbosity: Quiet
     MaxComputeCoordsRetries: 3
-    BlocksForHorizonFind: ["ObjectBShell", "ObjectBCube"]
+    BlocksForHorizonFind: ["ObjectAShell", "ObjectACube",
+                           "ObjectBShell", "ObjectBCube"]
   ObservationAhC:
     Criteria:
     InitialGuess:
