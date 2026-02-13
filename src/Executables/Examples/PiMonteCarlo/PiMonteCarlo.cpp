@@ -5,9 +5,16 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <unordered_set>
 #include <vector>
+
+#include "Utilities/Kokkos/KokkosCore.hpp"
+
+#ifdef SPECTRE_KOKKOS
+#include <Kokkos_Random.hpp>
+#endif
 
 // Includes from SpECTRE libraries needed for this executable
 #include "DataStructures/DataVector.hpp"
@@ -27,6 +34,102 @@
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
 #include "Utilities/TaggedTuple.hpp"
+
+namespace {
+#ifdef SPECTRE_KOKKOS
+uint64_t throw_darts_and_count_hits(const uint64_t number_of_darts,
+                                    const size_t index) {
+  Parallel::printf("Index [%zu]: Throwing %llu darts (kokkos)\n", index,
+                   number_of_darts);
+
+  ::Kokkos::Random_XorShift64_Pool<Kokkos::DefaultExecutionSpace> pool(
+      4444 + static_cast<uint64_t>(index));
+
+  uint64_t hits = 0;
+  uint64_t chunk_size = number_of_darts / 100000;
+  if (chunk_size < 256) {
+    chunk_size = 256;
+  } else if (chunk_size > 100000) {
+    chunk_size = 100000;
+  }
+
+  const uint64_t chunks = number_of_darts / chunk_size;
+
+  // handle the remainder, if any
+  uint64_t dart_tasks = chunks;
+  const uint64_t remainder = number_of_darts - chunks * chunk_size;
+  if (remainder > 0) {
+    ++dart_tasks;
+  }
+
+  Kokkos::parallel_reduce(
+      Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace, uint64_t>(0,
+                                                                   dart_tasks),
+      KOKKOS_LAMBDA(uint64_t j, uint64_t & hits_this_thread) {
+        // get a specific random number generator for this thread
+        auto generator = pool.get_state();
+
+        uint64_t darts_to_throw_this_thread = chunk_size;
+        if (j == chunks) {
+          darts_to_throw_this_thread = remainder;
+        }
+        for (uint64_t i = 0; i < darts_to_throw_this_thread; ++i) {
+          const double x = generator.drand(0.0, 1.0);
+          const double y = generator.drand(0.0, 1.0);
+          if (x * x + y * y < 1.0) {
+            ++hits_this_thread;
+          }
+        }
+
+        // Free the generator for another thread
+        pool.free_state(generator);
+      },
+      hits);
+
+  return hits;
+}
+#else
+
+// ChatGPT suggested this implementation of XorShift64
+struct XorShift64 {
+  uint64_t state;
+
+  explicit XorShift64(uint64_t seed = 88172645463325252ULL)
+      : state(seed != 0 ? seed : 1) {}
+
+  uint64_t next() {
+    uint64_t x = state;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    state = x;
+    return x * 2685821657736338717ULL;
+  }
+
+  double uniform01() {
+    // [0,1)
+    return static_cast<double>((next() >> 11)) * (1.0 / (1ULL << 53));
+  }
+};
+
+uint64_t throw_darts_and_count_hits(const uint64_t number_of_darts,
+                                    const size_t index) {
+  Parallel::printf("Index [%zu]: Throwing %llu darts (plain)\n", index,
+                   number_of_darts);
+  XorShift64 rng{4444 + static_cast<uint64_t>(index)};
+
+  uint64_t hits = 0;
+  for (uint64_t i = 0; i < number_of_darts; ++i) {
+    const double x = rng.uniform01();
+    const double y = rng.uniform01();
+    if (x * x + y * y < 1.0) {
+      hits += 1;
+    }
+  }
+  return hits;
+}
+#endif
+}  // namespace
 
 // Forward declaration: promise that this way to access the global cache will
 // be defined elsewhere.
@@ -67,7 +170,7 @@ namespace OptionTags {
 // TUTORIAL STEP 0.0: add structs for the two quantities the user will choose
 // when running the executable: DartsPerIteration and AccuracyGoal.
 struct DartsPerIteration {
-  using type = size_t;
+  using type = uint64_t;
   static constexpr Options::String help{
       "How many darts to throw on each processor in one iteration"};
 };
@@ -84,10 +187,10 @@ namespace Tags {
 // TUTORIAL STEP 1.0: add structs to hold the two user-specified options in
 // memory: DartsPerIteration and AccuracyGoal
 struct DartsPerIteration : db::SimpleTag {
-  using type = size_t;
+  using type = uint64_t;
   using option_tags = tmpl::list<OptionTags::DartsPerIteration>;
   static constexpr bool pass_metavariables = false;
-  static size_t create_from_options(const size_t& darts_per_iteration) {
+  static size_t create_from_options(const uint64_t& darts_per_iteration) {
     return darts_per_iteration;
   }
 };
@@ -139,21 +242,13 @@ struct ThrowDarts {
       const ParallelComponent* const /*meta*/
   ) {
     // TUTORIAL STEP 2.0: get how many darts to throw from the DataBox
-    const size_t number_of_darts = db::get<Tags::DartsPerIteration>(box);
+    const uint64_t number_of_darts = db::get<Tags::DartsPerIteration>(box);
 
     // TUTORIAL STEP 2.1: throw N darts at the unit square, seeing how many
     // hit the quarter circle
-    std::random_device device;
-    std::mt19937_64 generator(device());
-    std::uniform_real_distribution distribution{0.0, 1.0};
-    size_t hits = 0;
-    for (size_t i = 0; i < number_of_darts; ++i) {
-      const double x = distribution(generator);
-      const double y = distribution(generator);
-      if (x * x + y * y < 1) {
-        hits += 1;
-      }
-    }
+
+    const uint64_t hits = throw_darts_and_count_hits(
+        number_of_darts, static_cast<size_t>(array_index));
 
     // Get a proxy (an object that might live on another compute node)
     // for each ParallelComponent. The PiEstimator Singleton component
