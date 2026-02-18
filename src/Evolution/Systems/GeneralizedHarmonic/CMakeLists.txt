@@ -9,6 +9,9 @@ spectre_target_sources(
   ${LIBRARY}
   PRIVATE
   Characteristics.cpp
+  Bbh/Events/CheckConstraintThresholds.cpp
+  Bbh/PhaseControl/WriteVolumeDataAndExit.cpp
+  Bbh/Triggers/ConstraintCheck.cpp
   Constraints.cpp
   Equations.cpp
   TimeDerivative.cpp
@@ -19,6 +22,11 @@ spectre_target_headers(
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
   Characteristics.hpp
+  Bbh/Callbacks/UpdateCompletionCriteria.hpp
+  Bbh/CompletionCriteria.hpp
+  Bbh/Events/CheckConstraintThresholds.hpp
+  Bbh/PhaseControl/WriteVolumeDataAndExit.hpp
+  Bbh/Triggers/ConstraintCheck.hpp
   Constraints.hpp
   DuDtTempTags.hpp
   Equations.hpp

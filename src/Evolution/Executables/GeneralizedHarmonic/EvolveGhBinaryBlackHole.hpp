@@ -46,6 +46,11 @@
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Callbacks/UpdateCompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Events/CheckConstraintThresholds.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/PhaseControl/WriteVolumeDataAndExit.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/ConstraintCheck.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/DemandOutgoingCharSpeeds.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/DirichletMinkowski.hpp"
@@ -264,7 +269,8 @@ struct EvolutionMetavars {
     using horizon_find_callbacks = tmpl::append<
         tmpl::conditional_t<
             Horizon == ::domain::ObjectLabel::C,
-            tmpl::list<ah::callbacks::SendDependencyToObserverWriter<Ah, true>>,
+            tmpl::list<ah::callbacks::SendDependencyToObserverWriter<Ah, true>,
+                       gh::bbh::callbacks::UpdateCompletionCriteria<Ah>>,
             tmpl::list<>>,
         tmpl::list<ah::callbacks::ObserveFieldsOnHorizon<
                        ::ah::surface_tags_for_observing, Ah>,
@@ -461,86 +467,95 @@ struct EvolutionMetavars {
 
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
-    using factory_classes = tmpl::map<
-        tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
-        tmpl::pair<
-            amr::Criterion,
-            tmpl::push_back<
-                amr::Criteria::standard_criteria<
-                    volume_dim, typename system::variables_tag::tags_list>,
-                amr::Criteria::Constraints<
-                    volume_dim,
-                    tmpl::list<gh::Tags::ThreeIndexConstraintCompute<
-                        volume_dim, Frame::Inertial>>>>>,
-        tmpl::pair<
-            evolution::initial_data::InitialData,
-            tmpl::flatten<tmpl::list<
-                gh::NumericInitialData,
-                tmpl::conditional_t<std::is_same_v<SpecInitialData, NoSuchType>,
-                                    tmpl::list<>, SpecInitialData>>>>,
-        tmpl::pair<DenseTrigger,
-                   tmpl::flatten<tmpl::list<
-                       control_system::control_system_triggers<control_systems>,
-                       DenseTriggers::standard_dense_triggers>>>,
-        tmpl::pair<
-            DomainCreator<volume_dim>,
-            tmpl::list<::domain::creators::BinaryCompactObject<false>,
-                       ::domain::creators::CylindricalBinaryCompactObject>>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       ah::Events::FindApparentHorizon<AhA>,
-                       ah::Events::FindApparentHorizon<AhB>,
-                       ah::Events::FindCommonHorizon<AhC, observe_fields,
-                                                     non_tensor_compute_tags>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, BondiSachs, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryA, ah::source_vars<3>>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryB, ah::source_vars<3>>,
-                       Events::MonitorMemory<3>, Events::Completion,
-                       dg::Events::field_observations<
-                           volume_dim, observe_fields, non_tensor_compute_tags>,
-                       control_system::metafunctions::control_system_events<
-                           control_systems>,
-                       control_system::CleanFunctionsOfTime,
-                       Events::time_events<system>,
-                       dg::Events::ObserveTimeStepVolume<system>,
-                       amr::Events::RefineMesh,
-                       amr::Events::ObserveAmrStats<volume_dim>,
-                       amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
-        tmpl::pair<
-            evolution::BoundaryCorrection,
-            gh::BoundaryCorrections::standard_boundary_corrections<volume_dim>>,
-        tmpl::pair<control_system::size::State,
-                   control_system::size::States::factory_creatable_states>,
-        tmpl::pair<
-            gh::BoundaryConditions::BoundaryCondition<volume_dim>,
-            tmpl::list<
-                gh::BoundaryConditions::ConstraintPreservingBjorhus<volume_dim>,
-                gh::BoundaryConditions::DirichletMinkowski<volume_dim>,
-                gh::BoundaryConditions::DemandOutgoingCharSpeeds<volume_dim>>>,
-        tmpl::pair<
-            gh::gauges::GaugeCondition,
-            tmpl::list<gh::gauges::DampedHarmonic, gh::gauges::Harmonic>>,
-        // Restrict to monotonic time steppers in LTS to avoid control
-        // systems deadlocking.
-        tmpl::pair<LtsTimeStepper, TimeSteppers::monotonic_lts_time_steppers>,
-        tmpl::pair<PhaseChange, PhaseControl::factory_creatable_classes>,
-        tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
-                   StepChoosers::standard_step_choosers<system>>,
-        tmpl::pair<
-            StepChooser<StepChooserUse::Slab>,
-            StepChoosers::standard_slab_choosers<system, local_time_stepping>>,
-        tmpl::pair<TimeSequence<double>,
-                   TimeSequences::all_time_sequences<double>>,
-        tmpl::pair<TimeSequence<std::uint64_t>,
-                   TimeSequences::all_time_sequences<std::uint64_t>>,
-        tmpl::pair<TimeStepper, TimeSteppers::time_steppers>,
-        tmpl::pair<
-            Trigger,
-            tmpl::append<Triggers::logical_triggers, Triggers::time_triggers,
-                         tmpl::list<Triggers::SeparationLessThan<false>>>>>;
+    using factory_classes =
+        tmpl::map<tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
+                  tmpl::pair<
+              amr::Criterion,
+              tmpl::push_back<
+                  amr::Criteria::standard_criteria<
+                      volume_dim, typename system::variables_tag::tags_list>,
+                  amr::Criteria::Constraints<
+                      volume_dim,
+                      tmpl::list<gh::Tags::ThreeIndexConstraintCompute<
+                          volume_dim, Frame::Inertial>>>>>,
+          tmpl::pair<evolution::initial_data::InitialData,
+                     tmpl::flatten<tmpl::list<
+                         gh::NumericInitialData,
+                         tmpl::conditional_t<
+                             std::is_same_v<SpecInitialData, NoSuchType>,
+                             tmpl::list<>, SpecInitialData>>>>,
+          tmpl::pair<
+              DenseTrigger,
+              tmpl::flatten<tmpl::list<
+                  control_system::control_system_triggers<control_systems>,
+                  DenseTriggers::standard_dense_triggers,
+                  tmpl::list<gh::bbh::Triggers::ConstraintCheck>>>>,
+          tmpl::pair<
+              DomainCreator<volume_dim>,
+              tmpl::list<::domain::creators::BinaryCompactObject<false>,
+                         ::domain::creators::CylindricalBinaryCompactObject>>,
+          tmpl::pair<
+              Event,
+              tmpl::flatten<tmpl::list<
+                  ah::Events::FindApparentHorizon<AhA>,
+                  ah::Events::FindApparentHorizon<AhB>,
+                  ah::Events::FindCommonHorizon<AhC, observe_fields,
+                                                non_tensor_compute_tags>,
+                  gh::bbh::Events::CheckConstraintThresholds,
+                  intrp::Events::InterpolateWithoutInterpComponent<
+                      3, BondiSachs, source_vars_no_deriv>,
+                  intrp::Events::InterpolateWithoutInterpComponent<
+                      3, ExcisionBoundaryA, ah::source_vars<3>>,
+                  intrp::Events::InterpolateWithoutInterpComponent<
+                      3, ExcisionBoundaryB, ah::source_vars<3>>,
+                  Events::MonitorMemory<3>, Events::Completion,
+                  dg::Events::field_observations<volume_dim, observe_fields,
+                                                 non_tensor_compute_tags>,
+                  control_system::metafunctions::control_system_events<
+                      control_systems>,
+                  control_system::CleanFunctionsOfTime,
+                  Events::time_events<system>,
+                  dg::Events::ObserveTimeStepVolume<system>,
+                  amr::Events::RefineMesh,
+                  amr::Events::ObserveAmrStats<volume_dim>,
+                  amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
+          tmpl::pair<evolution::BoundaryCorrection,
+                     gh::BoundaryCorrections::standard_boundary_corrections<
+                         volume_dim>>,
+          tmpl::pair<control_system::size::State,
+                     control_system::size::States::factory_creatable_states>,
+          tmpl::pair<
+              gh::BoundaryConditions::BoundaryCondition<volume_dim>,
+              tmpl::list<gh::BoundaryConditions::ConstraintPreservingBjorhus<
+                             volume_dim>,
+                         gh::BoundaryConditions::DirichletMinkowski<volume_dim>,
+                         gh::BoundaryConditions::DemandOutgoingCharSpeeds<
+                             volume_dim>>>,
+          tmpl::pair<
+              gh::gauges::GaugeCondition,
+              tmpl::list<gh::gauges::DampedHarmonic, gh::gauges::Harmonic>>,
+          // Restrict to monotonic time steppers in LTS to avoid control
+          // systems deadlocking.
+                  tmpl::pair<LtsTimeStepper,
+                             TimeSteppers::monotonic_lts_time_steppers>,
+          tmpl::pair<
+              PhaseChange,
+              tmpl::push_back<PhaseControl::factory_creatable_classes,
+                              gh::bbh::phase_control::WriteVolumeDataAndExit>>,
+          tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
+                     StepChoosers::standard_step_choosers<system>>,
+          tmpl::pair<StepChooser<StepChooserUse::Slab>,
+                     StepChoosers::standard_slab_choosers<system,
+                                                          local_time_stepping>>,
+          tmpl::pair<TimeSequence<double>,
+                     TimeSequences::all_time_sequences<double>>,
+          tmpl::pair<TimeSequence<std::uint64_t>,
+                     TimeSequences::all_time_sequences<std::uint64_t>>,
+          tmpl::pair<TimeStepper, TimeSteppers::time_steppers>,
+          tmpl::pair<
+              Trigger,
+              tmpl::append<Triggers::logical_triggers, Triggers::time_triggers,
+                           tmpl::list<Triggers::SeparationLessThan<false>>>>>;
   };
 
   // A tmpl::list of tags to be added to the GlobalCache by the
@@ -549,7 +564,21 @@ struct EvolutionMetavars {
       tmpl::list<gh::gauges::Tags::GaugeCondition,
                  gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
                  gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>;
+                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
+                 gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks,
+                 gh::bbh::Tags::MaxCommonHorizonSuccesses,
+                 gh::bbh::Tags::GaugeConstraintLinfThreshold,
+                 gh::bbh::Tags::ThreeIndexConstraintLinfThreshold,
+                 gh::bbh::Tags::CommonHorizonLMaxThreshold,
+                 gh::bbh::Tags::ConstraintCheckInterval,
+                 gh::bbh::Tags::ConstraintCheckVerbose>;
+
+  using mutable_global_cache_tags =
+      tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
+                 gh::bbh::Tags::ThreeIndexConstraintExceeded,
+                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
+                 gh::bbh::Tags::CommonHorizonSuccessCount,
+                 gh::bbh::Tags::CompletionRequested>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;
