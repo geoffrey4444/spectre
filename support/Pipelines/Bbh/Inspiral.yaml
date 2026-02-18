@@ -313,6 +313,14 @@ Amr:
   Verbosity: Quiet
 
 PhaseChangeAndTriggers:
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 1
+          Offset: 0
+    PhaseChanges:
+      # Terminal completion path: Evolve -> WriteCheckpoint -> Exit.
+      - BbhWriteVolumeDataAndExit
 {% if segments_dir is defined %}
   - Trigger:
       Slabs:
@@ -445,13 +453,6 @@ EventsAndTriggersAtSlabs:
           CoordinatesFloatingPointType: Double
           FloatingPointTypes: [Double]
           BlocksToObserve: All
-  # This separation has enough common horizon finds to start ringdown for q=1,
-  # spin=0, quasicircular
-  - Trigger:
-      SeparationLessThan:
-        Value: 2.138
-    Events:
-      - Completion
 {% if eccentricity_control %}
   # If running eccentricity control, only run short inspiral
   - Trigger:
@@ -485,10 +486,12 @@ EventsAndTriggersAtSlabs:
   - Trigger: Always
     Events:
       - CleanFunctionsOfTime
-
 EventsAndTriggersAtSteps:
 
 EventsAndDenseTriggers:
+  - Trigger: BbhConstraintCheck
+    Events:
+      - BbhCheckConstraintThresholds
   # BondiSachs output needs to be often enough for CCE to run properly. An
   # interval of 0.1 was found to work well in SpEC.
   - Trigger:
@@ -509,6 +512,15 @@ EventsRunAtCleanup:
 
 Interpolator:
   Verbosity: Silent
+
+BbhCompletionCriteria:
+  MinCommonHorizonSuccessesBeforeChecks: 8
+  MaxCommonHorizonSuccesses: 100
+  GaugeConstraintLinfThreshold: 1.0
+  ThreeIndexConstraintLinfThreshold: 1.0
+  CommonHorizonLMaxThreshold: 8
+  ConstraintCheckInterval: 0.1
+  ConstraintCheckVerbose: false
 
 ApparentHorizons:
   LMax: 33
