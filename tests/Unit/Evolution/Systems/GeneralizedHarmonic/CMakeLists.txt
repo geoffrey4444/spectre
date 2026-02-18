@@ -20,6 +20,10 @@ set(LIBRARY_SOURCES
   Test_DuDt.cpp
   Test_DuDtTempTags.cpp
   Test_Fluxes.cpp
+  Test_BbhCompletionCriteria.cpp
+  Test_BbhCheckConstraintThresholdsEvent.cpp
+  Test_BbhCheckpointAndExitIfCompletePhaseChange.cpp
+  Test_BbhUpdateCompletionCriteriaCallback.cpp
   Test_Tags.cpp
   )
 

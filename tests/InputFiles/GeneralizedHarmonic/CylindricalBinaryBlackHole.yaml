@@ -296,6 +296,15 @@ EventsAndTriggersAtSlabs:
 
 EventsAndTriggersAtSteps:
 
+BbhCompletionCriteria:
+  MinCommonHorizonSuccessesBeforeChecks: 8
+  MaxCommonHorizonSuccesses: 100
+  GaugeConstraintLinfThreshold: 1.0
+  ThreeIndexConstraintLinfThreshold: 1.0
+  CommonHorizonLMaxThreshold: 8
+  ConstraintCheckInterval: 0.1
+  ConstraintCheckVerbose: false
+
 Observers:
   VolumeFileName: "GhBinaryBlackHoleVolumeData"
   ReductionFileName: "GhBinaryBlackHoleReductionData"
