@@ -46,6 +46,11 @@
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Callbacks/UpdateCompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Events/CheckConstraintThresholds.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/CompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/ConstraintCheck.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/DemandOutgoingCharSpeeds.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/DirichletMinkowski.hpp"
@@ -264,7 +269,8 @@ struct EvolutionMetavars {
     using horizon_find_callbacks = tmpl::append<
         tmpl::conditional_t<
             Horizon == ::domain::ObjectLabel::C,
-            tmpl::list<ah::callbacks::SendDependencyToObserverWriter<Ah, true>>,
+            tmpl::list<ah::callbacks::SendDependencyToObserverWriter<Ah, true>,
+                       gh::bbh::callbacks::UpdateCompletionCriteria<Ah>>,
             tmpl::list<>>,
         tmpl::list<ah::callbacks::ObserveFieldsOnHorizon<
                        ::ah::surface_tags_for_observing, Ah>,
@@ -481,7 +487,9 @@ struct EvolutionMetavars {
         tmpl::pair<DenseTrigger,
                    tmpl::flatten<tmpl::list<
                        control_system::control_system_triggers<control_systems>,
-                       DenseTriggers::standard_dense_triggers>>>,
+                       DenseTriggers::standard_dense_triggers,
+                       tmpl::list<gh::bbh::Triggers::ConstraintCheck,
+                                  gh::bbh::Triggers::CompletionCriteria>>>>,
         tmpl::pair<
             DomainCreator<volume_dim>,
             tmpl::list<::domain::creators::BinaryCompactObject<false>,
@@ -492,6 +500,7 @@ struct EvolutionMetavars {
                        ah::Events::FindApparentHorizon<AhB>,
                        ah::Events::FindCommonHorizon<AhC, observe_fields,
                                                      non_tensor_compute_tags>,
+                       gh::bbh::Events::CheckConstraintThresholds,
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, BondiSachs, source_vars_no_deriv>,
                        intrp::Events::InterpolateWithoutInterpComponent<
@@ -549,7 +558,19 @@ struct EvolutionMetavars {
       tmpl::list<gh::gauges::Tags::GaugeCondition,
                  gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
                  gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>;
+                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
+                 gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks,
+                 gh::bbh::Tags::MaxCommonHorizonSuccesses,
+                 gh::bbh::Tags::GaugeConstraintLinfThreshold,
+                 gh::bbh::Tags::ThreeIndexConstraintLinfThreshold,
+                 gh::bbh::Tags::CommonHorizonLMaxThreshold,
+                 gh::bbh::Tags::ConstraintCheckInterval>;
+
+  using mutable_global_cache_tags =
+      tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
+                 gh::bbh::Tags::ThreeIndexConstraintExceeded,
+                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
+                 gh::bbh::Tags::CommonHorizonSuccessCount>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;
