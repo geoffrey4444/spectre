@@ -478,6 +478,10 @@ EventsAndTriggersAtSlabs:
   - Trigger: Always
     Events:
       - CleanFunctionsOfTime
+  # Completion criteria based on common-horizon state and GH constraints.
+  - Trigger: BbhCompletionCriteria
+    Events:
+      - Completion
 
 EventsAndTriggersAtSteps:
 
@@ -494,10 +498,6 @@ EventsAndDenseTriggers:
           Offset: 0.0
     Events:
       - BondiSachsInterpolation
-  # Completion criteria based on common-horizon state and GH constraints.
-  - Trigger: BbhCompletionCriteria
-    Events:
-      - Completion
 
 EventsRunAtCleanup:
   ObservationValue: -1000.0

@@ -3,25 +3,26 @@
 
 #pragma once
 
-#include <optional>
+#include <type_traits>
 #include <pup.h>
 #include <string>
 
+#include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/MetavariablesTag.hpp"
+#include "DataStructures/DataBox/DataBoxTag.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
-#include "Parallel/Printf/Printf.hpp"
-#include "ParallelAlgorithms/EventsAndDenseTriggers/DenseTrigger.hpp"
-#include "Utilities/ErrorHandling/Assert.hpp"
+#include "ParallelAlgorithms/EventsAndTriggers/Trigger.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace gh::bbh::Triggers {
-class CompletionCriteria : public DenseTrigger {
+class CompletionCriteria : public Trigger {
  public:
   /// \cond
   CompletionCriteria() = default;
-  explicit CompletionCriteria(CkMigrateMessage* msg) : DenseTrigger(msg) {}
+  explicit CompletionCriteria(CkMigrateMessage* /*msg*/) {}
   using PUP::able::register_constructor;
   WRAPPED_PUPable_decl_template(CompletionCriteria);  // NOLINT
   /// \endcond
@@ -32,69 +33,36 @@ class CompletionCriteria : public DenseTrigger {
   static std::string name() { return "BbhCompletionCriteria"; }
   using options = tmpl::list<>;
 
-  using is_triggered_return_tags = tmpl::list<>;
-  using is_triggered_argument_tags = tmpl::list<::Tags::Time>;
+  using argument_tags = tmpl::list<::Tags::DataBox>;
 
-  template <typename Metavariables, typename ArrayIndex, typename Component>
-  std::optional<bool> is_triggered(Parallel::GlobalCache<Metavariables>& cache,
-                                   const ArrayIndex& /*array_index*/,
-                                   const Component* /*component*/,
-                                   const double time) const {
+  template <typename DbTags>
+  bool operator()(const db::DataBox<DbTags>& box) const {
+    using metavariables = std::decay_t<
+        decltype(db::get<Parallel::Tags::Metavariables>(box))>;
+    const auto* cache =
+        db::get<Parallel::Tags::GlobalCache<metavariables>>(box);
     const size_t success_count =
-        Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache);
+        Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(*cache);
     const size_t min_successes =
         Parallel::get<gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks>(
-            cache);
+            *cache);
     const size_t max_successes =
-        Parallel::get<gh::bbh::Tags::MaxCommonHorizonSuccesses>(cache);
+        Parallel::get<gh::bbh::Tags::MaxCommonHorizonSuccesses>(*cache);
     if (success_count < min_successes) {
       return false;
     }
 
     if (success_count >= max_successes) {
-      Parallel::mutate<gh::bbh::Tags::MaxCommonHorizonSuccessesReached,
-                       LatchMaxCommonHorizonSuccessesReachedAndPrint>(
-          cache, time, success_count, max_successes);
       return true;
     }
 
-    return Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache) or
-           Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache) or
+    return Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(*cache) or
+           Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(*cache) or
            Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
-               cache);
-  }
-
-  using next_check_time_return_tags = tmpl::list<>;
-  using next_check_time_argument_tags = tmpl::list<::Tags::Time>;
-
-  template <typename Metavariables, typename ArrayIndex, typename Component>
-  std::optional<double> next_check_time(
-      Parallel::GlobalCache<Metavariables>& cache,
-      const ArrayIndex& /*array_index*/, const Component* /*component*/,
-      double time) const {
-    const double interval =
-        Parallel::get<gh::bbh::Tags::ConstraintCheckInterval>(cache);
-    ASSERT(interval > 0.0, "ConstraintCheckInterval must be positive.");
-    return time + interval;
+               *cache);
   }
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p) override;
-
- private:
-  struct LatchMaxCommonHorizonSuccessesReachedAndPrint {
-    static void apply(
-        const gsl::not_null<bool*> max_common_horizon_successes_reached,
-        const double time, const size_t success_count,
-        const size_t max_successes) {
-      if (not *max_common_horizon_successes_reached) {
-        *max_common_horizon_successes_reached = true;
-        Parallel::printf(
-            "BBH completion criterion met at t=%.16f: AhC successes=%zu >= "
-            "%zu.\n",
-            time, success_count, max_successes);
-      }
-    }
-  };
 };
 }  // namespace gh::bbh::Triggers

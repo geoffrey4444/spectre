@@ -6,7 +6,7 @@
 #include <pup.h>
 
 namespace gh::bbh::Triggers {
-void CompletionCriteria::pup(PUP::er& p) { DenseTrigger::pup(p); }
+void CompletionCriteria::pup(PUP::er& p) { Trigger::pup(p); }
 
 PUP::able::PUP_ID CompletionCriteria::my_PUP_ID = 0;  // NOLINT
 }  // namespace gh::bbh::Triggers

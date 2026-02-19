@@ -8,22 +8,33 @@
 #include <cstddef>
 #include <pup.h>
 #include <string>
+#include <type_traits>
 
 #include "DataStructures/DataVector.hpp"
+#include "Domain/Structure/ElementId.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "Options/String.hpp"
+#include "Parallel/ArrayCollection/IsDgElementCollection.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Printf/Printf.hpp"
+#include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "Time/Tags/Time.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/Functional.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace gh::bbh::Events {
 class CheckConstraintThresholds : public Event {
+  using ReductionData = Parallel::ReductionData<
+      Parallel::ReductionDatum<double, funcl::AssertEqual<>>,
+      Parallel::ReductionDatum<double, funcl::Max<>>,
+      Parallel::ReductionDatum<double, funcl::Max<>>>;
+
  public:
   /// \cond
   explicit CheckConstraintThresholds(CkMigrateMessage* /*unused*/) {}
@@ -53,7 +64,7 @@ class CheckConstraintThresholds : public Event {
       const tnsr::a<DataVector, 3, Frame::Inertial>& gauge_constraint,
       const tnsr::iaa<DataVector, 3, Frame::Inertial>& three_index_constraint,
       Parallel::GlobalCache<Metavariables>& cache,
-      const ArrayIndex& /*array_index*/, const Component* const /*component*/,
+      const ArrayIndex& array_index, const Component* const /*component*/,
       const ObservationValue& /*observation_value*/) const {
     const size_t success_count =
         Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache);
@@ -64,26 +75,57 @@ class CheckConstraintThresholds : public Event {
       return;
     }
 
-    const double gauge_constraint_threshold =
-        Parallel::get<gh::bbh::Tags::GaugeConstraintLinfThreshold>(cache);
     const double local_gauge_linf = local_linf_norm(gauge_constraint);
-    if (local_gauge_linf >= gauge_constraint_threshold) {
-      Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
-                       LatchGaugeConstraintExceededAndPrint>(
-          cache, time, local_gauge_linf, gauge_constraint_threshold);
-    }
-
-    const double three_index_constraint_threshold =
-        Parallel::get<gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(cache);
     const double local_three_index_linf =
         local_linf_norm(three_index_constraint);
-    if (local_three_index_linf >= three_index_constraint_threshold) {
-      Parallel::mutate<gh::bbh::Tags::ThreeIndexConstraintExceeded,
-                       LatchThreeIndexConstraintExceededAndPrint>(
-          cache, time, local_three_index_linf,
-          three_index_constraint_threshold);
+    if constexpr (Parallel::is_dg_element_collection_v<Component>) {
+      ERROR(
+          "BbhCheckConstraintThresholds currently requires array components "
+          "(not DgElementCollection).");
+    } else {
+      const auto& component_proxy =
+          Parallel::get_parallel_component<Component>(cache);
+      const auto& self_proxy = component_proxy[array_index];
+      Parallel::contribute_to_reduction<ProcessConstraintMaxima>(
+          ReductionData{time, local_gauge_linf, local_three_index_linf},
+          self_proxy, component_proxy);
     }
   }
+
+  struct ProcessConstraintMaxima {
+    template <typename ParallelComponent, typename DbTags,
+              typename Metavariables, typename ArrayIndex>
+    static void apply(db::DataBox<DbTags>& /*box*/,
+                      Parallel::GlobalCache<Metavariables>& cache,
+                      const ArrayIndex& array_index, const double time,
+                      const double max_gauge_linf,
+                      const double max_three_index_linf) {
+      if constexpr (std::is_same_v<ArrayIndex, ElementId<3>>) {
+        // Use a single designated element to perform the cache latch so we
+        // avoid redundant writes after the global reduction.
+        if (array_index != ElementId<3>{0}) {
+          return;
+        }
+      }
+
+      const double gauge_constraint_threshold =
+          Parallel::get<gh::bbh::Tags::GaugeConstraintLinfThreshold>(cache);
+      if (max_gauge_linf >= gauge_constraint_threshold) {
+        Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
+                         LatchGaugeConstraintExceededAndPrint>(
+            cache, time, max_gauge_linf, gauge_constraint_threshold);
+      }
+
+      const double three_index_constraint_threshold = Parallel::get<
+          gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(cache);
+      if (max_three_index_linf >= three_index_constraint_threshold) {
+        Parallel::mutate<gh::bbh::Tags::ThreeIndexConstraintExceeded,
+                         LatchThreeIndexConstraintExceededAndPrint>(
+            cache, time, max_three_index_linf,
+            three_index_constraint_threshold);
+      }
+    }
+  };
 
   using is_ready_argument_tags = tmpl::list<>;
   template <typename Metavariables, typename ArrayIndex, typename Component>

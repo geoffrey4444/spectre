@@ -3,11 +3,10 @@
 
 #include "Framework/TestingFramework.hpp"
 
-#include <array>
 #include <cstddef>
-#include <optional>
 
-#include "DataStructures/DataVector.hpp"
+#include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/MetavariablesTag.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/CompletionCriteria.hpp"
 #include "Parallel/GlobalCache.hpp"
@@ -30,8 +29,6 @@ struct MockMetavariables {
                  gh::bbh::Tags::MaxCommonHorizonSuccessesReached>;
 };
 
-struct MockComponent {};
-
 Parallel::GlobalCache<MockMetavariables> make_cache() {
   return {{size_t{2}, size_t{3}, 10.0, 20.0, 0.5},
           {false, false, false, size_t{0}, false}};
@@ -41,15 +38,13 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                   "[Unit][Evolution]") {
   gh::bbh::Triggers::CompletionCriteria trigger{};
   auto cache = make_cache();
-  CHECK(trigger.next_check_time(cache, 0_st,
-                                static_cast<const MockComponent*>(nullptr),
-                                1.25) == std::optional{1.75});
+  auto box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>>>(
+      MockMetavariables{}, &cache);
 
   // Before the minimum number of AhC successes, completion criteria are gated.
-  CHECK(trigger
-            .is_triggered(cache, 0_st,
-                          static_cast<const MockComponent*>(nullptr), 1.25)
-            .value() == false);
+  CHECK_FALSE(trigger(box));
   CHECK_FALSE(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
   CHECK_FALSE(
       Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
@@ -62,19 +57,17 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       cache);
 
-  CHECK(trigger
-            .is_triggered(cache, 0_st,
-                          static_cast<const MockComponent*>(nullptr), 1.75)
-            .value() == false);
+  CHECK_FALSE(trigger(box));
   Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
                    gh::bbh::Mutators::SetGaugeConstraintExceeded>(cache);
-  CHECK(trigger
-            .is_triggered(cache, 0_st,
-                          static_cast<const MockComponent*>(nullptr), 2.25)
-            .value() == true);
+  CHECK(trigger(box));
 
   // Max success count is also a completion criterion.
   auto count_cache = make_cache();
+  auto count_box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>>>(
+      MockMetavariables{}, &count_cache);
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       count_cache);
@@ -84,9 +77,6 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       count_cache);
-  CHECK(trigger
-            .is_triggered(count_cache, 0_st,
-                          static_cast<const MockComponent*>(nullptr), 3.5)
-            .value() == true);
+  CHECK(trigger(count_box));
 }
 }  // namespace

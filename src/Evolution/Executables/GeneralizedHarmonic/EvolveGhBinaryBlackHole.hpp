@@ -488,8 +488,7 @@ struct EvolutionMetavars {
                    tmpl::flatten<tmpl::list<
                        control_system::control_system_triggers<control_systems>,
                        DenseTriggers::standard_dense_triggers,
-                       tmpl::list<gh::bbh::Triggers::ConstraintCheck,
-                                  gh::bbh::Triggers::CompletionCriteria>>>>,
+                       tmpl::list<gh::bbh::Triggers::ConstraintCheck>>>>,
         tmpl::pair<
             DomainCreator<volume_dim>,
             tmpl::list<::domain::creators::BinaryCompactObject<false>,
@@ -549,7 +548,8 @@ struct EvolutionMetavars {
         tmpl::pair<
             Trigger,
             tmpl::append<Triggers::logical_triggers, Triggers::time_triggers,
-                         tmpl::list<Triggers::SeparationLessThan<false>>>>>;
+                         tmpl::list<Triggers::SeparationLessThan<false>,
+                                    gh::bbh::Triggers::CompletionCriteria>>>>;
   };
 
   // A tmpl::list of tags to be added to the GlobalCache by the
