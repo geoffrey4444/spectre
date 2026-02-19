@@ -26,14 +26,15 @@ struct MockMetavariables {
       tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
                  gh::bbh::Tags::ThreeIndexConstraintExceeded,
                  gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
-                 gh::bbh::Tags::CommonHorizonSuccessCount>;
+                 gh::bbh::Tags::CommonHorizonSuccessCount,
+                 gh::bbh::Tags::MaxCommonHorizonSuccessesReached>;
 };
 
 struct MockComponent {};
 
 Parallel::GlobalCache<MockMetavariables> make_cache() {
   return {{size_t{2}, size_t{3}, 10.0, 20.0, 0.5},
-          {false, false, false, size_t{0}}};
+          {false, false, false, size_t{0}, false}};
 }
 
 SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
@@ -45,10 +46,10 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                                 1.25) == std::optional{1.75});
 
   // Before the minimum number of AhC successes, completion criteria are gated.
-  CHECK(
-      trigger
-          .is_triggered(cache, 0_st, static_cast<const MockComponent*>(nullptr))
-          .value() == false);
+  CHECK(trigger
+            .is_triggered(cache, 0_st,
+                          static_cast<const MockComponent*>(nullptr), 1.25)
+            .value() == false);
   CHECK_FALSE(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
   CHECK_FALSE(
       Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
@@ -61,16 +62,16 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       cache);
 
-  CHECK(
-      trigger
-          .is_triggered(cache, 0_st, static_cast<const MockComponent*>(nullptr))
-          .value() == false);
+  CHECK(trigger
+            .is_triggered(cache, 0_st,
+                          static_cast<const MockComponent*>(nullptr), 1.75)
+            .value() == false);
   Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
                    gh::bbh::Mutators::SetGaugeConstraintExceeded>(cache);
-  CHECK(
-      trigger
-          .is_triggered(cache, 0_st, static_cast<const MockComponent*>(nullptr))
-          .value() == true);
+  CHECK(trigger
+            .is_triggered(cache, 0_st,
+                          static_cast<const MockComponent*>(nullptr), 2.25)
+            .value() == true);
 
   // Max success count is also a completion criterion.
   auto count_cache = make_cache();
@@ -85,7 +86,7 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
       count_cache);
   CHECK(trigger
             .is_triggered(count_cache, 0_st,
-                          static_cast<const MockComponent*>(nullptr))
+                          static_cast<const MockComponent*>(nullptr), 3.5)
             .value() == true);
 }
 }  // namespace

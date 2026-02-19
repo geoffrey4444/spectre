@@ -570,7 +570,8 @@ struct EvolutionMetavars {
       tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
                  gh::bbh::Tags::ThreeIndexConstraintExceeded,
                  gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
-                 gh::bbh::Tags::CommonHorizonSuccessCount>;
+                 gh::bbh::Tags::CommonHorizonSuccessCount,
+                 gh::bbh::Tags::MaxCommonHorizonSuccessesReached>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;

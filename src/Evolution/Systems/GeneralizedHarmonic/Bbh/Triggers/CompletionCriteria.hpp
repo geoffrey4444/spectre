@@ -10,6 +10,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/Printf/Printf.hpp"
 #include "ParallelAlgorithms/EventsAndDenseTriggers/DenseTrigger.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
@@ -32,12 +33,13 @@ class CompletionCriteria : public DenseTrigger {
   using options = tmpl::list<>;
 
   using is_triggered_return_tags = tmpl::list<>;
-  using is_triggered_argument_tags = tmpl::list<>;
+  using is_triggered_argument_tags = tmpl::list<::Tags::Time>;
 
   template <typename Metavariables, typename ArrayIndex, typename Component>
   std::optional<bool> is_triggered(Parallel::GlobalCache<Metavariables>& cache,
                                    const ArrayIndex& /*array_index*/,
-                                   const Component* /*component*/) const {
+                                   const Component* /*component*/,
+                                   const double time) const {
     const size_t success_count =
         Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache);
     const size_t min_successes =
@@ -49,8 +51,14 @@ class CompletionCriteria : public DenseTrigger {
       return false;
     }
 
-    return success_count >= max_successes or
-           Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache) or
+    if (success_count >= max_successes) {
+      Parallel::mutate<gh::bbh::Tags::MaxCommonHorizonSuccessesReached,
+                       LatchMaxCommonHorizonSuccessesReachedAndPrint>(
+          cache, time, success_count, max_successes);
+      return true;
+    }
+
+    return Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache) or
            Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache) or
            Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
                cache);
@@ -72,5 +80,21 @@ class CompletionCriteria : public DenseTrigger {
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p) override;
+
+ private:
+  struct LatchMaxCommonHorizonSuccessesReachedAndPrint {
+    static void apply(
+        const gsl::not_null<bool*> max_common_horizon_successes_reached,
+        const double time, const size_t success_count,
+        const size_t max_successes) {
+      if (not *max_common_horizon_successes_reached) {
+        *max_common_horizon_successes_reached = true;
+        Parallel::printf(
+            "BBH completion criterion met at t=%.16f: AhC successes=%zu >= "
+            "%zu.\n",
+            time, success_count, max_successes);
+      }
+    }
+  };
 };
 }  // namespace gh::bbh::Triggers

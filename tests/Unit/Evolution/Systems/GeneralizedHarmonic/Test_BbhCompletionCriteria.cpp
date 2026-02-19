@@ -13,8 +13,9 @@ SPECTRE_TEST_CASE(
       db::AddSimpleTags<gh::bbh::Tags::GaugeConstraintExceeded,
                         gh::bbh::Tags::ThreeIndexConstraintExceeded,
                         gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
-                        gh::bbh::Tags::CommonHorizonSuccessCount>>(false, false,
-                                                                   false, 0_st);
+                        gh::bbh::Tags::CommonHorizonSuccessCount,
+                        gh::bbh::Tags::MaxCommonHorizonSuccessesReached>>(
+      false, false, false, 0_st, false);
 
   db::mutate<gh::bbh::Tags::GaugeConstraintExceeded>(
       [](const gsl::not_null<bool*> flag) {
@@ -37,11 +38,17 @@ SPECTRE_TEST_CASE(
         gh::bbh::Mutators::IncrementCommonHorizonSuccessCount::apply(count);
       },
       make_not_null(&box));
+  db::mutate<gh::bbh::Tags::MaxCommonHorizonSuccessesReached>(
+      [](const gsl::not_null<bool*> flag) {
+        gh::bbh::Mutators::SetMaxCommonHorizonSuccessesReached::apply(flag);
+      },
+      make_not_null(&box));
 
   CHECK(db::get<gh::bbh::Tags::GaugeConstraintExceeded>(box));
   CHECK(db::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(box));
   CHECK(db::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(box));
   CHECK(db::get<gh::bbh::Tags::CommonHorizonSuccessCount>(box) == 1_st);
+  CHECK(db::get<gh::bbh::Tags::MaxCommonHorizonSuccessesReached>(box));
 
   // Ensure mutators are monotonic.
   db::mutate<gh::bbh::Tags::GaugeConstraintExceeded>(

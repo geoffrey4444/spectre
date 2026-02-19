@@ -143,6 +143,14 @@ struct CommonHorizonSuccessCount : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options() { return 0; }
 };
+
+struct MaxCommonHorizonSuccessesReached : db::SimpleTag {
+  using type = bool;
+  using option_tags = tmpl::list<>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options() { return false; }
+};
 }  // namespace Tags
 
 namespace Mutators {
@@ -168,6 +176,13 @@ struct SetCommonHorizonLMaxBelowOrEqualThreshold {
 struct IncrementCommonHorizonSuccessCount {
   static void apply(const gsl::not_null<size_t*> common_horizon_success_count) {
     ++(*common_horizon_success_count);
+  }
+};
+
+struct SetMaxCommonHorizonSuccessesReached {
+  static void apply(
+      const gsl::not_null<bool*> max_common_horizon_successes_reached) {
+    *max_common_horizon_successes_reached = true;
   }
 };
 }  // namespace Mutators
