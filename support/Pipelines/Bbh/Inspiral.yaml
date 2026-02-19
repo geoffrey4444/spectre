@@ -517,6 +517,7 @@ BbhCompletionCriteria:
   ThreeIndexConstraintLinfThreshold: 1.0
   CommonHorizonLMaxThreshold: 8
   ConstraintCheckInterval: 0.1
+  ConstraintCheckVerbose: false
 
 ApparentHorizons:
   LMax: 33

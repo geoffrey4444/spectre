@@ -8,16 +8,15 @@
 #include <cstddef>
 #include <pup.h>
 #include <string>
-#include <type_traits>
 
 #include "DataStructures/DataVector.hpp"
-#include "Domain/Structure/ElementId.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "Options/String.hpp"
 #include "Parallel/ArrayCollection/IsDgElementCollection.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/MemoryMonitor/MemoryMonitor.hpp"
 #include "Parallel/Printf/Printf.hpp"
 #include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
@@ -48,7 +47,7 @@ class CheckConstraintThresholds : public Event {
   using options = tmpl::list<>;
   static constexpr Options::String help =
       "Checks local Linf constraints against BBH completion thresholds and "
-      "latches global-cache booleans.";
+      "latches global-cache booleans through a singleton reduction callback.";
   static std::string name() { return "BbhCheckConstraintThresholds"; }
 
   CheckConstraintThresholds() = default;
@@ -83,12 +82,13 @@ class CheckConstraintThresholds : public Event {
           "BbhCheckConstraintThresholds currently requires array components "
           "(not DgElementCollection).");
     } else {
-      const auto& component_proxy =
-          Parallel::get_parallel_component<Component>(cache);
-      const auto& self_proxy = component_proxy[array_index];
+      const auto& self_proxy =
+          Parallel::get_parallel_component<Component>(cache)[array_index];
+      auto& reduction_target_proxy = Parallel::get_parallel_component<
+          mem_monitor::MemoryMonitor<Metavariables>>(cache);
       Parallel::contribute_to_reduction<ProcessConstraintMaxima>(
           ReductionData{time, local_gauge_linf, local_three_index_linf},
-          self_proxy, component_proxy);
+          self_proxy, reduction_target_proxy);
     }
   }
 
@@ -97,28 +97,31 @@ class CheckConstraintThresholds : public Event {
               typename Metavariables, typename ArrayIndex>
     static void apply(db::DataBox<DbTags>& /*box*/,
                       Parallel::GlobalCache<Metavariables>& cache,
-                      const ArrayIndex& array_index, const double time,
+                      const ArrayIndex& /*array_index*/, const double time,
                       const double max_gauge_linf,
                       const double max_three_index_linf) {
-      if constexpr (std::is_same_v<ArrayIndex, ElementId<3>>) {
-        // Use a single designated element to perform the cache latch so we
-        // avoid redundant writes after the global reduction.
-        if (array_index != ElementId<3>{0}) {
-          return;
-        }
-      }
-
       const double gauge_constraint_threshold =
           Parallel::get<gh::bbh::Tags::GaugeConstraintLinfThreshold>(cache);
+      const double three_index_constraint_threshold =
+          Parallel::get<gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(
+              cache);
+      const bool verbose =
+          Parallel::get<gh::bbh::Tags::ConstraintCheckVerbose>(cache);
+      if (verbose) {
+        Parallel::printf(
+            "BBH completion constraint check at t=%.16f: "
+            "Linf(GaugeConstraint)=%.16e (threshold %.16e), "
+            "Linf(ThreeIndexConstraint)=%.16e (threshold %.16e).\n",
+            time, max_gauge_linf, gauge_constraint_threshold,
+            max_three_index_linf, three_index_constraint_threshold);
+      }
+
       if (max_gauge_linf >= gauge_constraint_threshold) {
         Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
                          LatchGaugeConstraintExceededAndPrint>(
             cache, time, max_gauge_linf, gauge_constraint_threshold);
       }
 
-      const double three_index_constraint_threshold =
-          Parallel::get<gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(
-              cache);
       if (max_three_index_linf >= three_index_constraint_threshold) {
         Parallel::mutate<gh::bbh::Tags::ThreeIndexConstraintExceeded,
                          LatchThreeIndexConstraintExceededAndPrint>(

@@ -60,6 +60,13 @@ struct ConstraintCheckInterval {
   static constexpr Options::String help =
       "Interval for evaluating global constraint completion criteria.";
 };
+
+struct ConstraintCheckVerbose {
+  using type = bool;
+  using group = CompletionCriteria;
+  static constexpr Options::String help =
+      "Whether to print reduced BBH constraint norms at each check.";
+};
 }  // namespace OptionTags
 
 namespace Tags {
@@ -107,6 +114,14 @@ struct CommonHorizonLMaxThreshold : db::SimpleTag {
 struct ConstraintCheckInterval : db::SimpleTag {
   using type = double;
   using option_tags = tmpl::list<OptionTags::ConstraintCheckInterval>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options(const type value) { return value; }
+};
+
+struct ConstraintCheckVerbose : db::SimpleTag {
+  using type = bool;
+  using option_tags = tmpl::list<OptionTags::ConstraintCheckVerbose>;
 
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const type value) { return value; }

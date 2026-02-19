@@ -564,7 +564,8 @@ struct EvolutionMetavars {
                  gh::bbh::Tags::GaugeConstraintLinfThreshold,
                  gh::bbh::Tags::ThreeIndexConstraintLinfThreshold,
                  gh::bbh::Tags::CommonHorizonLMaxThreshold,
-                 gh::bbh::Tags::ConstraintCheckInterval>;
+                 gh::bbh::Tags::ConstraintCheckInterval,
+                 gh::bbh::Tags::ConstraintCheckVerbose>;
 
   using mutable_global_cache_tags =
       tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
