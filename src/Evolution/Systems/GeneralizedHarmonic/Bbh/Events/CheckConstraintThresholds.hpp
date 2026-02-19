@@ -116,8 +116,9 @@ class CheckConstraintThresholds : public Event {
             cache, time, max_gauge_linf, gauge_constraint_threshold);
       }
 
-      const double three_index_constraint_threshold = Parallel::get<
-          gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(cache);
+      const double three_index_constraint_threshold =
+          Parallel::get<gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(
+              cache);
       if (max_three_index_linf >= three_index_constraint_threshold) {
         Parallel::mutate<gh::bbh::Tags::ThreeIndexConstraintExceeded,
                          LatchThreeIndexConstraintExceededAndPrint>(

@@ -38,9 +38,9 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                   "[Unit][Evolution]") {
   gh::bbh::Triggers::CompletionCriteria trigger{};
   auto cache = make_cache();
-  auto box = db::create<db::AddSimpleTags<
-      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
-      Parallel::Tags::GlobalCache<MockMetavariables>>>(
+  auto box = db::create<
+      db::AddSimpleTags<Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+                        Parallel::Tags::GlobalCache<MockMetavariables>>>(
       MockMetavariables{}, &cache);
 
   // Before the minimum number of AhC successes, completion criteria are gated.
@@ -64,9 +64,9 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
 
   // Max success count is also a completion criterion.
   auto count_cache = make_cache();
-  auto count_box = db::create<db::AddSimpleTags<
-      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
-      Parallel::Tags::GlobalCache<MockMetavariables>>>(
+  auto count_box = db::create<
+      db::AddSimpleTags<Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+                        Parallel::Tags::GlobalCache<MockMetavariables>>>(
       MockMetavariables{}, &count_cache);
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(

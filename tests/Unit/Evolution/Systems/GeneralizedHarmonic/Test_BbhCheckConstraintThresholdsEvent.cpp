@@ -38,23 +38,23 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCheckConstraintThresholdsEvent",
 
   // Reduction callback does not latch from non-designated element.
   gh::bbh::Events::CheckConstraintThresholds::ProcessConstraintMaxima::
-      template apply<MockComponent>(
-      box, cache, ElementId<3>{1}, 1.0, 100.0, 100.0);
+      template apply<MockComponent>(box, cache, ElementId<3>{1}, 1.0, 100.0,
+                                    100.0);
   CHECK_FALSE(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
-  CHECK_FALSE(Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(
-      cache));
+  CHECK_FALSE(
+      Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
 
   // Reduction callback latches based on globally reduced maxima.
   gh::bbh::Events::CheckConstraintThresholds::ProcessConstraintMaxima::
-      template apply<MockComponent>(
-      box, cache, ElementId<3>{0}, 2.0, 11.0, 1.0);
+      template apply<MockComponent>(box, cache, ElementId<3>{0}, 2.0, 11.0,
+                                    1.0);
   CHECK(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
-  CHECK_FALSE(Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(
-      cache));
+  CHECK_FALSE(
+      Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
 
   gh::bbh::Events::CheckConstraintThresholds::ProcessConstraintMaxima::
-      template apply<MockComponent>(
-      box, cache, ElementId<3>{0}, 3.0, 1.0, 21.0);
+      template apply<MockComponent>(box, cache, ElementId<3>{0}, 3.0, 1.0,
+                                    21.0);
   CHECK(Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
 }
 }  // namespace

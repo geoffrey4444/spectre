@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include <type_traits>
 #include <pup.h>
 #include <string>
+#include <type_traits>
 
 #include "DataStructures/DataBox/DataBox.hpp"
-#include "DataStructures/DataBox/MetavariablesTag.hpp"
 #include "DataStructures/DataBox/DataBoxTag.hpp"
+#include "DataStructures/DataBox/MetavariablesTag.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
@@ -37,8 +37,8 @@ class CompletionCriteria : public Trigger {
 
   template <typename DbTags>
   bool operator()(const db::DataBox<DbTags>& box) const {
-    using metavariables = std::decay_t<
-        decltype(db::get<Parallel::Tags::Metavariables>(box))>;
+    using metavariables =
+        std::decay_t<decltype(db::get<Parallel::Tags::Metavariables>(box))>;
     const auto* cache =
         db::get<Parallel::Tags::GlobalCache<metavariables>>(box);
     const size_t success_count =
