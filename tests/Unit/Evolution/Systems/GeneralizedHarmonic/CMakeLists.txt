@@ -22,6 +22,7 @@ set(LIBRARY_SOURCES
   Test_Fluxes.cpp
   Test_BbhCompletionCriteria.cpp
   Test_BbhCheckConstraintThresholdsEvent.cpp
+  Test_BbhCompletionCriteriaSlabLatchAction.cpp
   Test_BbhCompletionCriteriaTrigger.cpp
   Test_BbhUpdateCompletionCriteriaCallback.cpp
   Test_Tags.cpp
