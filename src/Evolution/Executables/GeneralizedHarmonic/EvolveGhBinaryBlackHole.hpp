@@ -49,6 +49,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Callbacks/UpdateCompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Events/CheckConstraintThresholds.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/PhaseControl/WriteVolumeDataAndExit.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/ConstraintCheck.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
@@ -534,7 +535,10 @@ struct EvolutionMetavars {
         // Restrict to monotonic time steppers in LTS to avoid control
         // systems deadlocking.
         tmpl::pair<LtsTimeStepper, TimeSteppers::monotonic_lts_time_steppers>,
-        tmpl::pair<PhaseChange, PhaseControl::factory_creatable_classes>,
+        tmpl::pair<
+            PhaseChange,
+            tmpl::push_back<PhaseControl::factory_creatable_classes,
+                            gh::bbh::phase_control::WriteVolumeDataAndExit>>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
         tmpl::pair<

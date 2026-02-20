@@ -313,6 +313,14 @@ Amr:
   Verbosity: Quiet
 
 PhaseChangeAndTriggers:
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 1
+          Offset: 0
+    PhaseChanges:
+      # Terminal completion path: Evolve -> WriteCheckpoint -> Exit.
+      - BbhWriteVolumeDataAndExit
 {% if segments_dir is defined %}
   - Trigger:
       Slabs:
@@ -331,6 +339,19 @@ EventsAndTriggersAtCheckpoints:
     Events:
       - ObserveFields:
           SubfileName: Checkpoints
+          VariablesToObserve:
+            - SpacetimeMetric
+            - Pi
+            - Phi
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          CoordinatesFloatingPointType: Double
+          FloatingPointTypes: [Double]
+          BlocksToObserve: All
+      # Final synchronized write used to initialize ringdown when completion
+      # criteria request termination via BbhWriteVolumeDataAndExit.
+      - ObserveFields:
+          SubfileName: CheckpointVolumeData
           VariablesToObserve:
             - SpacetimeMetric
             - Pi
@@ -478,22 +499,6 @@ EventsAndTriggersAtSlabs:
   - Trigger: Always
     Events:
       - CleanFunctionsOfTime
-  # Completion criteria based on common-horizon state and GH constraints.
-  - Trigger: BbhCompletionCriteria
-    Events:
-      - ObserveFields:
-          SubfileName: FinalStopVolumeData
-          VariablesToObserve:
-            - SpacetimeMetric
-            - Pi
-            - Phi
-          InterpolateToMesh: None
-          ProjectToMesh: None
-          CoordinatesFloatingPointType: Double
-          FloatingPointTypes: [Double]
-          BlocksToObserve: All
-      - Completion
-
 EventsAndTriggersAtSteps:
 
 EventsAndDenseTriggers:
