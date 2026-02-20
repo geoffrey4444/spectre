@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <pup.h>
 #include <string>
 
@@ -21,6 +22,7 @@
 #include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "Time/Tags/Time.hpp"
+#include "Time/Tags/TimeStepId.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Functional.hpp"
 #include "Utilities/Gsl.hpp"
@@ -31,6 +33,7 @@ namespace gh::bbh::Events {
 class CheckConstraintThresholds : public Event {
   using ReductionData = Parallel::ReductionData<
       Parallel::ReductionDatum<double, funcl::AssertEqual<>>,
+      Parallel::ReductionDatum<int64_t, funcl::AssertEqual<>>,
       Parallel::ReductionDatum<double, funcl::Max<>>,
       Parallel::ReductionDatum<double, funcl::Max<>>>;
 
@@ -54,12 +57,13 @@ class CheckConstraintThresholds : public Event {
 
   using return_tags = tmpl::list<>;
   using argument_tags = tmpl::list<
-      ::Tags::Time, gh::Tags::GaugeConstraint<DataVector, 3, Frame::Inertial>,
+      ::Tags::Time, ::Tags::TimeStepId,
+      gh::Tags::GaugeConstraint<DataVector, 3, Frame::Inertial>,
       gh::Tags::ThreeIndexConstraint<DataVector, 3, Frame::Inertial>>;
 
   template <typename Metavariables, typename ArrayIndex, typename Component>
   void operator()(
-      const double time,
+      const double time, const TimeStepId& time_step_id,
       const tnsr::a<DataVector, 3, Frame::Inertial>& gauge_constraint,
       const tnsr::iaa<DataVector, 3, Frame::Inertial>& three_index_constraint,
       Parallel::GlobalCache<Metavariables>& cache,
@@ -87,7 +91,8 @@ class CheckConstraintThresholds : public Event {
       auto& reduction_target_proxy = Parallel::get_parallel_component<
           mem_monitor::MemoryMonitor<Metavariables>>(cache);
       Parallel::contribute_to_reduction<ProcessConstraintMaxima>(
-          ReductionData{time, local_gauge_linf, local_three_index_linf},
+          ReductionData{time, time_step_id.slab_number(), local_gauge_linf,
+                        local_three_index_linf},
           self_proxy, reduction_target_proxy);
     }
   }
@@ -98,7 +103,7 @@ class CheckConstraintThresholds : public Event {
     static void apply(db::DataBox<DbTags>& /*box*/,
                       Parallel::GlobalCache<Metavariables>& cache,
                       const ArrayIndex& /*array_index*/, const double time,
-                      const double max_gauge_linf,
+                      const int64_t slab_number, const double max_gauge_linf,
                       const double max_three_index_linf) {
       const double gauge_constraint_threshold =
           Parallel::get<gh::bbh::Tags::GaugeConstraintLinfThreshold>(cache);
@@ -127,6 +132,21 @@ class CheckConstraintThresholds : public Event {
                          LatchThreeIndexConstraintExceededAndPrint>(
             cache, time, max_three_index_linf,
             three_index_constraint_threshold);
+      }
+
+      if (max_gauge_linf >= gauge_constraint_threshold or
+          max_three_index_linf >= three_index_constraint_threshold) {
+        const bool completion_requested =
+            Parallel::get<gh::bbh::Tags::CompletionRequested>(cache);
+        if (not completion_requested) {
+          Parallel::mutate<gh::bbh::Tags::CompletionRequested,
+                           gh::bbh::Mutators::SetCompletionRequested>(cache);
+        }
+        if (slab_number >= 0) {
+          Parallel::mutate<gh::bbh::Tags::StopSlabNumber,
+                           gh::bbh::Mutators::SetStopSlabNumberIfUnset>(
+              cache, static_cast<size_t>(slab_number + 1));
+        }
       }
     }
   };

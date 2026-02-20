@@ -481,6 +481,17 @@ EventsAndTriggersAtSlabs:
   # Completion criteria based on common-horizon state and GH constraints.
   - Trigger: BbhCompletionCriteria
     Events:
+      - ObserveFields:
+          SubfileName: FinalStopVolumeData
+          VariablesToObserve:
+            - SpacetimeMetric
+            - Pi
+            - Phi
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          CoordinatesFloatingPointType: Double
+          FloatingPointTypes: [Double]
+          BlocksToObserve: All
       - Completion
 
 EventsAndTriggersAtSteps:

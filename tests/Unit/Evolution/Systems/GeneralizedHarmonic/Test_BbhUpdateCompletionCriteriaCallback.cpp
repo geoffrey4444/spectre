@@ -38,15 +38,17 @@ struct MockMetavariables {
   using component_list = tmpl::list<>;
   using const_global_cache_tags =
       tmpl::list<gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks,
+                 gh::bbh::Tags::MaxCommonHorizonSuccesses,
                  gh::bbh::Tags::CommonHorizonLMaxThreshold>;
   using mutable_global_cache_tags =
       tmpl::list<gh::bbh::Tags::CommonHorizonSuccessCount,
-                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>;
+                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
+                 gh::bbh::Tags::CompletionRequested>;
 };
 
 auto make_cache() {
-  return Parallel::GlobalCache<MockMetavariables>{{size_t{2}, size_t{6}},
-                                                  {size_t{0}, false}};
+  return Parallel::GlobalCache<MockMetavariables>{
+      {size_t{2}, size_t{100}, size_t{6}}, {size_t{0}, false, false}};
 }
 
 auto make_box(const double time, const size_t l_max) {
@@ -77,6 +79,7 @@ SPECTRE_TEST_CASE(
     CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache) == 2);
     CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
         cache));
+    CHECK(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
   }
 }
 }  // namespace

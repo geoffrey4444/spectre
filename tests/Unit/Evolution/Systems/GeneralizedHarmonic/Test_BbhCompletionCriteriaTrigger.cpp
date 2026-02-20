@@ -4,12 +4,16 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <cstddef>
+#include <limits>
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/MetavariablesTag.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/CompletionCriteria.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Time/Slab.hpp"
+#include "Time/Tags/TimeStepId.hpp"
+#include "Time/TimeStepId.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace {
@@ -26,25 +30,29 @@ struct MockMetavariables {
                  gh::bbh::Tags::ThreeIndexConstraintExceeded,
                  gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
                  gh::bbh::Tags::CommonHorizonSuccessCount,
-                 gh::bbh::Tags::MaxCommonHorizonSuccessesReached>;
+                 gh::bbh::Tags::MaxCommonHorizonSuccessesReached,
+                 gh::bbh::Tags::CompletionRequested,
+                 gh::bbh::Tags::StopSlabNumber>;
 };
 
 Parallel::GlobalCache<MockMetavariables> make_cache() {
   return {{size_t{2}, size_t{3}, 10.0, 20.0, 0.5},
-          {false, false, false, size_t{0}, false}};
+          {false, false, false, size_t{0}, false, false,
+           std::numeric_limits<size_t>::max()}};
 }
 
 SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                   "[Unit][Evolution]") {
   gh::bbh::Triggers::CompletionCriteria trigger{};
   auto cache = make_cache();
-  auto box = db::create<
-      db::AddSimpleTags<Parallel::Tags::MetavariablesImpl<MockMetavariables>,
-                        Parallel::Tags::GlobalCache<MockMetavariables>>>(
-      MockMetavariables{}, &cache);
+  const Slab slab(0., 1.);
+  auto box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>, Tags::TimeStepId>>(
+      MockMetavariables{}, &cache, TimeStepId{true, 0, slab.start()});
 
   // Before the minimum number of AhC successes, completion criteria are gated.
-  CHECK_FALSE(trigger(box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(box), box));
   CHECK_FALSE(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
   CHECK_FALSE(
       Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
@@ -57,17 +65,26 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       cache);
 
-  CHECK_FALSE(trigger(box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(box), box));
   Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
                    gh::bbh::Mutators::SetGaugeConstraintExceeded>(cache);
-  CHECK(trigger(box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(box), box));
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 1_st);
+  db::mutate<Tags::TimeStepId>(
+      [&slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id = TimeStepId(true, time_id->slab_number() + 1, slab.start());
+      },
+      make_not_null(&box));
+  CHECK(trigger(db::get<Tags::TimeStepId>(box), box));
 
   // Max success count is also a completion criterion.
   auto count_cache = make_cache();
-  auto count_box = db::create<
-      db::AddSimpleTags<Parallel::Tags::MetavariablesImpl<MockMetavariables>,
-                        Parallel::Tags::GlobalCache<MockMetavariables>>>(
-      MockMetavariables{}, &count_cache);
+  const Slab count_slab(0., 1.);
+  auto count_box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>, Tags::TimeStepId>>(
+      MockMetavariables{}, &count_cache,
+      TimeStepId{true, 10, count_slab.start()});
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       count_cache);
@@ -77,6 +94,14 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       count_cache);
-  CHECK(trigger(count_box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(count_cache) == 11_st);
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&count_box));
+  CHECK(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
 }
 }  // namespace

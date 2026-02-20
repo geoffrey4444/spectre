@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <string>
 
 #include "DataStructures/DataBox/Tag.hpp"
@@ -166,6 +167,24 @@ struct MaxCommonHorizonSuccessesReached : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options() { return false; }
 };
+
+struct CompletionRequested : db::SimpleTag {
+  using type = bool;
+  using option_tags = tmpl::list<>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options() { return false; }
+};
+
+struct StopSlabNumber : db::SimpleTag {
+  using type = size_t;
+  using option_tags = tmpl::list<>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options() {
+    return std::numeric_limits<size_t>::max();
+  }
+};
 }  // namespace Tags
 
 namespace Mutators {
@@ -198,6 +217,21 @@ struct SetMaxCommonHorizonSuccessesReached {
   static void apply(
       const gsl::not_null<bool*> max_common_horizon_successes_reached) {
     *max_common_horizon_successes_reached = true;
+  }
+};
+
+struct SetCompletionRequested {
+  static void apply(const gsl::not_null<bool*> completion_requested) {
+    *completion_requested = true;
+  }
+};
+
+struct SetStopSlabNumberIfUnset {
+  static void apply(const gsl::not_null<size_t*> stop_slab_number,
+                    const size_t new_stop_slab_number) {
+    if (*stop_slab_number == std::numeric_limits<size_t>::max()) {
+      *stop_slab_number = new_stop_slab_number;
+    }
   }
 };
 }  // namespace Mutators

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <limits>
 #include <pup.h>
 #include <string>
 #include <type_traits>
@@ -13,7 +14,9 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/Printf/Printf.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Trigger.hpp"
+#include "Time/Tags/TimeStepId.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -33,14 +36,14 @@ class CompletionCriteria : public Trigger {
   static std::string name() { return "BbhCompletionCriteria"; }
   using options = tmpl::list<>;
 
-  using argument_tags = tmpl::list<::Tags::DataBox>;
+  using argument_tags = tmpl::list<::Tags::TimeStepId, ::Tags::DataBox>;
 
   template <typename DbTags>
-  bool operator()(const db::DataBox<DbTags>& box) const {
+  bool operator()(const TimeStepId& time_step_id,
+                  const db::DataBox<DbTags>& box) const {
     using metavariables =
         std::decay_t<decltype(db::get<Parallel::Tags::Metavariables>(box))>;
-    const auto* cache =
-        db::get<Parallel::Tags::GlobalCache<metavariables>>(box);
+    auto* cache = db::get<Parallel::Tags::GlobalCache<metavariables>>(box);
     const size_t success_count =
         Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(*cache);
     const size_t min_successes =
@@ -52,14 +55,31 @@ class CompletionCriteria : public Trigger {
       return false;
     }
 
-    if (success_count >= max_successes) {
-      return true;
+    const bool criteria_met =
+        success_count >= max_successes or
+        Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(*cache) or
+        Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(*cache) or
+        Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
+            *cache) or
+        Parallel::get<gh::bbh::Tags::CompletionRequested>(*cache);
+    if (criteria_met and Parallel::get<gh::bbh::Tags::StopSlabNumber>(*cache) ==
+                             std::numeric_limits<size_t>::max()) {
+      if (time_step_id.slab_number() >= 0) {
+        Parallel::mutate<gh::bbh::Tags::StopSlabNumber,
+                         gh::bbh::Mutators::SetStopSlabNumberIfUnset>(
+            *cache, static_cast<size_t>(time_step_id.slab_number() + 1));
+        Parallel::printf(
+            "BBH completion stop slab latched at slab %zu (current slab %lld)."
+            "\n",
+            Parallel::get<gh::bbh::Tags::StopSlabNumber>(*cache),
+            static_cast<long long>(time_step_id.slab_number()));
+      }
     }
 
-    return Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(*cache) or
-           Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(*cache) or
-           Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
-               *cache);
+    const auto stop_slab_number =
+        Parallel::get<gh::bbh::Tags::StopSlabNumber>(*cache);
+    return stop_slab_number != std::numeric_limits<size_t>::max() and
+           static_cast<size_t>(time_step_id.slab_number()) >= stop_slab_number;
   }
 
   // NOLINTNEXTLINE(google-runtime-references)

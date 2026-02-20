@@ -21,10 +21,12 @@ template <typename HorizonMetavars>
 struct UpdateCompletionCriteria : tt::ConformsTo<ah::protocols::Callback> {
   using const_global_cache_tags =
       tmpl::list<gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks,
+                 gh::bbh::Tags::MaxCommonHorizonSuccesses,
                  gh::bbh::Tags::CommonHorizonLMaxThreshold>;
   using mutable_global_cache_tags =
       tmpl::list<gh::bbh::Tags::CommonHorizonSuccessCount,
-                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>;
+                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
+                 gh::bbh::Tags::CompletionRequested>;
 
   template <typename DbTags, typename Metavariables>
   static void apply(const db::DataBox<DbTags>& box,
@@ -37,6 +39,8 @@ struct UpdateCompletionCriteria : tt::ConformsTo<ah::protocols::Callback> {
     const size_t min_successes =
         Parallel::get<gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks>(
             cache);
+    const size_t max_successes =
+        Parallel::get<gh::bbh::Tags::MaxCommonHorizonSuccesses>(cache);
     const size_t l_max_threshold =
         Parallel::get<gh::bbh::Tags::CommonHorizonLMaxThreshold>(cache);
 
@@ -54,7 +58,8 @@ struct UpdateCompletionCriteria : tt::ConformsTo<ah::protocols::Callback> {
           time, new_success_count, min_successes);
     }
 
-    if (l_max <= l_max_threshold and
+    const bool lmax_criterion_met = l_max <= l_max_threshold;
+    if (lmax_criterion_met and
         not Parallel::get<
             gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(cache)) {
       Parallel::mutate<
@@ -63,6 +68,17 @@ struct UpdateCompletionCriteria : tt::ConformsTo<ah::protocols::Callback> {
       Parallel::printf(
           "BBH completion criterion met at t=%.16f: AhC Lmax=%zu <= %zu.\n",
           time, l_max, l_max_threshold);
+    }
+
+    const bool count_criterion_met = new_success_count >= max_successes;
+    if (new_success_count >= min_successes and
+        (count_criterion_met or lmax_criterion_met) and
+        not Parallel::get<gh::bbh::Tags::CompletionRequested>(cache)) {
+      Parallel::mutate<gh::bbh::Tags::CompletionRequested,
+                       gh::bbh::Mutators::SetCompletionRequested>(cache);
+      Parallel::printf(
+          "BBH completion criteria request latched at t=%.16f from AhC path.\n",
+          time);
     }
   }
 };
