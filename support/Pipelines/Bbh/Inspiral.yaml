@@ -351,7 +351,7 @@ EventsAndTriggersAtCheckpoints:
       # Final synchronized write used to initialize ringdown when completion
       # criteria request termination via BbhWriteVolumeDataAndExit.
       - ObserveFields:
-          SubfileName: CheckpointVolumeData
+          SubfileName: Checkpoints
           VariablesToObserve:
             - SpacetimeMetric
             - Pi
