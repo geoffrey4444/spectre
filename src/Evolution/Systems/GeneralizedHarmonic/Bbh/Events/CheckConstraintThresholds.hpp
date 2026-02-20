@@ -143,9 +143,11 @@ class CheckConstraintThresholds : public Event {
                            gh::bbh::Mutators::SetCompletionRequested>(cache);
         }
         if (slab_number >= 0) {
+          // Latch two slabs ahead so all nodes have time to receive mutable
+          // cache updates before the Completion trigger evaluates true.
           Parallel::mutate<gh::bbh::Tags::StopSlabNumber,
                            gh::bbh::Mutators::SetStopSlabNumberIfUnset>(
-              cache, static_cast<size_t>(slab_number + 1));
+              cache, static_cast<size_t>(slab_number + 2));
         }
       }
     }

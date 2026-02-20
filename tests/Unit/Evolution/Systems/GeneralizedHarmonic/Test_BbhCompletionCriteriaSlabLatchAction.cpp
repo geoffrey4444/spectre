@@ -183,7 +183,7 @@ SPECTRE_TEST_CASE(
 
   CHECK_FALSE(ActionTesting::get_terminate<component>(runner, 0));
   CHECK_FALSE(ActionTesting::get_terminate<component>(runner, 1));
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 8_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 9_st);
   CHECK(Parallel::get<test_tags::ObserveCount>(cache) == 0_st);
 
   for (const int idx : std::array{0, 1}) {
@@ -199,8 +199,25 @@ SPECTRE_TEST_CASE(
     ActionTesting::next_action<component>(make_not_null(&runner), idx);
   }
 
+  CHECK_FALSE(ActionTesting::get_terminate<component>(runner, 0));
+  CHECK_FALSE(ActionTesting::get_terminate<component>(runner, 1));
+  CHECK(Parallel::get<test_tags::ObserveCount>(cache) == 0_st);
+
+  for (const int idx : std::array{0, 1}) {
+    auto& box =
+        ActionTesting::get_databox<component>(make_not_null(&runner), idx);
+    db::mutate<Tags::TimeStepId, Tags::Time>(
+        [&slab](const gsl::not_null<TimeStepId*> time_step_id,
+                const gsl::not_null<double*> time) {
+          *time_step_id = TimeStepId(true, 9, slab.start());
+          *time = slab.start().value();
+        },
+        make_not_null(&box));
+    ActionTesting::next_action<component>(make_not_null(&runner), idx);
+  }
+
   CHECK(ActionTesting::get_terminate<component>(runner, 0));
   CHECK(ActionTesting::get_terminate<component>(runner, 1));
   CHECK(Parallel::get<test_tags::ObserveCount>(cache) == 2_st);
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 8_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 9_st);
 }

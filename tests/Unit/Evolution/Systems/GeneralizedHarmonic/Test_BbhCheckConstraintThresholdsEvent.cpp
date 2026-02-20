@@ -48,11 +48,11 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCheckConstraintThresholdsEvent",
   CHECK_FALSE(
       Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
   CHECK(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 5_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 6_st);
 
   gh::bbh::Events::CheckConstraintThresholds::ProcessConstraintMaxima::
       template apply<MockSingletonComponent>(box, cache, 0, 3.0, 6, 1.0, 21.0);
   CHECK(Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 5_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 6_st);
 }
 }  // namespace

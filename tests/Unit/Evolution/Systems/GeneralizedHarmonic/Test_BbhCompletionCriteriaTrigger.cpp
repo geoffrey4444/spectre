@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
 #include <cstddef>
 #include <limits>
 
@@ -69,7 +70,13 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
   Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
                    gh::bbh::Mutators::SetGaugeConstraintExceeded>(cache);
   CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(box), box));
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 1_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(cache) == 2_st);
+  db::mutate<Tags::TimeStepId>(
+      [&slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id = TimeStepId(true, time_id->slab_number() + 1, slab.start());
+      },
+      make_not_null(&box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(box), box));
   db::mutate<Tags::TimeStepId>(
       [&slab](const gsl::not_null<TimeStepId*> time_id) {
         *time_id = TimeStepId(true, time_id->slab_number() + 1, slab.start());
@@ -95,7 +102,14 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
                    gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
       count_cache);
   CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
-  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(count_cache) == 11_st);
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(count_cache) == 12_st);
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&count_box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
   db::mutate<Tags::TimeStepId>(
       [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
         *time_id =
@@ -103,5 +117,71 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
       },
       make_not_null(&count_box));
   CHECK(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
+
+  // Simulate one-slab propagation delay between cache branches (e.g. nodes).
+  auto branch0_cache = make_cache();
+  auto branch1_cache = make_cache();
+  auto branch0_box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>, Tags::TimeStepId>>(
+      MockMetavariables{}, &branch0_cache,
+      TimeStepId{true, 10, count_slab.start()});
+  auto branch1_box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>, Tags::TimeStepId>>(
+      MockMetavariables{}, &branch1_cache,
+      TimeStepId{true, 10, count_slab.start()});
+  for (auto* cache_ptr : std::array{&branch0_cache, &branch1_cache}) {
+    Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
+                     gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
+        *cache_ptr);
+    Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
+                     gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
+        *cache_ptr);
+  }
+  Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
+                   gh::bbh::Mutators::SetGaugeConstraintExceeded>(
+      branch0_cache);
+
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(branch0_box), branch0_box));
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(branch0_cache) == 12_st);
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(branch1_box), branch1_box));
+
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&branch0_box));
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&branch1_box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(branch0_box), branch0_box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(branch1_box), branch1_box));
+
+  Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
+                   gh::bbh::Mutators::SetGaugeConstraintExceeded>(
+      branch1_cache);
+  Parallel::mutate<gh::bbh::Tags::StopSlabNumber,
+                   gh::bbh::Mutators::SetStopSlabNumberIfUnset>(
+      branch1_cache,
+      Parallel::get<gh::bbh::Tags::StopSlabNumber>(branch0_cache));
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&branch0_box));
+  db::mutate<Tags::TimeStepId>(
+      [&count_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, count_slab.start());
+      },
+      make_not_null(&branch1_box));
+  CHECK(trigger(db::get<Tags::TimeStepId>(branch0_box), branch0_box));
+  CHECK(trigger(db::get<Tags::TimeStepId>(branch1_box), branch1_box));
 }
 }  // namespace

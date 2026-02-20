@@ -65,9 +65,11 @@ class CompletionCriteria : public Trigger {
     if (criteria_met and Parallel::get<gh::bbh::Tags::StopSlabNumber>(*cache) ==
                              std::numeric_limits<size_t>::max()) {
       if (time_step_id.slab_number() >= 0) {
+        // Latch two slabs ahead so all nodes have time to receive mutable
+        // cache updates before the Completion trigger evaluates true.
         Parallel::mutate<gh::bbh::Tags::StopSlabNumber,
                          gh::bbh::Mutators::SetStopSlabNumberIfUnset>(
-            *cache, static_cast<size_t>(time_step_id.slab_number() + 1));
+            *cache, static_cast<size_t>(time_step_id.slab_number() + 2));
         Parallel::printf(
             "BBH completion stop slab latched at slab %zu (current slab %lld)."
             "\n",
