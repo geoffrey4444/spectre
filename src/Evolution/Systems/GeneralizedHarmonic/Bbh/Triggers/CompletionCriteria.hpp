@@ -17,6 +17,7 @@
 #include "Parallel/Printf/Printf.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Trigger.hpp"
 #include "Time/Tags/TimeStepId.hpp"
+#include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -51,6 +52,11 @@ class CompletionCriteria : public Trigger {
             *cache);
     const size_t max_successes =
         Parallel::get<gh::bbh::Tags::MaxCommonHorizonSuccesses>(*cache);
+    ASSERT(max_successes >= min_successes,
+           "MaxCommonHorizonSuccesses ("
+               << max_successes << ") must be >= "
+               << "MinCommonHorizonSuccessesBeforeChecks (" << min_successes
+               << ").");
     if (success_count < min_successes) {
       return false;
     }

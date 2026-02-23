@@ -49,8 +49,9 @@ class CheckConstraintThresholds : public Event {
                  gh::Tags::ThreeIndexConstraintCompute<3, Frame::Inertial>>;
   using options = tmpl::list<>;
   static constexpr Options::String help =
-      "Checks local Linf constraints against BBH completion thresholds and "
-      "latches global-cache booleans through a singleton reduction callback.";
+      "Checks local Linf norms of constraints against BBH completion "
+      "thresholds and latches global-cache booleans through a singleton "
+      "reduction callback.";
   static std::string name() { return "BbhCheckConstraintThresholds"; }
 
   CheckConstraintThresholds() = default;
@@ -88,6 +89,9 @@ class CheckConstraintThresholds : public Event {
     } else {
       const auto& self_proxy =
           Parallel::get_parallel_component<Component>(cache)[array_index];
+      // Reuse MemoryMonitor as the singleton reduction target because this BBH
+      // executable already includes it and we only need a process-wide
+      // reduction callback host.
       auto& reduction_target_proxy = Parallel::get_parallel_component<
           mem_monitor::MemoryMonitor<Metavariables>>(cache);
       Parallel::contribute_to_reduction<ProcessConstraintMaxima>(

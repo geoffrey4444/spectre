@@ -13,6 +13,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Protocols/Callback.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
+#include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -43,6 +44,11 @@ struct UpdateCompletionCriteria : tt::ConformsTo<ah::protocols::Callback> {
         Parallel::get<gh::bbh::Tags::MaxCommonHorizonSuccesses>(cache);
     const size_t l_max_threshold =
         Parallel::get<gh::bbh::Tags::CommonHorizonLMaxThreshold>(cache);
+    ASSERT(max_successes >= min_successes,
+           "MaxCommonHorizonSuccesses ("
+               << max_successes << ") must be >= "
+               << "MinCommonHorizonSuccessesBeforeChecks (" << min_successes
+               << ").");
 
     const size_t old_success_count =
         Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache);

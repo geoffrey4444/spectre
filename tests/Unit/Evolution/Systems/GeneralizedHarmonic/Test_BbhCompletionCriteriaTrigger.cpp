@@ -37,7 +37,14 @@ struct MockMetavariables {
 };
 
 Parallel::GlobalCache<MockMetavariables> make_cache() {
-  return {{size_t{2}, size_t{3}, 10.0, 20.0, 0.5},
+  constexpr size_t min_common_horizon_successes_before_checks = 2;
+  constexpr size_t max_common_horizon_successes = 3;
+  constexpr double gauge_constraint_linf_threshold = 10.0;
+  constexpr double three_index_constraint_linf_threshold = 20.0;
+  constexpr double constraint_check_interval = 0.5;
+  return {{min_common_horizon_successes_before_checks,
+           max_common_horizon_successes, gauge_constraint_linf_threshold,
+           three_index_constraint_linf_threshold, constraint_check_interval},
           {false, false, false, size_t{0}, false, false,
            std::numeric_limits<size_t>::max()}};
 }
@@ -57,6 +64,9 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
   CHECK_FALSE(Parallel::get<gh::bbh::Tags::GaugeConstraintExceeded>(cache));
   CHECK_FALSE(
       Parallel::get<gh::bbh::Tags::ThreeIndexConstraintExceeded>(cache));
+  CHECK_FALSE(
+      Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
+          cache));
 
   // Arm checks once we have enough successful AhC finds.
   Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
@@ -117,6 +127,44 @@ SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCompletionCriteriaTrigger",
       },
       make_not_null(&count_box));
   CHECK(trigger(db::get<Tags::TimeStepId>(count_box), count_box));
+
+  // Common-horizon LMax criterion is also gated by minimum successes and then
+  // follows the same two-slab latch.
+  auto lmax_cache = make_cache();
+  const Slab lmax_slab(0., 1.);
+  auto lmax_box = db::create<db::AddSimpleTags<
+      Parallel::Tags::MetavariablesImpl<MockMetavariables>,
+      Parallel::Tags::GlobalCache<MockMetavariables>, Tags::TimeStepId>>(
+      MockMetavariables{}, &lmax_cache,
+      TimeStepId{true, 20, lmax_slab.start()});
+  Parallel::mutate<
+      gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
+      gh::bbh::Mutators::SetCommonHorizonLMaxBelowOrEqualThreshold>(lmax_cache);
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(lmax_box), lmax_box));
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(lmax_cache) ==
+        std::numeric_limits<size_t>::max());
+  Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
+                   gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
+      lmax_cache);
+  Parallel::mutate<gh::bbh::Tags::CommonHorizonSuccessCount,
+                   gh::bbh::Mutators::IncrementCommonHorizonSuccessCount>(
+      lmax_cache);
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(lmax_box), lmax_box));
+  CHECK(Parallel::get<gh::bbh::Tags::StopSlabNumber>(lmax_cache) == 22_st);
+  db::mutate<Tags::TimeStepId>(
+      [&lmax_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, lmax_slab.start());
+      },
+      make_not_null(&lmax_box));
+  CHECK_FALSE(trigger(db::get<Tags::TimeStepId>(lmax_box), lmax_box));
+  db::mutate<Tags::TimeStepId>(
+      [&lmax_slab](const gsl::not_null<TimeStepId*> time_id) {
+        *time_id =
+            TimeStepId(true, time_id->slab_number() + 1, lmax_slab.start());
+      },
+      make_not_null(&lmax_box));
+  CHECK(trigger(db::get<Tags::TimeStepId>(lmax_box), lmax_box));
 
   // Simulate one-slab propagation delay between cache branches (e.g. nodes).
   auto branch0_cache = make_cache();

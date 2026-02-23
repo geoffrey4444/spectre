@@ -47,8 +47,13 @@ struct MockMetavariables {
 };
 
 auto make_cache() {
+  constexpr size_t min_common_horizon_successes_before_checks = 2;
+  constexpr size_t max_common_horizon_successes = 100;
+  constexpr size_t common_horizon_lmax_threshold = 6;
   return Parallel::GlobalCache<MockMetavariables>{
-      {size_t{2}, size_t{100}, size_t{6}}, {size_t{0}, false, false}};
+      {min_common_horizon_successes_before_checks, max_common_horizon_successes,
+       common_horizon_lmax_threshold},
+      {size_t{0}, false, false}};
 }
 
 auto make_box(const double time, const size_t l_max) {
@@ -64,21 +69,60 @@ SPECTRE_TEST_CASE(
     "[Unit][Evolution]") {
   (void)MockHorizonMetavars::destination;
   {
+    INFO("No completion request before minimum successful AhC finds");
     auto cache = make_cache();
-    auto box = make_box(1.0, 8);
+    auto box = make_box(1.0, 6);
     gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
         box, cache, FastFlow::Status::TruncationTol);
     CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache) == 1);
+    CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
+        cache));
+    CHECK_FALSE(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
+  }
+
+  {
+    INFO(
+        "Completion request latches when LMax criterion is met at minimum "
+        "success count");
+    auto cache = make_cache();
+    auto box = make_box(2.5, 8);
+    gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
+        box, cache, FastFlow::Status::TruncationTol);
     CHECK_FALSE(
         Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
             cache));
+    CHECK_FALSE(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
 
-    box = make_box(2.5, 6);
+    box = make_box(3.0, 6);
     gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
         box, cache, FastFlow::Status::TruncationTol);
     CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache) == 2);
     CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
         cache));
+    CHECK(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
+  }
+
+  {
+    INFO("Completion request latches when max success count criterion is met");
+    Parallel::GlobalCache<MockMetavariables> cache{
+        {size_t{2}, size_t{3}, size_t{1}}, {size_t{0}, false, false}};
+    auto box = make_box(4.0, 8);
+    gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
+        box, cache, FastFlow::Status::TruncationTol);
+    CHECK_FALSE(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
+
+    box = make_box(4.5, 8);
+    gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
+        box, cache, FastFlow::Status::TruncationTol);
+    CHECK_FALSE(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
+
+    box = make_box(5.0, 8);
+    gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
+        box, cache, FastFlow::Status::TruncationTol);
+    CHECK(Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache) == 3);
+    CHECK_FALSE(
+        Parallel::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(
+            cache));
     CHECK(Parallel::get<gh::bbh::Tags::CompletionRequested>(cache));
   }
 }

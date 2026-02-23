@@ -348,19 +348,6 @@ EventsAndTriggersAtCheckpoints:
           CoordinatesFloatingPointType: Double
           FloatingPointTypes: [Double]
           BlocksToObserve: All
-      # Final synchronized write used to initialize ringdown when completion
-      # criteria request termination via BbhWriteVolumeDataAndExit.
-      - ObserveFields:
-          SubfileName: Checkpoints
-          VariablesToObserve:
-            - SpacetimeMetric
-            - Pi
-            - Phi
-          InterpolateToMesh: None
-          ProjectToMesh: None
-          CoordinatesFloatingPointType: Double
-          FloatingPointTypes: [Double]
-          BlocksToObserve: All
 
 EventsAndTriggersAtSlabs:
   # Observe time step and cheap constraints every slab

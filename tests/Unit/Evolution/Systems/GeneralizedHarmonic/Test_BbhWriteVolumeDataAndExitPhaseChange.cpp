@@ -78,4 +78,16 @@ SPECTRE_TEST_CASE(
                        PhaseControl::ArbitrationStrategy::RunPhaseImmediately));
     CHECK(phase_change_decision_data == PhaseChangeDecisionData{false, false});
   }
+  {
+    INFO("If both decisions are true in Evolve, prioritize WriteCheckpoint");
+    PhaseChangeDecisionData phase_change_decision_data{true, true};
+    const auto decision_result = phase_change.arbitrate_phase_change(
+        make_not_null(&phase_change_decision_data), Parallel::Phase::Evolve,
+        cache);
+    CHECK(
+        decision_result ==
+        std::make_pair(Parallel::Phase::WriteCheckpoint,
+                       PhaseControl::ArbitrationStrategy::RunPhaseImmediately));
+    CHECK(phase_change_decision_data == PhaseChangeDecisionData{false, true});
+  }
 }
