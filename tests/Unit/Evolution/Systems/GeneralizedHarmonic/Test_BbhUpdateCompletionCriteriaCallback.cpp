@@ -104,8 +104,18 @@ SPECTRE_TEST_CASE(
 
   {
     INFO("Completion request latches when max success count criterion is met");
+    constexpr size_t min_common_horizon_successes_before_checks = 2;
+    constexpr size_t max_common_horizon_successes = 3;
+    constexpr size_t common_horizon_lmax_threshold = 1;
+    constexpr size_t common_horizon_success_count_initial = 0;
+    constexpr bool common_horizon_lmax_below_or_equal_threshold_initial = false;
+    constexpr bool completion_requested_initial = false;
     Parallel::GlobalCache<MockMetavariables> cache{
-        {size_t{2}, size_t{3}, size_t{1}}, {size_t{0}, false, false}};
+        {min_common_horizon_successes_before_checks,
+         max_common_horizon_successes, common_horizon_lmax_threshold},
+        {common_horizon_success_count_initial,
+         common_horizon_lmax_below_or_equal_threshold_initial,
+         completion_requested_initial}};
     auto box = make_box(4.0, 8);
     gh::bbh::callbacks::UpdateCompletionCriteria<MockHorizonMetavars>::apply(
         box, cache, FastFlow::Status::TruncationTol);

@@ -35,9 +35,18 @@ Parallel::GlobalCache<MockMetavariables> make_cache() {
   constexpr double gauge_constraint_linf_threshold = 10.0;
   constexpr double three_index_constraint_linf_threshold = 20.0;
   constexpr bool verbose_checks = false;
+  constexpr bool gauge_constraint_exceeded_initial = false;
+  constexpr bool three_index_constraint_exceeded_initial = false;
+  constexpr size_t common_horizon_success_count_initial = 0;
+  constexpr bool completion_requested_initial = false;
+  constexpr size_t stop_slab_number_initial =
+      std::numeric_limits<size_t>::max();
   return {{min_successes_before_checks, gauge_constraint_linf_threshold,
            three_index_constraint_linf_threshold, verbose_checks},
-          {false, false, size_t{0}, false, std::numeric_limits<size_t>::max()}};
+          {gauge_constraint_exceeded_initial,
+           three_index_constraint_exceeded_initial,
+           common_horizon_success_count_initial, completion_requested_initial,
+           stop_slab_number_initial}};
 }
 
 SPECTRE_TEST_CASE("Unit.GeneralizedHarmonic.BbhCheckConstraintThresholdsEvent",
