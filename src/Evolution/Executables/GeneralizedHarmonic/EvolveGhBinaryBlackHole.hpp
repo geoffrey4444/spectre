@@ -50,6 +50,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Events/CheckConstraintThresholds.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/PhaseControl/CheckpointAndExitIfComplete.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionSingleton.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/Triggers/ConstraintCheck.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/DemandOutgoingCharSpeeds.hpp"
@@ -569,12 +570,7 @@ struct EvolutionMetavars {
                  gh::bbh::Tags::ConstraintCheckInterval,
                  gh::bbh::Tags::ConstraintCheckVerbose>;
 
-  using mutable_global_cache_tags =
-      tmpl::list<gh::bbh::Tags::GaugeConstraintExceeded,
-                 gh::bbh::Tags::ThreeIndexConstraintExceeded,
-                 gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
-                 gh::bbh::Tags::CommonHorizonSuccessCount,
-                 gh::bbh::Tags::CompletionRequested>;
+  using mutable_global_cache_tags = tmpl::list<>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;
@@ -644,6 +640,8 @@ struct EvolutionMetavars {
       Initialization::Actions::AddComputeTags<
           tmpl::push_back<StepChoosers::step_chooser_compute_tags<
               EvolutionMetavars, local_time_stepping>>>,
+      Initialization::Actions::AddSimpleTags<
+          gh::bbh::Actions::InitializeElementCompletionRequested>,
       ::evolution::dg::Initialization::Mortars<volume_dim, system>,
       intrp::Actions::ElementInitInterpPoints<volume_dim,
                                               interpolation_target_tags>,
@@ -766,6 +764,7 @@ struct EvolutionMetavars {
       observers::ObserverWriter<EvolutionMetavars>,
       importers::ElementDataReader<EvolutionMetavars>,
       mem_monitor::MemoryMonitor<EvolutionMetavars>,
+      gh::bbh::CompletionSingleton<EvolutionMetavars>,
       ah::Component<EvolutionMetavars, AhA>,
       ah::Component<EvolutionMetavars, AhB>,
       ah::Component<EvolutionMetavars, AhC>,

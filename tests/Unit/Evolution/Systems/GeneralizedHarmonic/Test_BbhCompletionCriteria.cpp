@@ -37,14 +37,17 @@ SPECTRE_TEST_CASE(
       "CommonHorizonSuccessCount");
   TestHelpers::db::test_simple_tag<gh::bbh::Tags::CompletionRequested>(
       "CompletionRequested");
+  TestHelpers::db::test_simple_tag<gh::bbh::Tags::ElementCompletionRequested>(
+      "ElementCompletionRequested");
 
   auto box = db::create<
       db::AddSimpleTags<gh::bbh::Tags::GaugeConstraintExceeded,
                         gh::bbh::Tags::ThreeIndexConstraintExceeded,
                         gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold,
                         gh::bbh::Tags::CommonHorizonSuccessCount,
-                        gh::bbh::Tags::CompletionRequested>>(
-      false, false, false, 0_st, false);
+                        gh::bbh::Tags::CompletionRequested,
+                        gh::bbh::Tags::ElementCompletionRequested>>(
+      false, false, false, 0_st, false, false);
 
   db::mutate<gh::bbh::Tags::GaugeConstraintExceeded>(
       [](const gsl::not_null<bool*> flag) {
@@ -78,6 +81,7 @@ SPECTRE_TEST_CASE(
   CHECK(db::get<gh::bbh::Tags::CommonHorizonLMaxBelowOrEqualThreshold>(box));
   CHECK(db::get<gh::bbh::Tags::CommonHorizonSuccessCount>(box) == 1_st);
   CHECK(db::get<gh::bbh::Tags::CompletionRequested>(box));
+  CHECK_FALSE(db::get<gh::bbh::Tags::ElementCompletionRequested>(box));
 
   // Ensure mutators are monotonic.
   db::mutate<gh::bbh::Tags::GaugeConstraintExceeded>(

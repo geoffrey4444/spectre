@@ -71,7 +71,7 @@ struct CheckpointAndExitIfComplete : public PhaseChange {
       "WriteCheckpoint so all elements write final volume data at a "
       "synchronized time, then jump to Exit."};
 
-  using argument_tags = tmpl::list<>;
+  using argument_tags = tmpl::list<gh::bbh::Tags::ElementCompletionRequested>;
   using return_tags = tmpl::list<>;
 
   using phase_change_tags_and_combines =
@@ -91,19 +91,20 @@ struct CheckpointAndExitIfComplete : public PhaseChange {
 
   template <typename ParallelComponent, typename ArrayIndex,
             typename Metavariables>
-  void contribute_phase_data_impl(Parallel::GlobalCache<Metavariables>& cache,
+  void contribute_phase_data_impl(const bool element_completion_requested,
+                                  Parallel::GlobalCache<Metavariables>& cache,
                                   const ArrayIndex& array_index) const {
-    if (not Parallel::get<gh::bbh::Tags::CompletionRequested>(cache)) {
-      return;
-    }
     if constexpr (std::is_same_v<typename ParallelComponent::chare_type,
                                  Parallel::Algorithms::Array>) {
       Parallel::contribute_to_phase_change_reduction<ParallelComponent>(
-          tuples::TaggedTuple<Tags::CheckpointRequested>{true}, cache,
-          array_index);
+          tuples::TaggedTuple<Tags::CheckpointRequested>{
+              element_completion_requested},
+          cache, array_index);
     } else {
       Parallel::contribute_to_phase_change_reduction<ParallelComponent>(
-          tuples::TaggedTuple<Tags::CheckpointRequested>{true}, cache);
+          tuples::TaggedTuple<Tags::CheckpointRequested>{
+              element_completion_requested},
+          cache);
     }
   }
 

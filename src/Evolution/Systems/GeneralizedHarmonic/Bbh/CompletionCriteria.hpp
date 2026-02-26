@@ -208,6 +208,16 @@ struct CompletionRequested : db::SimpleTag {
   static constexpr bool pass_metavariables = false;
   static type create_from_options() { return false; }
 };
+
+/// Element-local latch mirrored from the BBH completion singleton and used by
+/// phase control to request checkpoint-and-exit.
+struct ElementCompletionRequested : db::SimpleTag {
+  using type = bool;
+  using option_tags = tmpl::list<>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options() { return false; }
+};
 }  // namespace Tags
 
 namespace Mutators {

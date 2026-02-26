@@ -21,9 +21,8 @@ set(LIBRARY_SOURCES
   Test_DuDtTempTags.cpp
   Test_Fluxes.cpp
   Test_BbhCompletionCriteria.cpp
-  Test_BbhCheckConstraintThresholdsEvent.cpp
+  Test_BbhCompletionSingleton.cpp
   Test_BbhCheckpointAndExitIfCompletePhaseChange.cpp
-  Test_BbhUpdateCompletionCriteriaCallback.cpp
   Test_Tags.cpp
   )
 

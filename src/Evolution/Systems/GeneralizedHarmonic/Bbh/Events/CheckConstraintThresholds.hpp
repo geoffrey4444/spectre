@@ -12,20 +12,17 @@
 
 #include "DataStructures/DataVector.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionCriteria.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Bbh/CompletionSingleton.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "Options/String.hpp"
 #include "Parallel/ArrayCollection/IsDgElementCollection.hpp"
 #include "Parallel/GlobalCache.hpp"
-#include "Parallel/MemoryMonitor/MemoryMonitor.hpp"
-#include "Parallel/Printf/Printf.hpp"
 #include "Parallel/Reduction.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
 #include "Time/Tags/Time.hpp"
 #include "Time/Tags/TimeStepId.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
-#include "Utilities/Functional.hpp"
-#include "Utilities/Gsl.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -38,8 +35,7 @@ namespace gh::bbh::Events {
  * `gh::bbh::Triggers::ConstraintCheck` dense trigger with cadence controlled by
  * `gh::bbh::Tags::ConstraintCheckInterval`. It monitors the gauge and
  * three-index constraints, using a reduction to determine if their Linf norms
- * exceed the thresholds `gh::bbh::Tags::GaugeConstraintLinfThreshold` and
- * `gh::bbh::Tags::ThreeIndexConstraintLinfThreshold`, respectively.
+ * exceed completion thresholds.
  */
 class CheckConstraintThresholds : public Event {
   using ReductionData = Parallel::ReductionData<
@@ -61,7 +57,7 @@ class CheckConstraintThresholds : public Event {
   using options = tmpl::list<>;
   static constexpr Options::String help =
       "Checks local Linf norms of constraints against BBH completion "
-      "thresholds and latches global-cache booleans through a singleton "
+      "thresholds and forwards reduced maxima to the BBH completion singleton "
       "reduction callback.";
   static std::string name() { return "BbhCheckConstraintThresholds"; }
 
@@ -81,15 +77,6 @@ class CheckConstraintThresholds : public Event {
       Parallel::GlobalCache<Metavariables>& cache,
       const ArrayIndex& array_index, const Component* const /*component*/,
       const ObservationValue& /*observation_value*/) const {
-    const size_t success_count =
-        Parallel::get<gh::bbh::Tags::CommonHorizonSuccessCount>(cache);
-    const size_t min_successes =
-        Parallel::get<gh::bbh::Tags::MinCommonHorizonSuccessesBeforeChecks>(
-            cache);
-    if (success_count < min_successes) {
-      return;
-    }
-
     const double local_gauge_linf = local_linf_norm(gauge_constraint);
     const double local_three_index_linf =
         local_linf_norm(three_index_constraint);
@@ -100,69 +87,15 @@ class CheckConstraintThresholds : public Event {
     } else {
       const auto& self_proxy =
           Parallel::get_parallel_component<Component>(cache)[array_index];
-      // Reuse MemoryMonitor as the singleton reduction target because this BBH
-      // executable already includes it and we only need a process-wide
-      // reduction callback host.
       auto& reduction_target_proxy = Parallel::get_parallel_component<
-          mem_monitor::MemoryMonitor<Metavariables>>(cache);
-      Parallel::contribute_to_reduction<ProcessConstraintMaxima>(
+          gh::bbh::CompletionSingleton<Metavariables>>(cache);
+      Parallel::contribute_to_reduction<
+          gh::bbh::Actions::ProcessConstraintMaxima>(
           ReductionData{time, time_step_id.slab_number(), local_gauge_linf,
                         local_three_index_linf},
           self_proxy, reduction_target_proxy);
     }
   }
-
-  struct ProcessConstraintMaxima {
-    /// Reduction callback on the singleton target that updates completion
-    /// latches from process-wide maxima.
-    template <typename ParallelComponent, typename DbTags,
-              typename Metavariables, typename ArrayIndex>
-    static void apply(db::DataBox<DbTags>& /*box*/,
-                      Parallel::GlobalCache<Metavariables>& cache,
-                      const ArrayIndex& /*array_index*/, const double time,
-                      const int64_t /*slab_number*/,
-                      const double max_gauge_linf,
-                      const double max_three_index_linf) {
-      const double gauge_constraint_threshold =
-          Parallel::get<gh::bbh::Tags::GaugeConstraintLinfThreshold>(cache);
-      const double three_index_constraint_threshold =
-          Parallel::get<gh::bbh::Tags::ThreeIndexConstraintLinfThreshold>(
-              cache);
-      const bool verbose =
-          Parallel::get<gh::bbh::Tags::ConstraintCheckVerbose>(cache);
-      if (verbose) {
-        Parallel::printf(
-            "BBH completion constraint check at t=%.16f: "
-            "Linf(GaugeConstraint)=%.16e (threshold %.16e), "
-            "Linf(ThreeIndexConstraint)=%.16e (threshold %.16e).\n",
-            time, max_gauge_linf, gauge_constraint_threshold,
-            max_three_index_linf, three_index_constraint_threshold);
-      }
-
-      if (max_gauge_linf >= gauge_constraint_threshold) {
-        Parallel::mutate<gh::bbh::Tags::GaugeConstraintExceeded,
-                         LatchGaugeConstraintExceededAndPrint>(
-            cache, time, max_gauge_linf, gauge_constraint_threshold);
-      }
-
-      if (max_three_index_linf >= three_index_constraint_threshold) {
-        Parallel::mutate<gh::bbh::Tags::ThreeIndexConstraintExceeded,
-                         LatchThreeIndexConstraintExceededAndPrint>(
-            cache, time, max_three_index_linf,
-            three_index_constraint_threshold);
-      }
-
-      if (max_gauge_linf >= gauge_constraint_threshold or
-          max_three_index_linf >= three_index_constraint_threshold) {
-        const bool completion_requested =
-            Parallel::get<gh::bbh::Tags::CompletionRequested>(cache);
-        if (not completion_requested) {
-          Parallel::mutate<gh::bbh::Tags::CompletionRequested,
-                           gh::bbh::Mutators::SetCompletionRequested>(cache);
-        }
-      }
-    }
-  };
 
   using is_ready_argument_tags = tmpl::list<>;
   template <typename Metavariables, typename ArrayIndex, typename Component>
@@ -187,33 +120,5 @@ class CheckConstraintThresholds : public Event {
     }
     return result;
   }
-
-  struct LatchGaugeConstraintExceededAndPrint {
-    static void apply(const gsl::not_null<bool*> gauge_constraint_exceeded,
-                      const double time, const double value,
-                      const double threshold) {
-      if (not *gauge_constraint_exceeded) {
-        *gauge_constraint_exceeded = true;
-        Parallel::printf(
-            "BBH completion criterion met at t=%.16f: "
-            "Linf(GaugeConstraint)=%.16e >= %.16e.\n",
-            time, value, threshold);
-      }
-    }
-  };
-
-  struct LatchThreeIndexConstraintExceededAndPrint {
-    static void apply(
-        const gsl::not_null<bool*> three_index_constraint_exceeded,
-        const double time, const double value, const double threshold) {
-      if (not *three_index_constraint_exceeded) {
-        *three_index_constraint_exceeded = true;
-        Parallel::printf(
-            "BBH completion criterion met at t=%.16f: "
-            "Linf(ThreeIndexConstraint)=%.16e >= %.16e.\n",
-            time, value, threshold);
-      }
-    }
-  };
 };
 }  // namespace gh::bbh::Events
