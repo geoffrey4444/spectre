@@ -74,7 +74,7 @@ target_link_libraries(
 target_compile_definitions(
   ${SINGLE_BH_EXECUTABLE}
   PRIVATE
-  USE_LTS=true
+  USE_LTS=false
   )
 
 

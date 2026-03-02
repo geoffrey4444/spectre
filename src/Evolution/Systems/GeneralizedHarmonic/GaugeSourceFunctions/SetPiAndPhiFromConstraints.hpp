@@ -41,7 +41,7 @@ struct SetPiAndPhiFromConstraints : db::SimpleTag {
   using option_tags = tmpl::list<>;
   static constexpr bool pass_metavariables = false;
 
-  static bool create_from_options() { return true; }
+  static bool create_from_options() { return false; }
 };
 }  // namespace Tags
 

@@ -95,13 +95,38 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
   static constexpr bool local_time_stepping = UseLts;
   static constexpr size_t volume_dim = 3;
   using gh_base = GeneralizedHarmonicTemplateBase<volume_dim, UseLts>;
-  using typename gh_base::initialize_initial_data_dependent_quantities_actions;
   using typename gh_base::system;
 
   static constexpr Options::String help{
       "Evolve the Einstein field equations using the Generalized Harmonic "
       "formulation,\n"
       "on a domain with a single horizon and corresponding excised region"};
+
+  // Comparison harness compatibility: disable Pi/Phi resets from constraints
+  // so imported analytic data is kept unchanged at initialization.
+  struct DisableSetPiAndPhiFromConstraints {
+    using mutable_global_cache_tags =
+        tmpl::list<gh::Tags::SetPiAndPhiFromConstraints>;
+
+    template <typename DbTags, typename... InboxTags, typename Metavariables,
+              typename ArrayIndex, typename ActionList,
+              typename ParallelComponent>
+    static Parallel::iterable_action_return_t apply(
+        db::DataBox<DbTags>& /*box*/,
+        tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
+        Parallel::GlobalCache<Metavariables>& cache,
+        const ArrayIndex& /*array_index*/, ActionList /*meta*/,
+        const ParallelComponent* const /*meta*/) {
+      Parallel::mutate<gh::Tags::SetPiAndPhiFromConstraints,
+                       gh::gauges::SetPiAndPhiFromConstraintsCacheMutator>(
+          cache, false);
+      return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+    }
+  };
+
+  using initialize_initial_data_dependent_quantities_actions = tmpl::push_front<
+      typename gh_base::initialize_initial_data_dependent_quantities_actions,
+      DisableSetPiAndPhiFromConstraints>;
 
   struct ApparentHorizon : tt::ConformsTo<ah::protocols::HorizonMetavars> {
     using time_tag = ah::Tags::ObservationTime<0>;
