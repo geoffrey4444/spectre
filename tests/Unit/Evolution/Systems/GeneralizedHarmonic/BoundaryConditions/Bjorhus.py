@@ -528,11 +528,15 @@ def compute_intermediate_vars(
     elif len(normal_covector) == 3:
         four_index_constraint = ght.four_index_constraint(d_phi)
 
-    incoming_null_one_form = nn.interface_incoming_null_normal(
-        spacetime_unit_normal_one_form, normal_covector
+    interface_normal_one_form = np.zeros(1 + len(normal_covector))
+    interface_normal_one_form[0] = np.dot(normal_covector, shift)
+    interface_normal_one_form[1:] = normal_covector
+    one_by_sqrt_2 = 1.0 / np.sqrt(2.0)
+    incoming_null_one_form = one_by_sqrt_2 * (
+        spacetime_unit_normal_one_form - interface_normal_one_form
     )
-    outgoing_null_one_form = nn.interface_outgoing_null_normal(
-        spacetime_unit_normal_one_form, normal_covector
+    outgoing_null_one_form = one_by_sqrt_2 * (
+        spacetime_unit_normal_one_form + interface_normal_one_form
     )
     incoming_null_vector = nn.interface_incoming_null_normal(
         spacetime_unit_normal_vector, unit_interface_normal_vector
@@ -541,14 +545,29 @@ def compute_intermediate_vars(
         spacetime_unit_normal_vector, unit_interface_normal_vector
     )
 
-    projection_ab = proj.projection_operator_transverse_to_interface(
-        spacetime_metric, spacetime_unit_normal_one_form, normal_covector
+    interface_normal_vector = np.zeros(1 + len(unit_interface_normal_vector))
+    interface_normal_vector[1:] = unit_interface_normal_vector
+    projection_ab = (
+        spacetime_metric
+        + np.einsum(
+            "a,b->ab",
+            spacetime_unit_normal_one_form,
+            spacetime_unit_normal_one_form,
+        )
+        - np.einsum(
+            "a,b->ab", interface_normal_one_form, interface_normal_one_form
+        )
     )
-    projection_Ab = proj.projection_operator_transverse_to_interface_mixed(
-        spacetime_unit_normal_vector,
-        spacetime_unit_normal_one_form,
-        unit_interface_normal_vector,
-        normal_covector,
+    projection_Ab = (
+        np.identity(1 + len(normal_covector))
+        + np.einsum(
+            "a,b->ab",
+            spacetime_unit_normal_vector,
+            spacetime_unit_normal_one_form,
+        )
+        - np.einsum(
+            "a,b->ab", interface_normal_vector, interface_normal_one_form
+        )
     )
     projection_AB = proj.projection_operator_transverse_to_interface(
         inverse_spacetime_metric,

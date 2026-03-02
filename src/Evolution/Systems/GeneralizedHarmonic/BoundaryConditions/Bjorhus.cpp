@@ -3,6 +3,8 @@
 
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 
+#include <cmath>
+
 #include "DataStructures/Tags/TempTensor.hpp"
 #include "DataStructures/TempBuffer.hpp"
 #include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
@@ -485,24 +487,51 @@ void ConstraintPreservingBjorhus<Dim>::compute_intermediate_vars(
     std::fill(four_index_constraint->begin(), four_index_constraint->end(), 0.);
   }
 
-  gr::interface_null_normal(incoming_null_one_form,
-                            spacetime_unit_normal_one_form, normal_covector,
-                            -1.);
-  gr::interface_null_normal(outgoing_null_one_form,
-                            spacetime_unit_normal_one_form, normal_covector,
-                            1.);
   gr::interface_null_normal(incoming_null_vector, spacetime_unit_normal_vector,
                             *unit_interface_normal_vector, -1.);
   gr::interface_null_normal(outgoing_null_vector, spacetime_unit_normal_vector,
                             *unit_interface_normal_vector, 1.);
 
-  gr::transverse_projection_operator(projection_ab, spacetime_metric,
-                                     spacetime_unit_normal_one_form,
-                                     normal_covector);
-  gr::transverse_projection_operator(
-      projection_Ab, spacetime_unit_normal_vector,
-      spacetime_unit_normal_one_form, *unit_interface_normal_vector,
-      normal_covector);
+  // Use the spacetime interface one-form convention aligned with SpEC:
+  // s_0 = n_i beta^i, s_i = n_i
+  tnsr::a<DataVector, Dim, Frame::Inertial> interface_normal_one_form(
+      get_size(get<0>(normal_covector)), 0.0);
+  for (size_t i = 0; i < Dim; ++i) {
+    interface_normal_one_form.get(0) += normal_covector.get(i) * shift.get(i);
+    interface_normal_one_form.get(i + 1) = normal_covector.get(i);
+  }
+
+  const double one_by_sqrt_2 = 1.0 / std::sqrt(2.0);
+  for (size_t a = 0; a <= Dim; ++a) {
+    incoming_null_one_form->get(a) =
+        one_by_sqrt_2 * (spacetime_unit_normal_one_form.get(a) -
+                         interface_normal_one_form.get(a));
+    outgoing_null_one_form->get(a) =
+        one_by_sqrt_2 * (spacetime_unit_normal_one_form.get(a) +
+                         interface_normal_one_form.get(a));
+  }
+
+  for (size_t a = 0; a <= Dim; ++a) {
+    for (size_t b = a; b <= Dim; ++b) {
+      projection_ab->get(a, b) =
+          spacetime_metric.get(a, b) +
+          spacetime_unit_normal_one_form.get(a) *
+              spacetime_unit_normal_one_form.get(b) -
+          interface_normal_one_form.get(a) * interface_normal_one_form.get(b);
+    }
+  }
+  for (size_t a = 0; a <= Dim; ++a) {
+    for (size_t b = 0; b <= Dim; ++b) {
+      const DataVector interface_normal_vector_a =
+          a == 0 ? DataVector(get<0>(*unit_interface_normal_vector).size(), 0.0)
+                 : unit_interface_normal_vector->get(a - 1);
+      projection_Ab->get(a, b) =
+          (a == b ? 1.0 : 0.0) +
+          spacetime_unit_normal_vector.get(a) *
+              spacetime_unit_normal_one_form.get(b) -
+          interface_normal_vector_a * interface_normal_one_form.get(b);
+    }
+  }
   gr::transverse_projection_operator(projection_AB, inverse_spacetime_metric,
                                      spacetime_unit_normal_vector,
                                      *unit_interface_normal_vector);

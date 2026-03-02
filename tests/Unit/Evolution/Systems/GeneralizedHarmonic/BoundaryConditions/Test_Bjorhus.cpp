@@ -72,6 +72,43 @@ void test() {
 }
 
 template <size_t Dim>
+void test_covector_projection_regression() {
+  CAPTURE(Dim);
+  MAKE_GENERATOR(gen);
+  helpers::test_boundary_condition_with_python<
+      gh::BoundaryConditions::ConstraintPreservingBjorhus<Dim>,
+      gh::BoundaryConditions::BoundaryCondition<Dim>, gh::System<Dim>,
+      tmpl::list<gh::BoundaryCorrections::UpwindPenalty<Dim>>>(
+      make_not_null(&gen),
+      "Evolution.Systems.GeneralizedHarmonic.BoundaryConditions.Bjorhus",
+      tuples::TaggedTuple<
+          helpers::Tags::PythonFunctionForErrorMessage<>,
+          helpers::Tags::PythonFunctionName<
+              ::Tags::dt<gr::Tags::SpacetimeMetric<DataVector, Dim, frame>>>,
+          helpers::Tags::PythonFunctionName<
+              ::Tags::dt<gh::Tags::Pi<DataVector, Dim, frame>>>,
+          helpers::Tags::PythonFunctionName<
+              ::Tags::dt<gh::Tags::Phi<DataVector, Dim, frame>>>>{
+          "error", "dt_spacetime_metric",
+          "dt_pi_ConstraintPreservingGaugePhysical",
+          "dt_phi_ConstraintPreservingGaugePhysical"},
+      "ConstraintPreservingBjorhus:\n"
+      "  Type: ConstraintPreservingPhysical",
+      Index<Dim - 1>{Dim == 1 ? 1 : 5}, db::DataBox<tmpl::list<>>{},
+      tuples::TaggedTuple<
+          helpers::Tags::Range<gr::Tags::Lapse<DataVector>>,
+          helpers::Tags::Range<gr::Tags::Shift<DataVector, Dim, frame>>,
+          helpers::Tags::Range<
+              gh::Tags::SpacetimeDerivGaugeH<DataVector, Dim, frame>>,
+          helpers::Tags::Range<
+              domain::Tags::Coordinates<Dim, Frame::Inertial>>>{
+          std::array<double, 2>{{0.8, 1.0}}, std::array<double, 2>{{0.4, 0.9}},
+          std::array<double, 2>{{0.1, 1.0}},
+          std::array<double, 2>{{-1000., 1000.}}},
+      1.e-6);
+}
+
+template <size_t Dim>
 void wrap_dt_vars_corrections_ConstraintPreservingGauge(
     const gsl::not_null<tnsr::aa<DataVector, Dim, frame>*>
         dt_spacetime_metric_correction,
@@ -294,4 +331,13 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.BCBjorhus.Cls",
   test_with_random_values<1>(used_for_size);
   test_with_random_values<2>(used_for_size);
   test_with_random_values<3>(used_for_size);
+}
+
+// Regression test for the interface-covector projection convention used by the
+// CP-physical Bjorhus boundary condition.
+SPECTRE_TEST_CASE(
+    "Unit.Evolution.Systems.GeneralizedHarmonic.BCBjorhus.CovectorProjection",
+    "[Unit][Evolution]") {
+  pypp::SetupLocalPythonEnvironment local_python_env{""};
+  test_covector_projection_regression<3>();
 }
