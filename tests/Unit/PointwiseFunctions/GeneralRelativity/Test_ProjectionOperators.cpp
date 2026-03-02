@@ -22,10 +22,72 @@
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ProjectionOperators.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/TagsDeclarations.hpp"
+#include "Utilities/MakeWithValue.hpp"
 
 namespace {
+template <size_t SpatialDim, typename DataType>
+void check_aa_orthogonality(
+    const tnsr::aa<DataType, SpatialDim, Frame::Inertial>& projection_aa,
+    const tnsr::A<DataType, SpatialDim, Frame::Inertial>&
+        spacetime_normal_vector,
+    const DataType& zero) {
+  tnsr::a<DataType, SpatialDim, Frame::Inertial> right_contraction{
+      get_size(get<0, 0>(projection_aa))};
+  tnsr::a<DataType, SpatialDim, Frame::Inertial> left_contraction{
+      get_size(get<0, 0>(projection_aa))};
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    right_contraction.get(a) = zero;
+    left_contraction.get(a) = zero;
+  }
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    for (size_t b = 0; b < SpatialDim + 1; ++b) {
+      right_contraction.get(a) +=
+          projection_aa.get(a, b) * spacetime_normal_vector.get(b);
+      left_contraction.get(b) +=
+          projection_aa.get(a, b) * spacetime_normal_vector.get(a);
+    }
+  }
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    CHECK(max(abs(right_contraction.get(a) - zero)) < 1.e-12);
+    CHECK(max(abs(left_contraction.get(a) - zero)) < 1.e-12);
+  }
+}
+
+template <size_t SpatialDim, typename DataType>
+void check_ab_orthogonality(
+    const tnsr::Ab<DataType, SpatialDim, Frame::Inertial>& projection_ab,
+    const tnsr::a<DataType, SpatialDim, Frame::Inertial>&
+        spacetime_normal_one_form,
+    const tnsr::A<DataType, SpatialDim, Frame::Inertial>&
+        spacetime_normal_vector,
+    const DataType& zero) {
+  tnsr::a<DataType, SpatialDim, Frame::Inertial> lower_contraction{
+      get_size(get<0, 0>(projection_ab))};
+  tnsr::A<DataType, SpatialDim, Frame::Inertial> upper_contraction{
+      get_size(get<0, 0>(projection_ab))};
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    lower_contraction.get(a) = zero;
+    upper_contraction.get(a) = zero;
+  }
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    for (size_t b = 0; b < SpatialDim + 1; ++b) {
+      lower_contraction.get(b) +=
+          projection_ab.get(a, b) * spacetime_normal_one_form.get(a);
+      upper_contraction.get(a) +=
+          projection_ab.get(a, b) * spacetime_normal_vector.get(b);
+    }
+  }
+  for (size_t a = 0; a < SpatialDim + 1; ++a) {
+    CHECK(max(abs(lower_contraction.get(a) - zero)) < 1.e-12);
+    CHECK(max(abs(upper_contraction.get(a) - zero)) < 1.e-12);
+  }
+}
+
 template <size_t SpatialDim, typename DataType>
 void test_projection_operator(const DataType& used_for_size) {
   {
@@ -78,7 +140,8 @@ void test_projection_operator(const DataType& used_for_size) {
     tnsr::aa<DataType, SpatialDim, Frame::Inertial> (*f)(
         const tnsr::aa<DataType, SpatialDim, Frame::Inertial>&,
         const tnsr::a<DataType, SpatialDim, Frame::Inertial>&,
-        const tnsr::i<DataType, SpatialDim, Frame::Inertial>&) =
+        const tnsr::i<DataType, SpatialDim, Frame::Inertial>&,
+        const tnsr::I<DataType, SpatialDim, Frame::Inertial>&) =
         &gr::transverse_projection_operator<DataType, SpatialDim,
                                             Frame::Inertial>;
     pypp::check_with_random_values<1>(
@@ -91,7 +154,8 @@ void test_projection_operator(const DataType& used_for_size) {
         const tnsr::A<DataType, SpatialDim, Frame::Inertial>&,
         const tnsr::a<DataType, SpatialDim, Frame::Inertial>&,
         const tnsr::I<DataType, SpatialDim, Frame::Inertial>&,
-        const tnsr::i<DataType, SpatialDim, Frame::Inertial>&) =
+        const tnsr::i<DataType, SpatialDim, Frame::Inertial>&,
+        const tnsr::I<DataType, SpatialDim, Frame::Inertial>&) =
         &gr::transverse_projection_operator<DataType, SpatialDim,
                                             Frame::Inertial>;
     pypp::check_with_random_values<1>(
@@ -99,6 +163,72 @@ void test_projection_operator(const DataType& used_for_size) {
         "projection_operator_transverse_to_interface_mixed", {{{-1., 1.}}},
         used_for_size);
   }
+
+  const auto zero = make_with_value<DataType>(used_for_size, 0.);
+  const auto data_size = get_size(used_for_size);
+
+  const auto lapse = make_with_value<Scalar<DataType>>(used_for_size, 1.3);
+  tnsr::I<DataType, SpatialDim, Frame::Inertial> shift{data_size};
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    shift.get(i) = make_with_value<DataType>(
+        used_for_size, 0.1 * (static_cast<double>(i) + 1.0));
+  }
+
+  tnsr::ii<DataType, SpatialDim, Frame::Inertial> spatial_metric{data_size};
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    spatial_metric.get(i, i) =
+        make_with_value<DataType>(used_for_size, 2. + static_cast<double>(i));
+    for (size_t j = i + 1; j < SpatialDim; ++j) {
+      spatial_metric.get(i, j) = make_with_value<DataType>(
+          used_for_size,
+          0.1 * (static_cast<double>(i) + static_cast<double>(j) + 1.0));
+    }
+  }
+
+  const auto spacetime_metric =
+      gr::spacetime_metric(lapse, shift, spatial_metric);
+  const auto spacetime_normal_one_form =
+      gr::spacetime_normal_one_form<DataType, SpatialDim, Frame::Inertial>(
+          lapse);
+  const auto spacetime_normal_vector =
+      gr::spacetime_normal_vector(lapse, shift);
+
+  tnsr::i<DataType, SpatialDim, Frame::Inertial> interface_unit_normal_one_form(
+      data_size);
+  tnsr::I<DataType, SpatialDim, Frame::Inertial> interface_unit_normal_vector(
+      data_size);
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    interface_unit_normal_one_form.get(i) = make_with_value<DataType>(
+        used_for_size, 0.2 * (static_cast<double>(i) + 1.0));
+    interface_unit_normal_vector.get(i) = interface_unit_normal_one_form.get(i);
+  }
+
+  const auto projection_aa = gr::transverse_projection_operator(
+      spacetime_metric, spacetime_normal_one_form,
+      interface_unit_normal_one_form, shift);
+  check_aa_orthogonality(projection_aa, spacetime_normal_vector, zero);
+
+  tnsr::aa<DataType, SpatialDim, Frame::Inertial> projection_aa_not_null(
+      data_size);
+  gr::transverse_projection_operator(
+      make_not_null(&projection_aa_not_null), spacetime_metric,
+      spacetime_normal_one_form, interface_unit_normal_one_form, shift);
+  check_aa_orthogonality(projection_aa_not_null, spacetime_normal_vector, zero);
+
+  const auto projection_ab = gr::transverse_projection_operator(
+      spacetime_normal_vector, spacetime_normal_one_form,
+      interface_unit_normal_vector, interface_unit_normal_one_form, shift);
+  check_ab_orthogonality(projection_ab, spacetime_normal_one_form,
+                         spacetime_normal_vector, zero);
+
+  tnsr::Ab<DataType, SpatialDim, Frame::Inertial> projection_ab_not_null(
+      data_size);
+  gr::transverse_projection_operator(
+      make_not_null(&projection_ab_not_null), spacetime_normal_vector,
+      spacetime_normal_one_form, interface_unit_normal_vector,
+      interface_unit_normal_one_form, shift);
+  check_ab_orthogonality(projection_ab_not_null, spacetime_normal_one_form,
+                         spacetime_normal_vector, zero);
 }
 }  // namespace
 

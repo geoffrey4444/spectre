@@ -171,10 +171,10 @@ void bind_impl(py::module& m) {  // NOLINT
   m.def("transverse_projection_operator",
         static_cast<tnsr::aa<DataVector, Dim> (*)(
             const tnsr::aa<DataVector, Dim>&, const tnsr::a<DataVector, Dim>&,
-            const tnsr::i<DataVector, Dim>&)>(
+            const tnsr::i<DataVector, Dim>&, const tnsr::I<DataVector, Dim>&)>(
             &::gr::transverse_projection_operator),
         py::arg("spacetime_metric"), py::arg("spacetime_normal_one_form"),
-        py::arg("interface_unit_normal_one_form"));
+        py::arg("interface_unit_normal_one_form"), py::arg("shift"));
 
   m.def("transverse_projection_operator",
         static_cast<tnsr::AA<DataVector, Dim> (*)(
@@ -187,12 +187,13 @@ void bind_impl(py::module& m) {  // NOLINT
   m.def("transverse_projection_operator",
         static_cast<tnsr::Ab<DataVector, Dim> (*)(
             const tnsr::A<DataVector, Dim>&, const tnsr::a<DataVector, Dim>&,
-            const tnsr::I<DataVector, Dim>&, const tnsr::i<DataVector, Dim>&)>(
+            const tnsr::I<DataVector, Dim>&, const tnsr::i<DataVector, Dim>&,
+            const tnsr::I<DataVector, Dim>&)>(
             &::gr::transverse_projection_operator),
         py::arg("spacetime_normal_vector"),
         py::arg("spacetime_normal_one_form"),
         py::arg("interface_unit_normal_vector"),
-        py::arg("interface_unit_normal_one_form"));
+        py::arg("interface_unit_normal_one_form"), py::arg("shift"));
 
   m.def(
       "shift",

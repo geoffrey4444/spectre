@@ -107,19 +107,25 @@ void transverse_projection_operator(
  * \f{align*}
  * P_{ab} = g_{ab} + n_a n_b - s_a s_b = \gamma_{ab} - s_a s_b.
  * \f}
+ *
+ * The input `interface_unit_normal_one_form` provides the spatial components
+ * \f$s_i\f$. The spacetime time component is constructed as
+ * \f$s_t = \beta^i s_i\f$ from the supplied shift \f$\beta^i\f$.
  */
 template <typename DataType, size_t VolumeDim, typename Frame>
 tnsr::aa<DataType, VolumeDim, Frame> transverse_projection_operator(
     const tnsr::aa<DataType, VolumeDim, Frame>& spacetime_metric,
     const tnsr::a<DataType, VolumeDim, Frame>& spacetime_normal_one_form,
-    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form);
+    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form,
+    const tnsr::I<DataType, VolumeDim, Frame>& shift);
 
 template <typename DataType, size_t VolumeDim, typename Frame>
 void transverse_projection_operator(
     gsl::not_null<tnsr::aa<DataType, VolumeDim, Frame>*> projection_tensor,
     const tnsr::aa<DataType, VolumeDim, Frame>& spacetime_metric,
     const tnsr::a<DataType, VolumeDim, Frame>& spacetime_normal_one_form,
-    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form);
+    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form,
+    const tnsr::I<DataType, VolumeDim, Frame>& shift);
 /// @}
 
 /*!
@@ -181,13 +187,18 @@ void transverse_projection_operator(
  * \f{align*}
  * P^a_b = \delta^a_b + n^a n_b - s^a s_b.
  * \f}
+ *
+ * The input `interface_unit_normal_one_form` provides the spatial components
+ * \f$s_i\f$. The spacetime time component is constructed as
+ * \f$s_t = \beta^i s_i\f$ from the supplied shift \f$\beta^i\f$.
  */
 template <typename DataType, size_t VolumeDim, typename Frame>
 tnsr::Ab<DataType, VolumeDim, Frame> transverse_projection_operator(
     const tnsr::A<DataType, VolumeDim, Frame>& spacetime_normal_vector,
     const tnsr::a<DataType, VolumeDim, Frame>& spacetime_normal_one_form,
     const tnsr::I<DataType, VolumeDim, Frame>& interface_unit_normal_vector,
-    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form);
+    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form,
+    const tnsr::I<DataType, VolumeDim, Frame>& shift);
 
 template <typename DataType, size_t VolumeDim, typename Frame>
 void transverse_projection_operator(
@@ -195,6 +206,7 @@ void transverse_projection_operator(
     const tnsr::A<DataType, VolumeDim, Frame>& spacetime_normal_vector,
     const tnsr::a<DataType, VolumeDim, Frame>& spacetime_normal_one_form,
     const tnsr::I<DataType, VolumeDim, Frame>& interface_unit_normal_vector,
-    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form);
+    const tnsr::i<DataType, VolumeDim, Frame>& interface_unit_normal_one_form,
+    const tnsr::I<DataType, VolumeDim, Frame>& shift);
 /// @}
 }  // namespace gr
