@@ -354,31 +354,32 @@ struct SetInitialData {
       const ParallelComponent* const /*meta*/) {
     static constexpr size_t Dim = Metavariables::volume_dim;
 
-    // Get ADM variables from analytic data / solution
+    // Get GH variables directly from analytic data / solution.
+    // For GH wrapped analytic solutions this uses the analytic Pi and Phi
+    // provided by the initial data object, rather than reconstructing Phi
+    // from a numerical derivative of the spacetime metric.
     const auto& x =
         db::get<domain::Tags::Coordinates<Dim, Frame::Inertial>>(*box);
-    const auto adm_vars = evolution::Initialization::initial_data(
+    const auto gh_vars = evolution::Initialization::initial_data(
         initial_data, x, db::get<::Tags::Time>(*box),
-        tmpl::list<gr::Tags::SpatialMetric<DataVector, Dim>,
-                   gr::Tags::Lapse<DataVector>,
-                   gr::Tags::Shift<DataVector, Dim>,
-                   gr::Tags::ExtrinsicCurvature<DataVector, Dim>>{});
-    const auto& spatial_metric =
-        get<gr::Tags::SpatialMetric<DataVector, Dim>>(adm_vars);
-    const auto& lapse = get<gr::Tags::Lapse<DataVector>>(adm_vars);
-    const auto& shift = get<gr::Tags::Shift<DataVector, Dim>>(adm_vars);
-    const auto& extrinsic_curvature =
-        get<gr::Tags::ExtrinsicCurvature<DataVector, Dim>>(adm_vars);
+        tmpl::list<gr::Tags::SpacetimeMetric<DataVector, Dim>,
+                   Tags::Pi<DataVector, Dim>, Tags::Phi<DataVector, Dim>>{});
+    const auto& spacetime_metric =
+        get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(gh_vars);
+    const auto& pi = get<Tags::Pi<DataVector, Dim>>(gh_vars);
+    const auto& phi = get<Tags::Phi<DataVector, Dim>>(gh_vars);
 
-    // Compute GH vars from ADM vars
-    const auto& mesh = db::get<domain::Tags::Mesh<Dim>>(*box);
-    const auto& inv_jacobian =
-        db::get<domain::Tags::InverseJacobian<Dim, Frame::ElementLogical,
-                                              Frame::Inertial>>(*box);
     db::mutate<gr::Tags::SpacetimeMetric<DataVector, Dim>,
                Tags::Pi<DataVector, Dim>, Tags::Phi<DataVector, Dim>>(
-        &gh::initial_gh_variables_from_adm<Dim>, box, spatial_metric, lapse,
-        shift, extrinsic_curvature, mesh, inv_jacobian);
+        [&spacetime_metric, &pi, &phi](
+            const gsl::not_null<tnsr::aa<DataVector, Dim>*> local_spacetime,
+            const gsl::not_null<tnsr::aa<DataVector, Dim>*> local_pi,
+            const gsl::not_null<tnsr::iaa<DataVector, Dim>*> local_phi) {
+          *local_spacetime = spacetime_metric;
+          *local_pi = pi;
+          *local_phi = phi;
+        },
+        box);
 
     // No need to import numeric initial data, so we terminate the phase by
     // pausing the algorithm on this element
