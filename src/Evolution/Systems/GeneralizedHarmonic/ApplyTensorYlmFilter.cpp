@@ -5,6 +5,11 @@
 
 #include <cstddef>
 #include <cstring>
+#include <optional>
+#include <pup.h>
+#include <type_traits>
+#include <unordered_set>
+#include <vector>
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tags/TempTensor.hpp"
@@ -12,6 +17,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackCache.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -20,6 +26,27 @@
 namespace ylm::TensorYlm {
 
 namespace filter_detail {
+
+template <typename VarsList>
+void apply_condon_shortley_phase_to_modal_coefficients(
+    const gsl::not_null<Variables<VarsList>*> modal, const size_t ell_max,
+    const size_t radial_extents) {
+  SpherepackIterator iterator(ell_max, ell_max, radial_extents, true);
+  tmpl::for_each<VarsList>(
+      [&iterator, ell_max, radial_extents, &modal](const auto tag_v) {
+        using tag = typename std::decay_t<decltype(tag_v)>::type;
+        auto& tensor = get<tag>(*modal);
+        for (auto& component : tensor) {
+          for (size_t offset = 0; offset < radial_extents; ++offset) {
+            for (iterator.reset(); iterator; ++iterator) {
+              if (iterator.m() % 2 == 1) {
+                component[iterator() + offset] *= -1.0;
+              }
+            }
+          }
+        }
+      });
+}
 
 void break_spacetime_vars_into_spatial_pieces(
     const gsl::not_null<Variables<gh_spatial_vars_list<Frame::Inertial>>*>
@@ -247,6 +274,8 @@ void apply_tensor_ylm_filter(
   // dest: gh_spatial_spectral_vars
   filter_detail::nodal_to_modal_ylm(make_not_null(&gh_spatial_spectral_vars),
                                     temp_spatial_vars, ylm, radial_extents);
+  filter_detail::apply_condon_shortley_phase_to_modal_coefficients(
+      make_not_null(&gh_spatial_spectral_vars), ell_max, radial_extents);
 
   // 4. Filter
   // src: gh_spatial_spectral_vars
@@ -331,6 +360,8 @@ void apply_tensor_ylm_filter(
         // Copy the result for this tensor back into gh_spatial_spectral_vars.
         get<Tag>(gh_spatial_spectral_vars) = get<Tag>(dest_tensor);
       });
+  filter_detail::apply_condon_shortley_phase_to_modal_coefficients(
+      make_not_null(&gh_spatial_spectral_vars), ell_max, radial_extents);
 
   // 5. Modal to nodal transformation.
   // src: gh_spatial_spectral_vars
@@ -351,6 +382,37 @@ void apply_tensor_ylm_filter(
   // dest: gh_vars
   filter_detail::assemble_spacetime_vars_from_spatial_pieces(gh_vars,
                                                              gh_spatial_vars);
+}
+
+TensorYlmFilter::TensorYlmFilter(
+    const size_t num_modes_to_kill, const size_t half_power, const bool enable,
+    const std::optional<std::vector<std::string>>& blocks_to_filter,
+    const Options::Context& /*context*/)
+    : num_modes_to_kill_(num_modes_to_kill),
+      half_power_(half_power),
+      enable_(enable),
+      blocks_to_filter_(
+          blocks_to_filter.has_value()
+              ? std::optional<std::unordered_set<
+                    std::string>>{std::unordered_set<std::string>{
+                    blocks_to_filter->begin(), blocks_to_filter->end()}}
+              : std::nullopt) {}
+
+void TensorYlmFilter::pup(PUP::er& p) {
+  p | num_modes_to_kill_;
+  p | half_power_;
+  p | enable_;
+  p | blocks_to_filter_;
+}
+
+bool operator==(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs) {
+  return lhs.num_modes_to_kill_ == rhs.num_modes_to_kill_ and
+         lhs.half_power_ == rhs.half_power_ and lhs.enable_ == rhs.enable_ and
+         lhs.blocks_to_filter_ == rhs.blocks_to_filter_;
+}
+
+bool operator!=(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs) {
+  return not(lhs == rhs);
 }
 
 // Explicit instantiations

@@ -27,6 +27,7 @@
 #include "Evolution/Initialization/Evolution.hpp"
 #include "Evolution/Initialization/NonconservativeSystem.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/ApplyTensorYlmFilter.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Factory.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryCorrections/Factory.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Equations.hpp"
@@ -414,7 +415,9 @@ struct GeneralizedHarmonicTemplateBase {
           Filters::Exponential<0>,
           tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                      gh::Tags::Pi<DataVector, volume_dim>,
-                     gh::Tags::Phi<DataVector, volume_dim>>>>;
+                     gh::Tags::Phi<DataVector, volume_dim>>>,
+      tmpl::conditional_t<volume_dim == 3, gh::Actions::ApplyTensorYlmFilter,
+                          tmpl::list<>>>;
 
   template <typename DerivedMetavars, bool UseControlSystems>
   using initialization_actions = tmpl::list<

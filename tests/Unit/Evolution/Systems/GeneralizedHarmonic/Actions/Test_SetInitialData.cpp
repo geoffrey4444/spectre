@@ -281,6 +281,8 @@ void test_set_initial_data(
                                               element_id);
   } else {
     CHECK(Parallel::get<gh::Tags::SetPiAndPhiFromConstraints>(cache));
+    REQUIRE(ActionTesting::next_action_if_ready<element_array>(
+        make_not_null(&runner), element_id));
   }
 
   // Check result. These variables are not particularly precise because we are
