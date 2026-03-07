@@ -6,6 +6,7 @@
 #include <random>
 
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/SimpleSparseMatrix.hpp"
 #include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -165,6 +166,82 @@ void test_modal_nodal_invertibility() {
       });
 }
 
+void test_odd_m_mode_is_preserved_without_cutoff() {
+  constexpr size_t radial_extents = 2;
+  constexpr size_t ell_max = 6;
+  const auto& ylm = ::ylm::get_spherepack_cache(ell_max);
+  const size_t spectral_mesh_size = ylm.spectral_size() * radial_extents;
+  const size_t physical_mesh_size = ylm.physical_size() * radial_extents;
+
+  Variables<filter_detail::gh_spacetime_vars_list> modal_vars(
+      spectral_mesh_size, 0.0);
+  ylm::SpherepackIterator iterator(ell_max, ell_max, radial_extents, true);
+  for (size_t offset = 0; offset < radial_extents; ++offset) {
+    iterator.set(3, 1, ylm::SpherepackIterator::CoefficientArray::a);
+    get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+        modal_vars))[iterator() + offset] = 0.2 + static_cast<double>(offset);
+    iterator.set(4, 2, ylm::SpherepackIterator::CoefficientArray::b);
+    get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+        modal_vars))[iterator() + offset] = -0.1 + static_cast<double>(offset);
+  }
+
+  Variables<filter_detail::gh_spacetime_vars_list> nodal_vars(
+      physical_mesh_size, 0.0);
+  filter_detail::modal_to_nodal_ylm(make_not_null(&nodal_vars), modal_vars, ylm,
+                                    radial_extents);
+
+  InverseJacobian<DataVector, 3, Frame::Inertial, Frame::Grid>
+      jac_inertial_to_grid(physical_mesh_size, 0.0);
+  InverseJacobian<DataVector, 3, Frame::Grid, Frame::Inertial>
+      jac_grid_to_inertial(physical_mesh_size, 0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    jac_inertial_to_grid.get(i, i) = 1.0;
+    jac_grid_to_inertial.get(i, i) = 1.0;
+  }
+
+  SimpleSparseMatrix filter_matrix_scalar{};
+  SimpleSparseMatrix filter_matrix_i{};
+  SimpleSparseMatrix filter_matrix_ii{};
+  SimpleSparseMatrix filter_matrix_ij{};
+  SimpleSparseMatrix filter_matrix_kii{};
+  fill_filter<Scalar<DataVector>::structure>(
+      make_not_null(&filter_matrix_scalar), ell_max, 0, std::nullopt);
+  fill_filter<tnsr::i<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_i), ell_max, 0, std::nullopt);
+  fill_filter<tnsr::ii<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_ii), ell_max, 0, std::nullopt);
+  fill_filter<tnsr::ij<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_ij), ell_max, 0, std::nullopt);
+  fill_filter<tnsr::ijj<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_kii), ell_max, 0, std::nullopt);
+
+  Variables<filter_detail::gh_spacetime_vars_list> temp_storage(
+      spectral_mesh_size, 0.0);
+  apply_tensor_ylm_filter(make_not_null(&nodal_vars),
+                          make_not_null(&temp_storage), jac_inertial_to_grid,
+                          jac_grid_to_inertial, filter_matrix_scalar,
+                          filter_matrix_i, filter_matrix_ii, filter_matrix_ij,
+                          filter_matrix_kii, ell_max, radial_extents);
+
+  Variables<filter_detail::gh_spacetime_vars_list> filtered_modal(
+      spectral_mesh_size, 0.0);
+  filter_detail::nodal_to_modal_ylm(make_not_null(&filtered_modal), nodal_vars,
+                                    ylm, radial_extents);
+
+  for (size_t offset = 0; offset < radial_extents; ++offset) {
+    iterator.set(3, 1, ylm::SpherepackIterator::CoefficientArray::a);
+    CHECK(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+              filtered_modal))[iterator() + offset] ==
+          approx(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+              modal_vars))[iterator() + offset]));
+    iterator.set(4, 2, ylm::SpherepackIterator::CoefficientArray::b);
+    CHECK(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+              filtered_modal))[iterator() + offset] ==
+          approx(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 3>>(
+              modal_vars))[iterator() + offset]));
+  }
+}
+
 // Debug builds are timing out slightly, so increase the timeout.
 // [[TimeOut, 20]]
 SPECTRE_TEST_CASE(
@@ -173,6 +250,7 @@ SPECTRE_TEST_CASE(
   test_break_spacetime_vars_into_spatial_pieces();
   test_transform_spatial_tensors_to_different_frame();
   test_modal_nodal_invertibility();
+  test_odd_m_mode_is_preserved_without_cutoff();
   test_apply_filter<filter_detail::gh_spacetime_vars_list>(0);
   test_apply_filter<filter_detail::gh_spacetime_vars_list>(5);
 }

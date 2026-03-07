@@ -61,6 +61,15 @@ struct EvolutionMetavars
                   tmpl::conditional_t<VolumeDim == 3,
                                       gh::Actions::ReceiveNumericInitialData,
                                       tmpl::list<>>,
+                  dg::Actions::Filter<
+                      Filters::Exponential<0>,
+                      tmpl::list<
+                          gr::Tags::SpacetimeMetric<DataVector, VolumeDim>,
+                          gh::Tags::Pi<DataVector, VolumeDim>,
+                          gh::Tags::Phi<DataVector, VolumeDim>>>,
+                  tmpl::conditional_t<VolumeDim == 3,
+                                      gh::Actions::ApplyTensorYlmFilter,
+                                      tmpl::list<>>,
                   Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Parallel::Phase::InitializeInitialDataDependentQuantities,

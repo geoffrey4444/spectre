@@ -275,8 +275,7 @@ namespace Actions {
  * gh::Actions::ReceiveNumericInitialData in the action list.
  * See importers::Actions::ReadAllVolumeDataAndDistribute for details, which is
  * invoked by this action.
- * Analytic initial data is set directly by this action and terminates the
- * phase.
+ * Analytic initial data is set directly by this action and continues.
  */
 struct SetInitialData {
   using const_global_cache_tags =
@@ -380,9 +379,9 @@ struct SetInitialData {
         &gh::initial_gh_variables_from_adm<Dim>, box, spatial_metric, lapse,
         shift, extrinsic_curvature, mesh, inv_jacobian);
 
-    // No need to import numeric initial data, so we terminate the phase by
-    // pausing the algorithm on this element
-    return {Parallel::AlgorithmExecution::Pause, std::nullopt};
+    // Continue so subsequent actions in ImportInitialData can run, e.g.
+    // filtering of analytic initial data.
+    return {Parallel::AlgorithmExecution::Continue, std::nullopt};
   }
 };
 
@@ -414,9 +413,12 @@ struct ReceiveNumericInitialData {
     auto& inbox =
         tuples::get<importers::Tags::VolumeData<NumericInitialData::all_vars>>(
             inboxes);
-    const auto& initial_data = dynamic_cast<const NumericInitialData&>(
-        db::get<evolution::initial_data::Tags::InitialData>(box));
-    const auto& volume_data_id = initial_data.volume_data_id();
+    const auto* const initial_data = dynamic_cast<const NumericInitialData*>(
+        &db::get<evolution::initial_data::Tags::InitialData>(box));
+    if (initial_data == nullptr) {
+      return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+    }
+    const auto& volume_data_id = initial_data->volume_data_id();
     if (inbox.find(volume_data_id) == inbox.end()) {
       return {Parallel::AlgorithmExecution::Retry, std::nullopt};
     }
@@ -433,9 +435,9 @@ struct ReceiveNumericInitialData {
             const gsl::not_null<tnsr::aa<DataVector, 3>*> spacetime_metric,
             const gsl::not_null<tnsr::aa<DataVector, 3>*> pi,
             const gsl::not_null<tnsr::iaa<DataVector, 3>*> phi) {
-          initial_data.set_initial_data(spacetime_metric, pi, phi,
-                                        make_not_null(&numeric_data), mesh,
-                                        inv_jacobian);
+          initial_data->set_initial_data(spacetime_metric, pi, phi,
+                                         make_not_null(&numeric_data), mesh,
+                                         inv_jacobian);
         },
         make_not_null(&box));
     return {Parallel::AlgorithmExecution::Continue, std::nullopt};

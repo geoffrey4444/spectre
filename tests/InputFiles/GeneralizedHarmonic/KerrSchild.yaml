@@ -38,8 +38,6 @@ Evolution:
   StepChoosers:
     - LimitIncrease:
         Factor: 2
-    - ElementSizeCfl:
-        SafetyFactor: 0.5
     - ErrorControl:
         AbsoluteTolerance: 1e-10
         RelativeTolerance: 1e-8
@@ -83,21 +81,18 @@ InitialData: &InitialData
     Velocity: [0.0, 0.0, 0.0]
 
 DomainCreator:
-  Sphere:
+  SphericalShells:
     InnerRadius: &InnerRadius 1.9
     OuterRadius: 2.3
-    Interior:
-      ExciseWithBoundaryCondition:
-        DirichletAnalytic:
-          AnalyticPrescription: *InitialData
-    InitialRefinement: 0
-    InitialGridPoints: 5
-    UseEquiangularMap: true
-    EquatorialCompression: None
+    InitialRadialRefinement: 0
+    InitialNumberOfRadialGridPoints: 5
+    InitialSphericalHarmonicL: 6
     RadialPartitioning: []
     RadialDistribution: [Logarithmic]
-    WhichWedges: All
     TimeDependentMaps: None
+    InnerBoundaryCondition:
+      DirichletAnalytic:
+        AnalyticPrescription: *InitialData
     OuterBoundaryCondition:
       DirichletAnalytic:
         AnalyticPrescription: *InitialData
@@ -132,6 +127,11 @@ EvolutionSystem:
 Filtering:
   ExpFilter0:
     Alpha: 36.0
+    HalfPower: 64
+    Enable: false
+    BlocksToFilter: All
+  TensorYlmFilter:
+    NumModesToKill: 0
     HalfPower: 64
     Enable: true
     BlocksToFilter: All

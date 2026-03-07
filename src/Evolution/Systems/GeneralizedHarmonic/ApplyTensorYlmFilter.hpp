@@ -3,20 +3,49 @@
 
 #pragma once
 
+#include <cstddef>
+#include <optional>
+#include <string>
+#include <unordered_set>
+#include <vector>
+
+#include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/SimpleSparseMatrix.hpp"
+#include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "DataStructures/Variables.hpp"
+#include "Domain/Structure/BlockGroups.hpp"
+#include "Domain/Tags.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
+#include "Evolution/Tags/Filter.hpp"
+#include "NumericalAlgorithms/Spectral/Basis.hpp"
+#include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/ApplyTensorYlmFilter.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlm.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmFilter.hpp"
+#include "Options/Auto.hpp"
+#include "Options/String.hpp"
+#include "Parallel/AlgorithmExecution.hpp"
+#include "Parallel/GlobalCache.hpp"
+#include "ParallelAlgorithms/Actions/FilterAction.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
+#include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/TMPL.hpp"
 
 /// \cond
 class DataVector;
+namespace PUP {
+class er;
+}  // namespace PUP
 namespace ylm {
 class Spherepack;
 }  // namespace ylm
+namespace tuples {
+template <typename...>
+class TaggedTuple;
+}  // namespace tuples
 /// \endcond
 
 namespace ylm::TensorYlm {
@@ -207,4 +236,209 @@ void apply_tensor_ylm_filter(
     const SimpleSparseMatrix& filter_matrix_ij,
     const SimpleSparseMatrix& filter_matrix_kii, size_t ell_max,
     size_t radial_extents);
+
+class TensorYlmFilter {
+ public:
+  struct NumModesToKill {
+    using type = size_t;
+    static constexpr Options::String help =
+        "Number of highest ell modes to zero in the TensorYlm filter.";
+  };
+
+  struct HalfPower {
+    using type = size_t;
+    static constexpr Options::String help =
+        "Half power for smooth TensorYlm filtering.";
+    static type lower_bound() { return 1; }
+  };
+
+  struct Enable {
+    using type = bool;
+    static constexpr Options::String help = "Enable the TensorYlm filter.";
+  };
+
+  struct BlocksToFilter {
+    using type =
+        Options::Auto<std::vector<std::string>, Options::AutoLabel::All>;
+    static constexpr Options::String help = {
+        "List of blocks or block groups to apply TensorYlm filtering to. "
+        "Use 'All' to filter all blocks."};
+  };
+
+  using options = tmpl::list<NumModesToKill, HalfPower, Enable, BlocksToFilter>;
+  static constexpr Options::String help = {"A TensorYlm filter."};
+  static std::string name() { return "TensorYlmFilter"; }
+
+  TensorYlmFilter() = default;
+  TensorYlmFilter(
+      size_t num_modes_to_kill, size_t half_power, bool enable,
+      const std::optional<std::vector<std::string>>& blocks_to_filter,
+      const Options::Context& context = {});
+
+  size_t num_modes_to_kill() const { return num_modes_to_kill_; }
+  std::optional<size_t> half_power() const { return half_power_; }
+  bool enable() const { return enable_; }
+  const std::optional<std::unordered_set<std::string>>& blocks_to_filter()
+      const {
+    return blocks_to_filter_;
+  }
+
+  // NOLINTNEXTLINE(google-runtime-references)
+  void pup(PUP::er& p);
+
+ private:
+  friend bool operator==(const TensorYlmFilter& lhs,
+                         const TensorYlmFilter& rhs);
+
+  size_t num_modes_to_kill_{0};
+  std::optional<size_t> half_power_{32};
+  bool enable_{false};
+  std::optional<std::unordered_set<std::string>> blocks_to_filter_{};
+};
+
+bool operator==(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs);
+bool operator!=(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs);
 }  // namespace ylm::TensorYlm
+
+namespace gh::Actions {
+
+struct ApplyTensorYlmFilter {
+  using const_global_cache_tags =
+      tmpl::list<Filters::Tags::Filter<ylm::TensorYlm::TensorYlmFilter>,
+                 domain::Tags::Domain<3>>;
+
+  template <typename DbTagsList, typename... InboxTags, typename Metavariables,
+            typename ArrayIndex, typename ActionList,
+            typename ParallelComponent>
+  static Parallel::iterable_action_return_t apply(
+      db::DataBox<DbTagsList>& box,
+      const tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
+      const Parallel::GlobalCache<Metavariables>& cache,
+      const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
+      const ParallelComponent* const /*meta*/);
+};
+
+template <typename DbTagsList, typename... InboxTags, typename Metavariables,
+          typename ArrayIndex, typename ActionList, typename ParallelComponent>
+Parallel::iterable_action_return_t ApplyTensorYlmFilter::apply(
+    db::DataBox<DbTagsList>& box,
+    const tuples::TaggedTuple<InboxTags...>& /*inboxes*/,
+    const Parallel::GlobalCache<Metavariables>& cache,
+    const ArrayIndex& /*array_index*/, const ActionList /*meta*/,
+    const ParallelComponent* const /*meta*/) {
+  const auto& filter =
+      Parallel::get<Filters::Tags::Filter<ylm::TensorYlm::TensorYlmFilter>>(
+          cache);
+  if (not filter.enable()) {
+    return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+  }
+
+  const size_t block_id =
+      db::get<domain::Tags::Element<3>>(box).id().block_id();
+  const auto& domain = Parallel::get<domain::Tags::Domain<3>>(cache);
+  const auto& block_groups = domain.block_groups();
+  const std::string& block_name = domain.blocks()[block_id].name();
+  if (filter.blocks_to_filter().has_value()) {
+    const bool filter_this_block = alg::any_of(
+        filter.blocks_to_filter().value(),
+        [&block_name, &block_groups](const std::string& block_to_filter) {
+          return domain::block_is_in_group(block_name, block_to_filter,
+                                           block_groups);
+        });
+    if (not filter_this_block) {
+      return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+    }
+  }
+
+  const Mesh<3>& mesh = db::get<domain::Tags::Mesh<3>>(box);
+  if (mesh.basis(1) != Spectral::Basis::SphericalHarmonic or
+      mesh.basis(2) != Spectral::Basis::SphericalHarmonic) {
+    return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+  }
+
+  const size_t ell_max = mesh.extents(1) - 1;
+  const size_t radial_extents = mesh.extents(0);
+  const size_t number_of_grid_points = mesh.number_of_grid_points();
+
+  SimpleSparseMatrix filter_matrix_scalar{};
+  SimpleSparseMatrix filter_matrix_i{};
+  SimpleSparseMatrix filter_matrix_ii{};
+  SimpleSparseMatrix filter_matrix_ij{};
+  SimpleSparseMatrix filter_matrix_kii{};
+  ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
+      make_not_null(&filter_matrix_scalar), ell_max, filter.num_modes_to_kill(),
+      filter.half_power());
+  ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_i), ell_max, filter.num_modes_to_kill(),
+      filter.half_power());
+  ylm::TensorYlm::fill_filter<tnsr::ii<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_ii), ell_max, filter.num_modes_to_kill(),
+      filter.half_power());
+  ylm::TensorYlm::fill_filter<tnsr::ij<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_ij), ell_max, filter.num_modes_to_kill(),
+      filter.half_power());
+  ylm::TensorYlm::fill_filter<tnsr::ijj<DataVector, 3>::structure>(
+      make_not_null(&filter_matrix_kii), ell_max, filter.num_modes_to_kill(),
+      filter.half_power());
+
+  Variables<ylm::TensorYlm::filter_detail::gh_spacetime_vars_list> temp_storage(
+      radial_extents * ylm::Spherepack::spectral_size(ell_max, ell_max), 0.0);
+  InverseJacobian<DataVector, 3, Frame::Inertial, Frame::Grid>
+      jac_inertial_to_grid(number_of_grid_points, 0.0);
+  InverseJacobian<DataVector, 3, Frame::Grid, Frame::Inertial>
+      jac_grid_to_inertial(number_of_grid_points, 0.0);
+  {
+    const auto& inv_jac_logical_to_inertial =
+        db::get<domain::Tags::InverseJacobian<3, Frame::ElementLogical,
+                                              Frame::Inertial>>(box);
+    const auto& inv_jac_logical_to_grid = db::get<
+        domain::Tags::InverseJacobian<3, Frame::ElementLogical, Frame::Grid>>(
+        box);
+    Jacobian<DataVector, 3, Frame::ElementLogical, Frame::Inertial>
+        jac_logical_to_inertial(number_of_grid_points, 0.0);
+    Scalar<DataVector> det(number_of_grid_points, 0.0);
+    determinant_and_inverse(make_not_null(&det),
+                            make_not_null(&jac_logical_to_inertial),
+                            inv_jac_logical_to_inertial);
+    for (size_t i = 0; i < 3; ++i) {
+      for (size_t j = 0; j < 3; ++j) {
+        jac_inertial_to_grid.get(i, j) = jac_logical_to_inertial.get(i, 0) *
+                                             inv_jac_logical_to_grid.get(0, j) +
+                                         jac_logical_to_inertial.get(i, 1) *
+                                             inv_jac_logical_to_grid.get(1, j) +
+                                         jac_logical_to_inertial.get(i, 2) *
+                                             inv_jac_logical_to_grid.get(2, j);
+      }
+    }
+    determinant_and_inverse(make_not_null(&det),
+                            make_not_null(&jac_grid_to_inertial),
+                            jac_inertial_to_grid);
+  }
+  db::mutate<gr::Tags::SpacetimeMetric<DataVector, 3>,
+             gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>(
+      [&temp_storage, &jac_inertial_to_grid, &jac_grid_to_inertial,
+       &filter_matrix_scalar, &filter_matrix_i, &filter_matrix_ii,
+       &filter_matrix_ij, &filter_matrix_kii, ell_max, radial_extents](
+          const gsl::not_null<tnsr::aa<DataVector, 3>*> spacetime_metric,
+          const gsl::not_null<tnsr::aa<DataVector, 3>*> pi,
+          const gsl::not_null<tnsr::iaa<DataVector, 3>*> phi) {
+        Variables<ylm::TensorYlm::filter_detail::gh_spacetime_vars_list> vars(
+            spacetime_metric->begin()->size());
+        get<gr::Tags::SpacetimeMetric<DataVector, 3>>(vars) = *spacetime_metric;
+        get<gh::Tags::Pi<DataVector, 3>>(vars) = *pi;
+        get<gh::Tags::Phi<DataVector, 3>>(vars) = *phi;
+        ylm::TensorYlm::apply_tensor_ylm_filter(
+            make_not_null(&vars), make_not_null(&temp_storage),
+            jac_inertial_to_grid, jac_grid_to_inertial, filter_matrix_scalar,
+            filter_matrix_i, filter_matrix_ii, filter_matrix_ij,
+            filter_matrix_kii, ell_max, radial_extents);
+        *spacetime_metric = get<gr::Tags::SpacetimeMetric<DataVector, 3>>(vars);
+        *pi = get<gh::Tags::Pi<DataVector, 3>>(vars);
+        *phi = get<gh::Tags::Phi<DataVector, 3>>(vars);
+      },
+      make_not_null(&box));
+
+  return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+}
+
+}  // namespace gh::Actions
