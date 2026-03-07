@@ -25,6 +25,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/ApplyTensorYlmFilter.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/FactoryHelpers.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
@@ -284,9 +285,16 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
                          Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Parallel::Phase::ImportInitialData,
-              tmpl::list<gh::Actions::SetInitialData,
-                         gh::Actions::ReceiveNumericInitialData,
-                         Parallel::Actions::TerminatePhase>>,
+              tmpl::list<
+                  gh::Actions::SetInitialData,
+                  gh::Actions::ReceiveNumericInitialData,
+                  dg::Actions::Filter<
+                      Filters::Exponential<0>,
+                      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
+                                 gh::Tags::Pi<DataVector, 3>,
+                                 gh::Tags::Phi<DataVector, 3>>>,
+                  gh::Actions::ApplyTensorYlmFilter,
+                  Parallel::Actions::TerminatePhase>>,
           Parallel::PhaseActions<
               Parallel::Phase::InitializeInitialDataDependentQuantities,
               initialize_initial_data_dependent_quantities_actions>,
