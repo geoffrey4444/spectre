@@ -23,6 +23,8 @@ namespace ylm::TensorYlm {
 
 namespace {
 
+constexpr size_t dense_filler_ell_max_cutoff = 39;
+
 // Inner loops of the rank-1 calculation.  The purpose of this
 // function is so that there are not so many nested loops inside of
 // the main function, making the main function and this function more
@@ -466,10 +468,13 @@ void fill_filter(const gsl::not_null<SparseMatrixType*> matrix,
 
   SpherepackIterator iter_src(ell_max, ell_max, 1, false);
   SpherepackIterator iter_dest(ell_max, ell_max, 1, false);
-  SparseMatrixFiller filler(square(num_independent_components) *
-                                iter_src.spherepack_array_size() *
-                                iter_dest.spherepack_array_size(),
-                            true, 1.0);
+  const size_t matrix_dimension =
+      num_independent_components * iter_src.spherepack_array_size();
+  const bool use_map_method = ell_max > dense_filler_ell_max_cutoff;
+  ASSERT(matrix_dimension ==
+             num_independent_components * iter_dest.spherepack_array_size(),
+         "TensorYlm filter matrix should be square.");
+  SparseMatrixFiller filler(matrix_dimension, use_map_method, 1.0);
 
   // Special case for rank 0, which is so much simpler than all the
   // other ranks because there is actually no tensorylm
