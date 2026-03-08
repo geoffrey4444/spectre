@@ -134,6 +134,7 @@ Filtering:
     NumModesToKill: 0
     HalfPower: 64
     Enable: true
+    FilterEveryNSlabs: 1
     BlocksToFilter: All
 
 SpatialDiscretization:

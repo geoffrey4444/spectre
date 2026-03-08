@@ -12,6 +12,7 @@
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/ApplyTensorYlmFilter.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
+#include "Framework/TestCreation.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "Helpers/NumericalAlgorithms/SphericalHarmonics/Test_ApplyTensorYlmFilter.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/ApplyTensorYlmFilter.hpp"
@@ -25,6 +26,29 @@
 
 namespace ylm::TensorYlm {
 namespace {
+void test_filter_options() {
+  const auto filter = serialize_and_deserialize(
+      TestHelpers::test_creation<TensorYlmFilter>("NumModesToKill: 4\n"
+                                                  "HalfPower: 210\n"
+                                                  "Enable: true\n"
+                                                  "FilterEveryNSlabs: 20\n"
+                                                  "BlocksToFilter: All"));
+  CHECK(filter.num_modes_to_kill() == 4);
+  CHECK(filter.half_power() == 210);
+  CHECK(filter.enable());
+  CHECK(filter.filter_every_n_slabs() == 20);
+  CHECK_FALSE(filter.blocks_to_filter().has_value());
+
+  CHECK_THROWS_WITH(
+      TestHelpers::test_creation<TensorYlmFilter>("NumModesToKill: 4\n"
+                                                  "HalfPower: 210\n"
+                                                  "Enable: true\n"
+                                                  "FilterEveryNSlabs: 0\n"
+                                                  "BlocksToFilter: All"),
+      Catch::Matchers::ContainsSubstring(
+          "Value 0 is below the lower bound of 1"));
+}
+
 void test_break_spacetime_vars_into_spatial_pieces() {
   constexpr size_t mesh_size = 10;
 
@@ -247,6 +271,7 @@ void test_odd_m_mode_is_preserved_without_cutoff() {
 SPECTRE_TEST_CASE(
     "Unit.Evolution.Systems.GeneralizedHarmonic.ApplyTensorYlmFilter",
     "[NumericalAlgorithms][Unit]") {
+  test_filter_options();
   test_break_spacetime_vars_into_spatial_pieces();
   test_transform_spatial_tensors_to_different_frame();
   test_modal_nodal_invertibility();

@@ -18,6 +18,7 @@
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackCache.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
+#include "Options/ParseError.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -386,28 +387,37 @@ void apply_tensor_ylm_filter(
 
 TensorYlmFilter::TensorYlmFilter(
     const size_t num_modes_to_kill, const size_t half_power, const bool enable,
+    const size_t filter_every_n_slabs,
     const std::optional<std::vector<std::string>>& blocks_to_filter,
-    const Options::Context& /*context*/)
+    const Options::Context& context)
     : num_modes_to_kill_(num_modes_to_kill),
       half_power_(half_power),
       enable_(enable),
+      filter_every_n_slabs_(filter_every_n_slabs),
       blocks_to_filter_(
           blocks_to_filter.has_value()
               ? std::optional<std::unordered_set<
                     std::string>>{std::unordered_set<std::string>{
                     blocks_to_filter->begin(), blocks_to_filter->end()}}
-              : std::nullopt) {}
+              : std::nullopt) {
+  if (filter_every_n_slabs_ < 1) {
+    PARSE_ERROR(context, "FilterEveryNSlabs must be at least 1, but got "
+                             << filter_every_n_slabs_);
+  }
+}
 
 void TensorYlmFilter::pup(PUP::er& p) {
   p | num_modes_to_kill_;
   p | half_power_;
   p | enable_;
+  p | filter_every_n_slabs_;
   p | blocks_to_filter_;
 }
 
 bool operator==(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs) {
   return lhs.num_modes_to_kill_ == rhs.num_modes_to_kill_ and
          lhs.half_power_ == rhs.half_power_ and lhs.enable_ == rhs.enable_ and
+         lhs.filter_every_n_slabs_ == rhs.filter_every_n_slabs_ and
          lhs.blocks_to_filter_ == rhs.blocks_to_filter_;
 }
 

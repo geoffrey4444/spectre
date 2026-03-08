@@ -4,8 +4,10 @@
 #pragma once
 
 #include <cstddef>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -30,6 +32,7 @@
 #include "Parallel/GlobalCache.hpp"
 #include "ParallelAlgorithms/Actions/FilterAction.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
+#include "Time/Tags/TimeStepId.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -257,6 +260,14 @@ class TensorYlmFilter {
     static constexpr Options::String help = "Enable the TensorYlm filter.";
   };
 
+  struct FilterEveryNSlabs {
+    using type = size_t;
+    static constexpr Options::String help = {
+        "Apply the TensorYlm filter every N slabs during evolution."};
+    static type lower_bound() { return 1; }
+    static type suggested_value() { return 1; }
+  };
+
   struct BlocksToFilter {
     using type =
         Options::Auto<std::vector<std::string>, Options::AutoLabel::All>;
@@ -265,19 +276,22 @@ class TensorYlmFilter {
         "Use 'All' to filter all blocks."};
   };
 
-  using options = tmpl::list<NumModesToKill, HalfPower, Enable, BlocksToFilter>;
+  using options = tmpl::list<NumModesToKill, HalfPower, Enable,
+                             FilterEveryNSlabs, BlocksToFilter>;
   static constexpr Options::String help = {"A TensorYlm filter."};
   static std::string name() { return "TensorYlmFilter"; }
 
   TensorYlmFilter() = default;
   TensorYlmFilter(
       size_t num_modes_to_kill, size_t half_power, bool enable,
+      size_t filter_every_n_slabs,
       const std::optional<std::vector<std::string>>& blocks_to_filter,
       const Options::Context& context = {});
 
   size_t num_modes_to_kill() const { return num_modes_to_kill_; }
   std::optional<size_t> half_power() const { return half_power_; }
   bool enable() const { return enable_; }
+  size_t filter_every_n_slabs() const { return filter_every_n_slabs_; }
   const std::optional<std::unordered_set<std::string>>& blocks_to_filter()
       const {
     return blocks_to_filter_;
@@ -293,6 +307,7 @@ class TensorYlmFilter {
   size_t num_modes_to_kill_{0};
   std::optional<size_t> half_power_{32};
   bool enable_{false};
+  size_t filter_every_n_slabs_{1};
   std::optional<std::unordered_set<std::string>> blocks_to_filter_{};
 };
 
@@ -301,6 +316,82 @@ bool operator!=(const TensorYlmFilter& lhs, const TensorYlmFilter& rhs);
 }  // namespace ylm::TensorYlm
 
 namespace gh::Actions {
+
+namespace detail {
+
+struct TensorYlmFilterMatrixCacheKey {
+  size_t ell_max;
+  size_t num_modes_to_kill;
+  std::optional<size_t> half_power;
+
+  bool operator==(const TensorYlmFilterMatrixCacheKey& other) const {
+    return ell_max == other.ell_max and
+           num_modes_to_kill == other.num_modes_to_kill and
+           half_power == other.half_power;
+  }
+};
+
+struct TensorYlmFilterMatrixCacheKeyHash {
+  size_t operator()(const TensorYlmFilterMatrixCacheKey& key) const {
+    size_t hash = 0;
+    hash ^= std::hash<size_t>{}(key.ell_max) + 0x9e3779b9 + (hash << 6) +
+            (hash >> 2);
+    hash ^= std::hash<size_t>{}(key.num_modes_to_kill) + 0x9e3779b9 +
+            (hash << 6) + (hash >> 2);
+    hash ^= std::hash<bool>{}(key.half_power.has_value()) + 0x9e3779b9 +
+            (hash << 6) + (hash >> 2);
+    if (key.half_power.has_value()) {
+      hash ^= std::hash<size_t>{}(key.half_power.value()) + 0x9e3779b9 +
+              (hash << 6) + (hash >> 2);
+    }
+    return hash;
+  }
+};
+
+struct TensorYlmFilterMatrices {
+  SimpleSparseMatrix scalar{};
+  SimpleSparseMatrix i{};
+  SimpleSparseMatrix ii{};
+  SimpleSparseMatrix ij{};
+  SimpleSparseMatrix kii{};
+};
+
+inline const TensorYlmFilterMatrices& cached_filter_matrices(
+    const size_t ell_max, const size_t num_modes_to_kill,
+    const std::optional<size_t>& half_power) {
+  static std::unordered_map<TensorYlmFilterMatrixCacheKey,
+                            TensorYlmFilterMatrices,
+                            TensorYlmFilterMatrixCacheKeyHash>
+      cache{};
+  static std::mutex cache_mutex{};
+
+  const TensorYlmFilterMatrixCacheKey key{ell_max, num_modes_to_kill,
+                                          half_power};
+  {
+    const std::lock_guard<std::mutex> lock(cache_mutex);
+    if (const auto iter = cache.find(key); iter != cache.end()) {
+      return iter->second;
+    }
+  }
+
+  TensorYlmFilterMatrices matrices{};
+  ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
+      make_not_null(&matrices.scalar), ell_max, num_modes_to_kill, half_power);
+  ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
+      make_not_null(&matrices.i), ell_max, num_modes_to_kill, half_power);
+  ylm::TensorYlm::fill_filter<tnsr::ii<DataVector, 3>::structure>(
+      make_not_null(&matrices.ii), ell_max, num_modes_to_kill, half_power);
+  ylm::TensorYlm::fill_filter<tnsr::ij<DataVector, 3>::structure>(
+      make_not_null(&matrices.ij), ell_max, num_modes_to_kill, half_power);
+  ylm::TensorYlm::fill_filter<tnsr::ijj<DataVector, 3>::structure>(
+      make_not_null(&matrices.kii), ell_max, num_modes_to_kill, half_power);
+
+  const std::lock_guard<std::mutex> lock(cache_mutex);
+  const auto [iter, inserted] = cache.emplace(key, std::move(matrices));
+  return iter->second;
+}
+
+}  // namespace detail
 
 struct ApplyTensorYlmFilter {
   using const_global_cache_tags =
@@ -332,6 +423,11 @@ Parallel::iterable_action_return_t ApplyTensorYlmFilter::apply(
   if (not filter.enable()) {
     return {Parallel::AlgorithmExecution::Continue, std::nullopt};
   }
+  const auto slab_number = db::get<::Tags::TimeStepId>(box).slab_number();
+  if (slab_number >= 0 and
+      static_cast<size_t>(slab_number) % filter.filter_every_n_slabs() != 0) {
+    return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+  }
 
   const size_t block_id =
       db::get<domain::Tags::Element<3>>(box).id().block_id();
@@ -359,27 +455,8 @@ Parallel::iterable_action_return_t ApplyTensorYlmFilter::apply(
   const size_t ell_max = mesh.extents(1) - 1;
   const size_t radial_extents = mesh.extents(0);
   const size_t number_of_grid_points = mesh.number_of_grid_points();
-
-  SimpleSparseMatrix filter_matrix_scalar{};
-  SimpleSparseMatrix filter_matrix_i{};
-  SimpleSparseMatrix filter_matrix_ii{};
-  SimpleSparseMatrix filter_matrix_ij{};
-  SimpleSparseMatrix filter_matrix_kii{};
-  ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
-      make_not_null(&filter_matrix_scalar), ell_max, filter.num_modes_to_kill(),
-      filter.half_power());
-  ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_i), ell_max, filter.num_modes_to_kill(),
-      filter.half_power());
-  ylm::TensorYlm::fill_filter<tnsr::ii<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_ii), ell_max, filter.num_modes_to_kill(),
-      filter.half_power());
-  ylm::TensorYlm::fill_filter<tnsr::ij<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_ij), ell_max, filter.num_modes_to_kill(),
-      filter.half_power());
-  ylm::TensorYlm::fill_filter<tnsr::ijj<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_kii), ell_max, filter.num_modes_to_kill(),
-      filter.half_power());
+  const auto& filter_matrices = detail::cached_filter_matrices(
+      ell_max, filter.num_modes_to_kill(), filter.half_power());
 
   Variables<ylm::TensorYlm::filter_detail::gh_spacetime_vars_list> temp_storage(
       radial_extents * ylm::Spherepack::spectral_size(ell_max, ell_max), 0.0);
@@ -417,8 +494,7 @@ Parallel::iterable_action_return_t ApplyTensorYlmFilter::apply(
   db::mutate<gr::Tags::SpacetimeMetric<DataVector, 3>,
              gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>(
       [&temp_storage, &jac_inertial_to_grid, &jac_grid_to_inertial,
-       &filter_matrix_scalar, &filter_matrix_i, &filter_matrix_ii,
-       &filter_matrix_ij, &filter_matrix_kii, ell_max, radial_extents](
+       &filter_matrices, ell_max, radial_extents](
           const gsl::not_null<tnsr::aa<DataVector, 3>*> spacetime_metric,
           const gsl::not_null<tnsr::aa<DataVector, 3>*> pi,
           const gsl::not_null<tnsr::iaa<DataVector, 3>*> phi) {
@@ -429,9 +505,9 @@ Parallel::iterable_action_return_t ApplyTensorYlmFilter::apply(
         get<gh::Tags::Phi<DataVector, 3>>(vars) = *phi;
         ylm::TensorYlm::apply_tensor_ylm_filter(
             make_not_null(&vars), make_not_null(&temp_storage),
-            jac_inertial_to_grid, jac_grid_to_inertial, filter_matrix_scalar,
-            filter_matrix_i, filter_matrix_ii, filter_matrix_ij,
-            filter_matrix_kii, ell_max, radial_extents);
+            jac_inertial_to_grid, jac_grid_to_inertial, filter_matrices.scalar,
+            filter_matrices.i, filter_matrices.ii, filter_matrices.ij,
+            filter_matrices.kii, ell_max, radial_extents);
         *spacetime_metric = get<gr::Tags::SpacetimeMetric<DataVector, 3>>(vars);
         *pi = get<gh::Tags::Pi<DataVector, 3>>(vars);
         *phi = get<gh::Tags::Phi<DataVector, 3>>(vars);
