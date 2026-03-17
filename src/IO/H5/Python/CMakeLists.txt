@@ -18,6 +18,7 @@ spectre_python_add_module(
   __init__.py
   CombineH5.py
   CombineH5Dat.py
+  ConvertFiniteRadiusRwzToSpec.py
   DeleteSubfiles.py
   ExtendConnectivityData.py
   ExtractDatFromH5.py

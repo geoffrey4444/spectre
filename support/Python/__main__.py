@@ -24,6 +24,7 @@ class Cli(click.Group):
             "bbh",
             "clean-output",
             "combine-h5",
+            "convert-rwz-to-spec",
             "delete-subfiles",
             "eccentricity-control-params",
             "extend-connectivity",
@@ -63,6 +64,12 @@ class Cli(click.Group):
             from spectre.IO.H5.CombineH5 import combine_h5_command
 
             return combine_h5_command
+        elif name == "convert-rwz-to-spec":
+            from spectre.IO.H5.ConvertFiniteRadiusRwzToSpec import (
+                convert_finite_radius_rwz_to_spec_command,
+            )
+
+            return convert_finite_radius_rwz_to_spec_command
         elif name == "delete-subfiles":
             from spectre.IO.H5.DeleteSubfiles import delete_subfiles_command
 
