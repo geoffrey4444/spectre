@@ -72,9 +72,7 @@ class TestCompareFiniteRadiusRwz(unittest.TestCase):
     def test_compare_finite_radius_rwz(self):
         compare_finite_radius_rwz(self.reference_file, self.matching_file)
         with self.assertRaises(AssertionError):
-            compare_finite_radius_rwz(
-                self.reference_file, self.mismatched_file
-            )
+            compare_finite_radius_rwz(self.reference_file, self.mismatched_file)
 
     def test_cli(self):
         runner = CliRunner()

@@ -1043,7 +1043,7 @@ Verification:
    structure.
 
 #### PR 6
-Status: started in this container
+Status: partially implemented and re-verified in a fresh container
 
 Summary:
 
@@ -1061,6 +1061,51 @@ Files:
 4. `tests/Unit/IO/H5/Python/Test_CompareFiniteRadiusRwz.py`
 5. `tests/Unit/IO/H5/Python/CMakeLists.txt`
 
+Verification:
+
+1. built the focused targets touched by PR 1 through PR 6:
+   `Test_GrSurfaces`,
+   `EvolveGhSingleBlackHole`,
+   `EvolveGhBinaryBlackHole`,
+2. built the missing Python bindings needed by the fresh-container test
+   environment:
+   `PyInformer`,
+   `PyH5`,
+   `all-pybindings`,
+3. ran the focused tests covering the files touched from
+   `b911057208c4dd3fef9c79fd4f970a526e4c97cf` through `HEAD`:
+   `InputFiles.GeneralizedHarmonic.CylindricalBinaryBlackHole.yaml.parse`,
+   `InputFiles.GeneralizedHarmonic.KerrSchild.yaml.parse`,
+   `InputFiles.GeneralizedHarmonic.KerrSchild.yaml.execute_check_output`,
+   `support.Python.Cli`,
+   `support.Python.Main`,
+   `support.Python.python-spectre`,
+   `Unit.IO.H5.Python.CompareFiniteRadiusRwz`,
+   `Unit.IO.H5.Python.ConvertFiniteRadiusRwzToSpec`,
+   `Unit.PointwiseFunctions.GeneralRelativity.Surfaces.ReggeWheelerZerilli`,
+4. reran that same focused test set after formatting the affected Python files
+   with `black`,
+5. confirmed `black --check .` passes for the repository Python tree.
+
+### Fresh-Container Review Findings
+
+1. the code and focused tests support the claim that PR 1 through PR 5 are
+   implemented in-tree and still pass in a fresh container once the needed
+   pybindings are built,
+2. the current PR 6 implementation adds the comparison tool and its unit test,
+   but it does not yet include a checked-in SpEC reference dataset or a
+   regression test that converts real SpECTRE output and compares
+   `rh_FiniteRadii_CodeUnits.h5` directly against SpEC output,
+3. because of that missing end-to-end validation artifact, this branch does
+   not yet prove that SpEC and SpECTRE give the same finite-radius RWZ `h`;
+   it proves that the conversion and comparison infrastructure exists and that
+   the current unit / input-file coverage passes,
+4. the next PR 6 step should therefore be to generate or check in a matched
+   SpEC / SpECTRE finite-radius RWZ dataset and add a regression-style test or
+   documented workflow that runs:
+   native SpECTRE output -> converter -> `compare-rwz` against SpEC
+   `rh_FiniteRadii_CodeUnits.h5`.
+
 ### Validation / Equivalence Notes
 
 1. the RWZ implementation intentionally stays on the tensor-harmonic
@@ -1071,11 +1116,15 @@ Files:
    it uses a flat Minkowski background rather than a Schwarzschild background,
 3. the current implementation is therefore still aimed at matching the
    standard SpEC BBH flat-background RWZ conventions first, before extending
-   Newman-Penrose coverage.
+   Newman-Penrose coverage,
+4. direct SpEC-vs-SpECTRE agreement for finite-radius `rh` remains an open
+   PR 6 validation item until a matched reference dataset is compared.
 
 ## Deferred Housekeeping
 
-1. run `black` on the Python files added or modified for RWZ work once a fresh
-   container with a healthy Python toolchain is available,
-2. after that, consider a broader repo-wide Python formatting pass if desired,
-   but keep it separate from scientific validation commits.
+1. `black` has now been run on the Python files added or modified for RWZ work
+   in this branch, and `black --check .` passes,
+2. if a broader repo-wide Python formatting pass is still desired, keep it
+   separate from the scientific validation work,
+3. the highest-priority remaining work is an end-to-end SpEC-vs-SpECTRE
+   finite-radius `rh` comparison using real matched data.
