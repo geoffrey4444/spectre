@@ -11,6 +11,7 @@
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/TagsDeclarations.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "Utilities/Gsl.hpp"
 
 namespace gr::surfaces {
@@ -29,6 +30,15 @@ struct ReggeWheelerZerilli {
   ComplexModalVector phi_plus{};
   ComplexModalVector phi_minus{};
   ComplexModalVector r_times_strain{};
+};
+
+/*!
+ * \ingroup SurfacesGroup
+ * \brief Proper-metric metadata on a finite extraction sphere.
+ */
+struct ExtractionSphereMetadata {
+  double average_lapse{0.0};
+  double areal_radius{0.0};
 };
 
 /*!
@@ -71,5 +81,14 @@ ReggeWheelerZerilli regge_wheeler_zerilli_moncrief_from_gh_vars(
     const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
     const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
     double extraction_radius);
+
+void extraction_sphere_metadata_from_gh_vars(
+    gsl::not_null<ExtractionSphereMetadata*> metadata,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const ylm::Strahlkorper<Frame::Inertial>& strahlkorper);
+
+ExtractionSphereMetadata extraction_sphere_metadata_from_gh_vars(
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const ylm::Strahlkorper<Frame::Inertial>& strahlkorper);
 
 }  // namespace gr::surfaces

@@ -577,7 +577,8 @@ struct EvolutionMetavars {
       tmpl::list<gh::gauges::Tags::GaugeCondition,
                  gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
                  gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>;
+                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
+                 intrp::callbacks::cache_tags::InitialAdmEnergy>;
 
   using mutable_global_cache_tags = tmpl::list<>;
 

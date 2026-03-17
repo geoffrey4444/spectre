@@ -195,6 +195,27 @@ void test_regge_wheeler_zerilli_from_gh_vars_minkowski() {
   }
 }
 
+void test_extraction_sphere_metadata_from_gh_vars_minkowski() {
+  const size_t l_max = 6;
+  const double radius = 7.5;
+  const std::array<double, 3> center{{0.0, 0.0, 0.0}};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const size_t number_of_points = strahlkorper.ylm_spherepack().physical_size();
+
+  tnsr::aa<DataVector, 3, Frame::Inertial> spacetime_metric{number_of_points,
+                                                            0.0};
+  get<0, 0>(spacetime_metric) = -1.0;
+  for (size_t i = 0; i < 3; ++i) {
+    spacetime_metric.get(i + 1, i + 1) = 1.0;
+  }
+
+  const auto metadata = gr::surfaces::extraction_sphere_metadata_from_gh_vars(
+      spacetime_metric, strahlkorper);
+  CHECK(metadata.average_lapse == approx(1.0));
+  CHECK(metadata.areal_radius == approx(radius));
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -203,4 +224,5 @@ SPECTRE_TEST_CASE(
     "[PointwiseFunctions][Unit]") {
   test_regge_wheeler_zerilli_moncrief();
   test_regge_wheeler_zerilli_from_gh_vars_minkowski();
+  test_extraction_sphere_metadata_from_gh_vars_minkowski();
 }
