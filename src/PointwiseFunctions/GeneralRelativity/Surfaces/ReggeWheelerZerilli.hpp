@@ -82,6 +82,39 @@ ReggeWheelerZerilli regge_wheeler_zerilli_moncrief_from_gh_vars(
     const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
     double extraction_radius);
 
+/*!
+ * \ingroup SurfacesGroup
+ * \brief Compute finite-radius \f$r \Psi_4^{\ell m}\f$ from 3+1 quantities on
+ * an extraction sphere.
+ *
+ * \details This follows the same high-level path as SpEC finite-radius
+ * extraction: form the propagating Weyl characteristic field \f$U^{8+}\f$ on
+ * the extraction sphere, decompose it into tensor spherical harmonics, select
+ * the spin-weight \f$-2\f$ component, and scale by the coordinate radius.
+ * Inputs and outputs use Goldberg ordering, with storage size
+ * `square(l_max + 1)`.
+ */
+void psi_4_modes_from_tensors(
+    gsl::not_null<ComplexModalVector*> r_times_psi_4,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_ricci,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& extrinsic_curvature,
+    const tnsr::ijj<DataVector, 3, Frame::Inertial>&
+        cov_deriv_extrinsic_curvature,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    double extraction_radius);
+
+ComplexModalVector psi_4_modes_from_tensors(
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_ricci,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& extrinsic_curvature,
+    const tnsr::ijj<DataVector, 3, Frame::Inertial>&
+        cov_deriv_extrinsic_curvature,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    double extraction_radius);
+
 void extraction_sphere_metadata_from_gh_vars(
     gsl::not_null<ExtractionSphereMetadata*> metadata,
     const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,

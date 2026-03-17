@@ -19,10 +19,12 @@
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlm.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlmCartToSphere.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ProjectionOperators.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpatialMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/AreaElement.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/SurfaceIntegralOfScalar.hpp"
+#include "PointwiseFunctions/GeneralRelativity/WeylPropagating.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Gsl.hpp"
@@ -430,6 +432,110 @@ ReggeWheelerZerilli regge_wheeler_zerilli_moncrief_from_gh_vars(
       make_not_null(&rwz_quantities), spacetime_metric, pi, phi,
       inertial_coords, ylm_spherepack, center, extraction_radius);
   return rwz_quantities;
+}
+
+void psi_4_modes_from_tensors(
+    const gsl::not_null<ComplexModalVector*> r_times_psi_4,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_ricci,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& extrinsic_curvature,
+    const tnsr::ijj<DataVector, 3, Frame::Inertial>&
+        cov_deriv_extrinsic_curvature,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    const double extraction_radius) {
+  ASSERT(
+      extraction_radius > 0.0,
+      "The extraction radius must be positive, but is " << extraction_radius);
+  ASSERT(get<0>(inertial_coords).size() == ylm_spherepack.physical_size(),
+         "Expected one extraction sphere worth of nodal points ("
+             << ylm_spherepack.physical_size() << "), but received "
+             << get<0>(inertial_coords).size());
+
+  const size_t l_max = ylm_spherepack.l_max();
+  const size_t number_of_points = get<0>(inertial_coords).size();
+
+  const auto spatial_metric = gr::spatial_metric(spacetime_metric);
+  const auto inverse_spatial_metric =
+      determinant_and_inverse(spatial_metric).second;
+
+  tnsr::I<DataVector, 3, Frame::Inertial> centered_coords{number_of_points};
+  for (size_t i = 0; i < 3; ++i) {
+    centered_coords.get(i) = inertial_coords.get(i) - gsl::at(center, i);
+  }
+
+  Scalar<DataVector> centered_radius{number_of_points, 0.0};
+  for (size_t s = 0; s < number_of_points; ++s) {
+    double radius_squared = 0.0;
+    for (size_t i = 0; i < 3; ++i) {
+      for (size_t j = 0; j < 3; ++j) {
+        radius_squared += spatial_metric.get(i, j)[s] *
+                          centered_coords.get(i)[s] * centered_coords.get(j)[s];
+      }
+    }
+    get(centered_radius)[s] = sqrt(radius_squared);
+  }
+
+  tnsr::I<DataVector, 3, Frame::Inertial> radial_unit_vector{number_of_points};
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t s = 0; s < number_of_points; ++s) {
+      radial_unit_vector.get(i)[s] =
+          get(centered_radius)[s] > 0.0
+              ? centered_coords.get(i)[s] / get(centered_radius)[s]
+              : 0.0;
+    }
+  }
+
+  tnsr::i<DataVector, 3, Frame::Inertial> radial_unit_one_form{number_of_points,
+                                                               0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 3; ++j) {
+      radial_unit_one_form.get(i) +=
+          spatial_metric.get(i, j) * radial_unit_vector.get(j);
+    }
+  }
+
+  const auto projection_tensor =
+      gr::transverse_projection_operator(spatial_metric, radial_unit_one_form);
+  const auto inverse_projection_tensor = gr::transverse_projection_operator(
+      inverse_spatial_metric, radial_unit_vector);
+  const auto projection_up_lo = gr::transverse_projection_operator(
+      radial_unit_vector, radial_unit_one_form);
+
+  const auto u8_plus = gr::weyl_propagating(
+      spatial_ricci, extrinsic_curvature, inverse_spatial_metric,
+      cov_deriv_extrinsic_curvature, radial_unit_vector,
+      inverse_projection_tensor, projection_tensor, projection_up_lo, 1.0);
+  const auto u8_plus_modes =
+      cartesian_to_spherical_tensor_modes(u8_plus, ylm_spherepack);
+
+  *r_times_psi_4 = ComplexModalVector{square(l_max + 1), 0.0};
+  for (size_t l = 0; l <= l_max; ++l) {
+    for (int m = 0; m <= static_cast<int>(l); ++m) {
+      set_goldberg_mode(
+          r_times_psi_4, l_max, l, m,
+          extraction_radius * standard_mode_from_spherepack(
+                                  u8_plus_modes.get(1, 1), l_max, l, m));
+    }
+  }
+  fill_negative_m_modes(r_times_psi_4, l_max);
+}
+
+ComplexModalVector psi_4_modes_from_tensors(
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_ricci,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& extrinsic_curvature,
+    const tnsr::ijj<DataVector, 3, Frame::Inertial>&
+        cov_deriv_extrinsic_curvature,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    const double extraction_radius) {
+  ComplexModalVector r_times_psi_4{};
+  psi_4_modes_from_tensors(make_not_null(&r_times_psi_4), spacetime_metric,
+                           spatial_ricci, extrinsic_curvature,
+                           cov_deriv_extrinsic_curvature, inertial_coords,
+                           ylm_spherepack, center, extraction_radius);
+  return r_times_psi_4;
 }
 
 void extraction_sphere_metadata_from_gh_vars(

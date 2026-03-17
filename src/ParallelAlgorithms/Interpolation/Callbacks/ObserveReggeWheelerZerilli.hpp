@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/DataBox/Tag.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
@@ -149,13 +150,21 @@ struct ObserveReggeWheelerZerilli
   using gh_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>;
+  using finite_radius_source_vars =
+      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
+                 gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
+                 gr::Tags::SpatialRicci<DataVector, 3, Frame::Inertial>,
+                 gr::Tags::ExtrinsicCurvature<DataVector, 3, Frame::Inertial>,
+                 ::Tags::deriv<gr::Tags::ExtrinsicCurvature<DataVector, 3,
+                                                            Frame::Inertial>,
+                               tmpl::size_t<3>, Frame::Inertial>>;
 
   static_assert(
       std::is_same_v<
           typename InterpolationTargetTag::vars_to_interpolate_to_target,
-          gh_source_vars>,
-      "ObserveReggeWheelerZerilli requires GH spacetime metric, Pi, and Phi "
-      "to be interpolated to the target.");
+          finite_radius_source_vars>,
+      "ObserveReggeWheelerZerilli requires the finite-radius GH extraction "
+      "payload to be interpolated to the target.");
 
   static_assert(
       std::is_same_v<typename InterpolationTargetTag::compute_target_points,
@@ -189,6 +198,13 @@ struct ObserveReggeWheelerZerilli
         get<gr::Tags::SpacetimeMetric<DataVector, 3>>(box);
     const auto& all_pi = get<gh::Tags::Pi<DataVector, 3>>(box);
     const auto& all_phi = get<gh::Tags::Phi<DataVector, 3>>(box);
+    const auto& all_spatial_ricci =
+        get<gr::Tags::SpatialRicci<DataVector, 3, Frame::Inertial>>(box);
+    const auto& all_extrinsic_curvature =
+        get<gr::Tags::ExtrinsicCurvature<DataVector, 3, Frame::Inertial>>(box);
+    const auto& all_cov_deriv_extrinsic_curvature = get<::Tags::deriv<
+        gr::Tags::ExtrinsicCurvature<DataVector, 3, Frame::Inertial>,
+        tmpl::size_t<3>, Frame::Inertial>>(box);
     const auto& all_coords = get<Tags::AllCoords<::Frame::Inertial>>(box);
 
     const std::string filename =
@@ -204,6 +220,10 @@ struct ObserveReggeWheelerZerilli
       const tnsr::aa<DataVector, 3, ::Frame::Inertial> spacetime_metric;
       const tnsr::aa<DataVector, 3, ::Frame::Inertial> pi;
       const tnsr::iaa<DataVector, 3, ::Frame::Inertial> phi;
+      const tnsr::ii<DataVector, 3, ::Frame::Inertial> spatial_ricci;
+      const tnsr::ii<DataVector, 3, ::Frame::Inertial> extrinsic_curvature;
+      const tnsr::ijj<DataVector, 3, ::Frame::Inertial>
+          cov_deriv_extrinsic_curvature;
       const tnsr::I<DataVector, 3, ::Frame::Inertial> coords;
 
       for (size_t a = 0; a < 4; ++a) {
@@ -221,6 +241,22 @@ struct ObserveReggeWheelerZerilli
         }
       }
       for (size_t i = 0; i < 3; ++i) {
+        for (size_t j = i; j < 3; ++j) {
+          make_const_view(make_not_null(&spatial_ricci.get(i, j)),
+                          all_spatial_ricci.get(i, j), offset,
+                          num_points_single_sphere);
+          make_const_view(make_not_null(&extrinsic_curvature.get(i, j)),
+                          all_extrinsic_curvature.get(i, j), offset,
+                          num_points_single_sphere);
+          for (size_t k = 0; k < 3; ++k) {
+            make_const_view(
+                make_not_null(&cov_deriv_extrinsic_curvature.get(k, i, j)),
+                all_cov_deriv_extrinsic_curvature.get(k, i, j), offset,
+                num_points_single_sphere);
+          }
+        }
+      }
+      for (size_t i = 0; i < 3; ++i) {
         make_const_view(make_not_null(&coords.get(i)), all_coords.get(i),
                         offset, num_points_single_sphere);
       }
@@ -232,6 +268,10 @@ struct ObserveReggeWheelerZerilli
           gr::surfaces::regge_wheeler_zerilli_moncrief_from_gh_vars(
               spacetime_metric, pi, phi, coords, strahlkorper.ylm_spherepack(),
               sphere.center, radius);
+      const auto r_times_psi_4 = gr::surfaces::psi_4_modes_from_tensors(
+          spacetime_metric, spatial_ricci, extrinsic_curvature,
+          cov_deriv_extrinsic_curvature, coords, strahlkorper.ylm_spherepack(),
+          sphere.center, radius);
       const auto metadata =
           gr::surfaces::extraction_sphere_metadata_from_gh_vars(
               spacetime_metric, strahlkorper);
@@ -260,6 +300,9 @@ struct ObserveReggeWheelerZerilli
       detail::write_rwz_quantity(make_not_null(&output_file),
                                  base_subfile + "/PhiMinus", rwz.phi_minus,
                                  l_max, time);
+      detail::write_rwz_quantity(make_not_null(&output_file),
+                                 base_subfile + "/Psi4", r_times_psi_4, l_max,
+                                 time);
 
       offset += num_points_single_sphere;
     }

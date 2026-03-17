@@ -23,11 +23,13 @@ _OUTPUT_FILES = {
     "Strain": "rh_FiniteRadii_CodeUnits.h5",
     "PhiPlus": "PhiPlus_FiniteRadii_CodeUnits.h5",
     "PhiMinus": "PhiMinus_FiniteRadii_CodeUnits.h5",
+    "Psi4": "rPsi4_FiniteRadii_CodeUnits.h5",
 }
 _OUTPUT_DATASET_NAMES = {
     "Strain": "rh",
     "PhiPlus": "PhiPlus",
     "PhiMinus": "PhiMinus",
+    "Psi4": "rPsi4",
 }
 _METADATA_QUANTITIES = (
     "CoordRadius",
@@ -126,6 +128,7 @@ def convert_finite_radius_rwz_to_spec(
     - rh_FiniteRadii_CodeUnits.h5
     - PhiPlus_FiniteRadii_CodeUnits.h5
     - PhiMinus_FiniteRadii_CodeUnits.h5
+    - rPsi4_FiniteRadii_CodeUnits.h5
     """
 
     native_data = _collect_native_rwz_data(h5_filename, target)

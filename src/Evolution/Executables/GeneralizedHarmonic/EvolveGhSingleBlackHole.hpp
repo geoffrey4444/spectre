@@ -25,6 +25,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/FactoryHelpers.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
 #include "Options/String.hpp"
@@ -171,7 +172,15 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                  gh::Tags::Pi<DataVector, volume_dim>,
                  gh::Tags::Phi<DataVector, volume_dim>>;
-
+  using finite_radius_source_vars = tmpl::list<
+      gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
+      gh::Tags::Pi<DataVector, volume_dim>,
+      gh::Tags::Phi<DataVector, volume_dim>,
+      gr::Tags::SpatialRicci<DataVector, volume_dim, Frame::Inertial>,
+      gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+      ::Tags::deriv<
+          gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+          tmpl::size_t<volume_dim>, Frame::Inertial>>;
   struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "BondiSachsInterpolation"; }
     using temporal_id = ::Tags::Time;
@@ -189,8 +198,8 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
       : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "FiniteRadiusExtraction"; }
     using temporal_id = ::Tags::Time;
-    using tags_to_observe = source_vars_no_deriv;
-    using vars_to_interpolate_to_target = source_vars_no_deriv;
+    using tags_to_observe = finite_radius_source_vars;
+    using vars_to_interpolate_to_target = finite_radius_source_vars;
     using compute_target_points =
         intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
     using post_interpolation_callbacks = tmpl::list<
@@ -217,20 +226,21 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
             tmpl::pair<LtsTimeStepper,
                        TimeSteppers::monotonic_lts_time_steppers>>,
         tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       ah::Events::FindApparentHorizon<ApparentHorizon>,
-                       control_system::metafunctions::control_system_events<
-                           control_systems>,
-                       control_system::CleanFunctionsOfTime,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, BondiSachs, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, FiniteRadiusExtraction, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
-                       amr::Events::RefineMesh,
-                       amr::Events::ObserveAmrStats<volume_dim>>>>,
+        tmpl::pair<
+            Event,
+            tmpl::flatten<tmpl::list<
+                ah::Events::FindApparentHorizon<ApparentHorizon>,
+                control_system::metafunctions::control_system_events<
+                    control_systems>,
+                control_system::CleanFunctionsOfTime,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, BondiSachs, source_vars_no_deriv>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, FiniteRadiusExtraction, finite_radius_source_vars>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
+                amr::Events::RefineMesh,
+                amr::Events::ObserveAmrStats<volume_dim>>>>,
         tmpl::pair<DenseTrigger,
                    control_system::control_system_triggers<control_systems>>,
         tmpl::pair<control_system::size::State,

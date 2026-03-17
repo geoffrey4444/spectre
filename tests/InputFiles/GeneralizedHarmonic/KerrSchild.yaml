@@ -16,6 +16,10 @@ OutputFileChecks:
     FileGlob: "GhKerrSchildReductions.h5"
     AbsoluteTolerance: 1e2
 
+ExtraFileCheckExecs:
+  - Label: "check_finite_radius_rwz_and_psi4_outputs"
+    Executable: "CheckGhKerrSchildFiniteRadius.py"
+
 ---
 
 Parallelization:
@@ -277,7 +281,7 @@ InterpolationTargets:
     AngularOrdering: Cce
   FiniteRadiusExtraction:
     LMax: 8
-    Radius: 10.0
+    Radius: 2.1
     Center: [0, 0, 0]
     AngularOrdering: Strahlkorper
   ExcisionBoundary: &ExBdry
