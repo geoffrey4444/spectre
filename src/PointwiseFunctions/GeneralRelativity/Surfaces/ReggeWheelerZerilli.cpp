@@ -11,10 +11,18 @@
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/SimpleSparseMatrix.hpp"
+#include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlm.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlmCartToSphere.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpatialMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Surfaces/AreaElement.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Surfaces/SurfaceIntegralOfScalar.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Gsl.hpp"
@@ -422,6 +430,44 @@ ReggeWheelerZerilli regge_wheeler_zerilli_moncrief_from_gh_vars(
       make_not_null(&rwz_quantities), spacetime_metric, pi, phi,
       inertial_coords, ylm_spherepack, center, extraction_radius);
   return rwz_quantities;
+}
+
+void extraction_sphere_metadata_from_gh_vars(
+    const gsl::not_null<ExtractionSphereMetadata*> metadata,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const ylm::Strahlkorper<Frame::Inertial>& strahlkorper) {
+  const auto spatial_metric = gr::spatial_metric(spacetime_metric);
+  const auto inverse_spatial_metric =
+      determinant_and_inverse(spatial_metric).second;
+  const auto shift = gr::shift(spacetime_metric, inverse_spatial_metric);
+  const auto lapse = gr::lapse(shift, spacetime_metric);
+
+  const auto theta_phi = ylm::theta_phi(strahlkorper);
+  const auto r_hat = ylm::rhat<Frame::Inertial>(theta_phi);
+  const auto jacobian = ylm::jacobian<Frame::Inertial>(theta_phi);
+  const auto radius = ylm::radius(strahlkorper);
+  tnsr::i<DataVector, 3, Frame::Inertial> zero_dx_radius{get(lapse).size(),
+                                                         0.0};
+  const auto normal_one_form = ylm::normal_one_form(zero_dx_radius, r_hat);
+  const auto proper_area_element = gr::surfaces::area_element(
+      spatial_metric, jacobian, normal_one_form, radius, r_hat);
+
+  Scalar<DataVector> unity{get(lapse).size(), 1.0};
+  const double proper_area = gr::surfaces::surface_integral_of_scalar(
+      proper_area_element, unity, strahlkorper);
+  metadata->average_lapse = gr::surfaces::surface_integral_of_scalar(
+                                proper_area_element, lapse, strahlkorper) /
+                            proper_area;
+  metadata->areal_radius = sqrt(proper_area / (4.0 * M_PI));
+}
+
+ExtractionSphereMetadata extraction_sphere_metadata_from_gh_vars(
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const ylm::Strahlkorper<Frame::Inertial>& strahlkorper) {
+  ExtractionSphereMetadata metadata{};
+  extraction_sphere_metadata_from_gh_vars(make_not_null(&metadata),
+                                          spacetime_metric, strahlkorper);
+  return metadata;
 }
 
 }  // namespace gr::surfaces

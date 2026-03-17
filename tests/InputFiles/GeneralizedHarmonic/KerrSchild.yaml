@@ -237,6 +237,8 @@ Observers:
   ReductionFileName: "GhKerrSchildReductions"
   SurfaceFileName: "GhKerrSchildSurfaces"
 
+InitialAdmEnergy: 1.0
+
 Interpolator:
   Verbosity: Silent
 

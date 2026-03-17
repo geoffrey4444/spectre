@@ -6,12 +6,14 @@
 #include <cstddef>
 #include <iomanip>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/Tag.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -25,6 +27,8 @@
 #include "IO/Observer/Tags.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/AngularOrdering.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
+#include "Options/Auto.hpp"
+#include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "ParallelAlgorithms/Interpolation/InterpolationTargetDetail.hpp"
 #include "ParallelAlgorithms/Interpolation/Protocols/PostInterpolationCallback.hpp"
@@ -49,6 +53,29 @@ struct H5FileLock;
 /// \endcond
 
 namespace intrp::callbacks {
+namespace option_tags {
+
+struct InitialAdmEnergy {
+  using type = Options::Auto<double>;
+  static constexpr Options::String help = {
+      "Initial ADM energy metadata to write into finite-radius RWZ files. "
+      "If set to 'Auto', the native RWZ output stores NaN for this quantity."};
+};
+
+}  // namespace option_tags
+
+namespace cache_tags {
+
+struct InitialAdmEnergy : db::SimpleTag {
+  using type = std::optional<double>;
+  using option_tags = tmpl::list<option_tags::InitialAdmEnergy>;
+
+  static constexpr bool pass_metavariables = false;
+  static type create_from_options(const type& option) { return option; }
+};
+
+}  // namespace cache_tags
+
 namespace detail {
 
 inline std::vector<std::string> rwz_legend(const size_t l_max) {
@@ -98,6 +125,16 @@ inline void write_rwz_quantity(
   output_file->close_current_object();
 }
 
+inline void write_scalar_quantity(
+    const gsl::not_null<h5::H5File<h5::AccessType::ReadWrite>*> output_file,
+    const std::string& subfile_name, const std::string& legend_name,
+    const double value, const double time) {
+  auto& dataset = output_file->try_insert<h5::Dat>(
+      subfile_name, std::vector<std::string>{"Time", legend_name}, 0);
+  dataset.append(std::vector<double>{time, value});
+  output_file->close_current_object();
+}
+
 }  // namespace detail
 
 template <typename InterpolationTargetTag>
@@ -106,7 +143,8 @@ struct ObserveReggeWheelerZerilli
   static constexpr double fill_invalid_points_with =
       std::numeric_limits<double>::quiet_NaN();
 
-  using const_global_cache_tags = tmpl::list<observers::Tags::SurfaceFileName>;
+  using const_global_cache_tags = tmpl::list<observers::Tags::SurfaceFileName,
+                                             cache_tags::InitialAdmEnergy>;
 
   using gh_source_vars =
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
@@ -155,6 +193,9 @@ struct ObserveReggeWheelerZerilli
 
     const std::string filename =
         Parallel::get<observers::Tags::SurfaceFileName>(cache) + ".h5";
+    const double initial_adm_energy =
+        Parallel::get<cache_tags::InitialAdmEnergy>(cache).value_or(
+            std::numeric_limits<double>::quiet_NaN());
     const std::lock_guard lock(*hdf5_lock);
     h5::H5File<h5::AccessType::ReadWrite> output_file(filename, true);
 
@@ -191,10 +232,25 @@ struct ObserveReggeWheelerZerilli
           gr::surfaces::regge_wheeler_zerilli_moncrief_from_gh_vars(
               spacetime_metric, pi, phi, coords, strahlkorper.ylm_spherepack(),
               sphere.center, radius);
+      const auto metadata =
+          gr::surfaces::extraction_sphere_metadata_from_gh_vars(
+              spacetime_metric, strahlkorper);
 
       const std::string base_subfile =
           "/" + pretty_type::name<InterpolationTargetTag>() + "/Radius" +
           detail::radius_label(radius);
+      detail::write_scalar_quantity(make_not_null(&output_file),
+                                    base_subfile + "/CoordRadius",
+                                    "CoordRadius", radius, time);
+      detail::write_scalar_quantity(
+          make_not_null(&output_file), base_subfile + "/InitialAdmEnergy",
+          "InitialAdmEnergy", initial_adm_energy, time);
+      detail::write_scalar_quantity(
+          make_not_null(&output_file), base_subfile + "/AverageLapse",
+          "AverageLapse", metadata.average_lapse, time);
+      detail::write_scalar_quantity(make_not_null(&output_file),
+                                    base_subfile + "/ArealRadius",
+                                    "ArealRadius", metadata.areal_radius, time);
       detail::write_rwz_quantity(make_not_null(&output_file),
                                  base_subfile + "/Strain", rwz.r_times_strain,
                                  l_max, time);

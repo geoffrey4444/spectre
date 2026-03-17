@@ -310,6 +310,8 @@ Observers:
   ReductionFileName: "GhBinaryBlackHoleReductionData"
   SurfaceFileName: "GhBinaryBlackHoleSurfacesData"
 
+InitialAdmEnergy: 1.0
+
 Interpolator:
   Verbosity: Silent
 
