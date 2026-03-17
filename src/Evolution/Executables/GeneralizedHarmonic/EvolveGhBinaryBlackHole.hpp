@@ -361,9 +361,27 @@ struct EvolutionMetavars {
     using interpolating_component = typename metavariables::gh_dg_element_array;
   };
 
+  struct FiniteRadiusExtraction
+      : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+    static std::string name() { return "FiniteRadiusExtraction"; }
+    using temporal_id = ::Tags::Time;
+    using tags_to_observe = source_vars_no_deriv;
+    using vars_to_interpolate_to_target = source_vars_no_deriv;
+    using compute_target_points =
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction,
+                                    ::Frame::Inertial>;
+    using post_interpolation_callbacks =
+        tmpl::list<intrp::callbacks::ObserveSurfaceData<
+            tags_to_observe, FiniteRadiusExtraction, ::Frame::Inertial>>;
+    using compute_items_on_target = tmpl::list<>;
+    template <typename metavariables>
+    using interpolating_component = typename metavariables::gh_dg_element_array;
+  };
+
   using interpolation_target_tags = tmpl::push_back<
       control_system::metafunctions::interpolation_target_tags<control_systems>,
-      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB>;
+      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB,
+      FiniteRadiusExtraction>;
 
   using observe_fields = tmpl::append<
       tmpl::list<
@@ -501,6 +519,8 @@ struct EvolutionMetavars {
                        gh::bbh::Events::CheckConstraintThresholds,
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, BondiSachs, source_vars_no_deriv>,
+                       intrp::Events::InterpolateWithoutInterpComponent<
+                           3, FiniteRadiusExtraction, source_vars_no_deriv>,
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, ExcisionBoundaryA, ah::source_vars<3>>,
                        intrp::Events::InterpolateWithoutInterpComponent<
@@ -693,7 +713,9 @@ struct EvolutionMetavars {
                          Parallel::Actions::TerminatePhase>>>>>;
 
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
-      tmpl::at<typename factory_creation::factory_classes, Event>>;
+      tmpl::push_back<
+          tmpl::at<typename factory_creation::factory_classes, Event>,
+          typename FiniteRadiusExtraction::post_interpolation_callbacks>>;
 
   struct registration
       : tt::ConformsTo<Parallel::protocols::RegistrationMetavariables> {

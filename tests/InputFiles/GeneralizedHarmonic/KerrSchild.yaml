@@ -212,6 +212,7 @@ EventsAndTriggersAtSlabs:
     Events:
       - ApparentHorizon
       - ExcisionBoundary
+      - FiniteRadiusExtraction
   - Trigger:
       Slabs:
         Specified:
@@ -272,6 +273,11 @@ InterpolationTargets:
     Radius: [100, 150, 200]
     Center: [0, 0, 0]
     AngularOrdering: Cce
+  FiniteRadiusExtraction:
+    LMax: 8
+    Radius: 10.0
+    Center: [0, 0, 0]
+    AngularOrdering: Strahlkorper
   ExcisionBoundary: &ExBdry
     LMax: *LMax
     Center: *Center

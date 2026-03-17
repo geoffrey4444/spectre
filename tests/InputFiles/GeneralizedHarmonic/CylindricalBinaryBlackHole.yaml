@@ -256,6 +256,7 @@ EventsAndTriggersAtSlabs:
     Events:
       - ObservationAhA
       - ObservationAhB
+      - FiniteRadiusExtraction
   - Trigger:
       Slabs:
         EvenlySpaced:
@@ -363,6 +364,11 @@ InterpolationTargets:
     Radius: [100, 150, 200]
     Center: [0, 0, 0]
     AngularOrdering: Cce
+  FiniteRadiusExtraction:
+    LMax: 8
+    Radius: 24.0
+    Center: [0, 0, 0]
+    AngularOrdering: Strahlkorper
   ObservationExcisionBoundaryA: &ExBdryA
     LMax: *LMax
     Radius: *RadiusA
