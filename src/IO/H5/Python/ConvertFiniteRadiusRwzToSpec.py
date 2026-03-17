@@ -15,7 +15,6 @@ import numpy as np
 import spectre.IO.H5 as spectre_h5
 from spectre.IO.H5 import available_subfiles
 
-
 _NATIVE_SUBFILE_PATTERN = re.compile(
     r"^(?P<target>[^/]+)/(?P<radius>[^/]+)/(?P<quantity>[^/]+)\.dat$"
 )
@@ -190,6 +189,7 @@ def convert_finite_radius_rwz_to_spec(
                     ],
                     mode_data,
                 )
+
 
 @click.command(
     name="convert-rwz-to-spec", help=convert_finite_radius_rwz_to_spec.__doc__

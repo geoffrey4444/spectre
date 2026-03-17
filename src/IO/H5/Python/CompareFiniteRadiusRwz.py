@@ -21,8 +21,12 @@ def compare_finite_radius_rwz(
     with h5py.File(reference_h5, "r") as reference_file, h5py.File(
         candidate_h5, "r"
     ) as candidate_file:
-        reference_subfiles = available_subfiles(reference_file, extension=".dat")
-        candidate_subfiles = available_subfiles(candidate_file, extension=".dat")
+        reference_subfiles = available_subfiles(
+            reference_file, extension=".dat"
+        )
+        candidate_subfiles = available_subfiles(
+            candidate_file, extension=".dat"
+        )
         if reference_subfiles != candidate_subfiles:
             raise ValueError(
                 "RWZ files do not contain the same dat subfiles.\n"
