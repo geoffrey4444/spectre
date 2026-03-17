@@ -16,6 +16,7 @@ spectre_python_add_module(
   VolumeData.cpp
   PYTHON_FILES
   __init__.py
+  CompareFiniteRadiusRwz.py
   CombineH5.py
   CombineH5Dat.py
   ConvertFiniteRadiusRwzToSpec.py
