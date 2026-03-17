@@ -216,6 +216,39 @@ void test_extraction_sphere_metadata_from_gh_vars_minkowski() {
   CHECK(metadata.areal_radius == approx(radius));
 }
 
+void test_psi_4_modes_from_tensors_minkowski() {
+  const size_t l_max = 5;
+  const double radius = 6.0;
+  const std::array<double, 3> center{{0.2, -0.3, 0.4}};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const size_t number_of_points = get<0>(coords).size();
+
+  tnsr::aa<DataVector, 3, Frame::Inertial> spacetime_metric{number_of_points,
+                                                            0.0};
+  get<0, 0>(spacetime_metric) = -1.0;
+  for (size_t i = 0; i < 3; ++i) {
+    spacetime_metric.get(i + 1, i + 1) = 1.0;
+  }
+
+  const tnsr::ii<DataVector, 3, Frame::Inertial> spatial_ricci{number_of_points,
+                                                               0.0};
+  const tnsr::ii<DataVector, 3, Frame::Inertial> extrinsic_curvature{
+      number_of_points, 0.0};
+  const tnsr::ijj<DataVector, 3, Frame::Inertial> cov_deriv_extrinsic_curvature{
+      number_of_points, 0.0};
+
+  const auto r_times_psi_4 = gr::surfaces::psi_4_modes_from_tensors(
+      spacetime_metric, spatial_ricci, extrinsic_curvature,
+      cov_deriv_extrinsic_curvature, coords, strahlkorper.ylm_spherepack(),
+      center, radius);
+
+  for (const auto& mode_value : r_times_psi_4) {
+    CHECK(mode_value == std::complex<double>{0.0, 0.0});
+  }
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -225,4 +258,5 @@ SPECTRE_TEST_CASE(
   test_regge_wheeler_zerilli_moncrief();
   test_regge_wheeler_zerilli_from_gh_vars_minkowski();
   test_extraction_sphere_metadata_from_gh_vars_minkowski();
+  test_psi_4_modes_from_tensors_minkowski();
 }

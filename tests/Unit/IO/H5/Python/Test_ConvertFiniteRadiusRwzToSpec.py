@@ -209,6 +209,58 @@ class TestConvertFiniteRadiusRwzToSpec(unittest.TestCase):
                         ]
                     ),
                 ),
+                (
+                    "/FiniteRadiusExtraction/Radius24_0/Psi4",
+                    [
+                        "Time",
+                        "Re(0,0)",
+                        "Im(0,0)",
+                        "Re(2,-2)",
+                        "Im(2,-2)",
+                        "Re(2,-1)",
+                        "Im(2,-1)",
+                        "Re(2,0)",
+                        "Im(2,0)",
+                        "Re(2,1)",
+                        "Im(2,1)",
+                        "Re(2,2)",
+                        "Im(2,2)",
+                    ],
+                    np.array(
+                        [
+                            [
+                                0.0,
+                                0.0,
+                                0.0,
+                                0.6,
+                                -0.6,
+                                0.7,
+                                -0.7,
+                                0.8,
+                                -0.8,
+                                0.9,
+                                -0.9,
+                                1.0,
+                                -1.0,
+                            ],
+                            [
+                                1.0,
+                                0.0,
+                                0.0,
+                                0.65,
+                                -0.65,
+                                0.75,
+                                -0.75,
+                                0.85,
+                                -0.85,
+                                0.95,
+                                -0.95,
+                                1.05,
+                                -1.05,
+                            ],
+                        ]
+                    ),
+                ),
             ):
                 dat_file = h5file.insert_dat(
                     path=quantity, legend=legend, version=0
@@ -230,6 +282,9 @@ class TestConvertFiniteRadiusRwzToSpec(unittest.TestCase):
             ),
             "PhiMinus": os.path.join(
                 self.output_dir, "PhiMinus_FiniteRadii_CodeUnits.h5"
+            ),
+            "Psi4": os.path.join(
+                self.output_dir, "rPsi4_FiniteRadii_CodeUnits.h5"
             ),
         }
         for output_file in output_files.values():
@@ -259,6 +314,21 @@ class TestConvertFiniteRadiusRwzToSpec(unittest.TestCase):
             np.testing.assert_allclose(
                 h5file["R0024.dir/Y_l2_m2.dat"],
                 [[0.0, 5.0, -5.0], [1.0, 5.5, -5.5]],
+            )
+
+        with h5py.File(output_files["Psi4"], "r") as h5file:
+            self.assertIn("R0024.dir/Y_l2_m2.dat", h5file)
+            self.assertEqual(
+                list(h5file["R0024.dir/Y_l2_m2.dat"].attrs["Legend"]),
+                [
+                    "time",
+                    "Re[rPsi4]_l2_m2(R=24)",
+                    "Im[rPsi4]_l2_m2(R=24)",
+                ],
+            )
+            np.testing.assert_allclose(
+                h5file["R0024.dir/Y_l2_m2.dat"],
+                [[0.0, 1.0, -1.0], [1.0, 1.05, -1.05]],
             )
 
     def test_cli(self):

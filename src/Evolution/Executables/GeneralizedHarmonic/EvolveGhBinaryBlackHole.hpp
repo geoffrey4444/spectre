@@ -77,6 +77,7 @@
 #include "IO/Observer/Tags.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/ExponentialFilter.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/Options.hpp"
 #include "Options/ParseOptions.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
@@ -348,7 +349,15 @@ struct EvolutionMetavars {
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                  gh::Tags::Pi<DataVector, volume_dim>,
                  gh::Tags::Phi<DataVector, volume_dim>>;
-
+  using finite_radius_source_vars = tmpl::list<
+      gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
+      gh::Tags::Pi<DataVector, volume_dim>,
+      gh::Tags::Phi<DataVector, volume_dim>,
+      gr::Tags::SpatialRicci<DataVector, volume_dim, Frame::Inertial>,
+      gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+      ::Tags::deriv<
+          gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+          tmpl::size_t<volume_dim>, Frame::Inertial>>;
   struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "BondiSachsInterpolation"; }
     using temporal_id = ::Tags::Time;
@@ -366,8 +375,8 @@ struct EvolutionMetavars {
       : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "FiniteRadiusExtraction"; }
     using temporal_id = ::Tags::Time;
-    using tags_to_observe = source_vars_no_deriv;
-    using vars_to_interpolate_to_target = source_vars_no_deriv;
+    using tags_to_observe = finite_radius_source_vars;
+    using vars_to_interpolate_to_target = finite_radius_source_vars;
     using compute_target_points =
         intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
     using post_interpolation_callbacks = tmpl::list<
@@ -508,32 +517,33 @@ struct EvolutionMetavars {
             DomainCreator<volume_dim>,
             tmpl::list<::domain::creators::BinaryCompactObject<false>,
                        ::domain::creators::CylindricalBinaryCompactObject>>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       ah::Events::FindApparentHorizon<AhA>,
-                       ah::Events::FindApparentHorizon<AhB>,
-                       ah::Events::FindCommonHorizon<AhC, observe_fields,
-                                                     non_tensor_compute_tags>,
-                       gh::bbh::Events::CheckConstraintThresholds,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, BondiSachs, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, FiniteRadiusExtraction, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryA, ah::source_vars<3>>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryB, ah::source_vars<3>>,
-                       Events::MonitorMemory<3>, Events::Completion,
-                       dg::Events::field_observations<
-                           volume_dim, observe_fields, non_tensor_compute_tags>,
-                       control_system::metafunctions::control_system_events<
-                           control_systems>,
-                       control_system::CleanFunctionsOfTime,
-                       Events::time_events<system>,
-                       dg::Events::ObserveTimeStepVolume<system>,
-                       amr::Events::RefineMesh,
-                       amr::Events::ObserveAmrStats<volume_dim>,
-                       amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
+        tmpl::pair<
+            Event,
+            tmpl::flatten<tmpl::list<
+                ah::Events::FindApparentHorizon<AhA>,
+                ah::Events::FindApparentHorizon<AhB>,
+                ah::Events::FindCommonHorizon<AhC, observe_fields,
+                                              non_tensor_compute_tags>,
+                gh::bbh::Events::CheckConstraintThresholds,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, BondiSachs, source_vars_no_deriv>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, FiniteRadiusExtraction, finite_radius_source_vars>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundaryA, ah::source_vars<3>>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundaryB, ah::source_vars<3>>,
+                Events::MonitorMemory<3>, Events::Completion,
+                dg::Events::field_observations<volume_dim, observe_fields,
+                                               non_tensor_compute_tags>,
+                control_system::metafunctions::control_system_events<
+                    control_systems>,
+                control_system::CleanFunctionsOfTime,
+                Events::time_events<system>,
+                dg::Events::ObserveTimeStepVolume<system>,
+                amr::Events::RefineMesh,
+                amr::Events::ObserveAmrStats<volume_dim>,
+                amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
         tmpl::pair<
             evolution::BoundaryCorrection,
             gh::BoundaryCorrections::standard_boundary_corrections<volume_dim>>,
