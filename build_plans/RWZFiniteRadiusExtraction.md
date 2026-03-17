@@ -1106,6 +1106,42 @@ Verification:
    native SpECTRE output -> converter -> `compare-rwz` against SpEC
    `rh_FiniteRadii_CodeUnits.h5`.
 
+#### PR 6.6
+Status: implemented in this container
+
+Summary:
+
+1. add a SpECTRE-side version of SpEC's waveform consistency check
+   `Verify_h_Psi4`,
+2. verify the finite-radius relation `Psi4 ~= -ddot(h)` on SpEC-style
+   finite-radius waveform files at the outermost common extraction radius,
+3. keep the first version synthetic and unit-testable, since SpECTRE does not
+   yet write finite-radius `rPsi4` in the current PR sequence.
+
+Files:
+
+1. `src/IO/H5/Python/VerifyFiniteRadiusStrainPsi4.py`
+2. `tests/Unit/IO/H5/Python/Test_VerifyFiniteRadiusStrainPsi4.py`
+3. `src/IO/H5/Python/CMakeLists.txt`
+4. `tests/Unit/IO/H5/Python/CMakeLists.txt`
+5. `support/Python/__main__.py`
+
+Verification:
+
+1. rebuilt `PyH5` so the new Python module is installed into the build tree,
+2. ran the focused tests:
+   `support.Python.Cli`,
+   `support.Python.Main`,
+   `support.Python.python-spectre`,
+   `Unit.IO.H5.Python.CompareFiniteRadiusRwz`,
+   `Unit.IO.H5.Python.ConvertFiniteRadiusRwzToSpec`,
+   `Unit.IO.H5.Python.VerifyFiniteRadiusStrainPsi4`,
+   `Unit.PointwiseFunctions.GeneralRelativity.Surfaces.ReggeWheelerZerilli`,
+3. confirmed the new synthetic `VerifyFiniteRadiusStrainPsi4` test passes for a
+   constructed SpEC-style pair of `rh_FiniteRadii_CodeUnits.h5` and
+   `rPsi4_FiniteRadii_CodeUnits.h5` files and fails when the `Psi4` data are
+   perturbed away from `-ddot(h)`.
+
 ### Validation / Equivalence Notes
 
 1. the RWZ implementation intentionally stays on the tensor-harmonic
