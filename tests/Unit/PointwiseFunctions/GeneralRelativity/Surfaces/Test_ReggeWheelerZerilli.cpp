@@ -3,11 +3,17 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstddef>
 
 #include "DataStructures/ComplexModalVector.hpp"
+#include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/Tensor.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/ReggeWheelerZerilli.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
@@ -155,6 +161,40 @@ void test_regge_wheeler_zerilli_moncrief() {
         std::complex<double>{0.0, 0.0});
 }
 
+void test_regge_wheeler_zerilli_from_gh_vars_minkowski() {
+  const size_t l_max = 4;
+  const double radius = 3.0;
+  const std::array<double, 3> center{{0.1, -0.2, 0.3}};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const size_t number_of_points = get<0>(coords).size();
+
+  tnsr::aa<DataVector, 3, Frame::Inertial> spacetime_metric{number_of_points,
+                                                            0.0};
+  tnsr::aa<DataVector, 3, Frame::Inertial> pi{number_of_points, 0.0};
+  tnsr::iaa<DataVector, 3, Frame::Inertial> phi{number_of_points, 0.0};
+
+  get<0, 0>(spacetime_metric) = -1.0;
+  for (size_t i = 0; i < 3; ++i) {
+    spacetime_metric.get(i + 1, i + 1) = 1.0;
+  }
+
+  const auto rwz = gr::surfaces::regge_wheeler_zerilli_moncrief_from_gh_vars(
+      spacetime_metric, pi, phi, coords, strahlkorper.ylm_spherepack(), center,
+      radius);
+
+  for (const auto& mode_value : rwz.phi_plus) {
+    CHECK(mode_value == std::complex<double>{0.0, 0.0});
+  }
+  for (const auto& mode_value : rwz.phi_minus) {
+    CHECK(mode_value == std::complex<double>{0.0, 0.0});
+  }
+  for (const auto& mode_value : rwz.r_times_strain) {
+    CHECK(mode_value == std::complex<double>{0.0, 0.0});
+  }
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -162,4 +202,5 @@ SPECTRE_TEST_CASE(
     "ReggeWheelerZerilli",
     "[PointwiseFunctions][Unit]") {
   test_regge_wheeler_zerilli_moncrief();
+  test_regge_wheeler_zerilli_from_gh_vars_minkowski();
 }

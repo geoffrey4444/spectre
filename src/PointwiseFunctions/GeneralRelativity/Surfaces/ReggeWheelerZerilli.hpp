@@ -3,9 +3,14 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 
 #include "DataStructures/ComplexModalVector.hpp"
+#include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/TagsDeclarations.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "Utilities/Gsl.hpp"
 
 namespace gr::surfaces {
@@ -49,5 +54,22 @@ ReggeWheelerZerilli regge_wheeler_zerilli_moncrief(
     const ComplexModalVector& q_r, const ComplexModalVector& k,
     const ComplexModalVector& dr_k, const ComplexModalVector& g,
     const ComplexModalVector& dr_g, size_t l_max, double extraction_radius);
+
+void regge_wheeler_zerilli_moncrief_from_gh_vars(
+    gsl::not_null<ReggeWheelerZerilli*> rwz_quantities,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& pi,
+    const tnsr::iaa<DataVector, 3, Frame::Inertial>& phi,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    double extraction_radius);
+
+ReggeWheelerZerilli regge_wheeler_zerilli_moncrief_from_gh_vars(
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& spacetime_metric,
+    const tnsr::aa<DataVector, 3, Frame::Inertial>& pi,
+    const tnsr::iaa<DataVector, 3, Frame::Inertial>& phi,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& inertial_coords,
+    const ylm::Spherepack& ylm_spherepack, const std::array<double, 3>& center,
+    double extraction_radius);
 
 }  // namespace gr::surfaces

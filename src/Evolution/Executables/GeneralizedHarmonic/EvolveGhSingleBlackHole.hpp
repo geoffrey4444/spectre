@@ -66,6 +66,7 @@
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorReceiveVolumeData.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorRegisterElement.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/TryToInterpolate.hpp"
+#include "ParallelAlgorithms/Interpolation/Callbacks/ObserveReggeWheelerZerilli.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveSurfaceData.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveTimeSeriesOnSurface.hpp"
 #include "ParallelAlgorithms/Interpolation/Events/Interpolate.hpp"
@@ -191,11 +192,9 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
     using tags_to_observe = source_vars_no_deriv;
     using vars_to_interpolate_to_target = source_vars_no_deriv;
     using compute_target_points =
-        intrp::TargetPoints::Sphere<FiniteRadiusExtraction,
-                                    ::Frame::Inertial>;
-    using post_interpolation_callbacks =
-        tmpl::list<intrp::callbacks::ObserveSurfaceData<
-            tags_to_observe, FiniteRadiusExtraction, ::Frame::Inertial>>;
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
+    using post_interpolation_callbacks = tmpl::list<
+        intrp::callbacks::ObserveReggeWheelerZerilli<FiniteRadiusExtraction>>;
     using compute_items_on_target = tmpl::list<>;
     template <typename Metavariables>
     using interpolating_component = typename Metavariables::gh_dg_element_array;

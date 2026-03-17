@@ -160,6 +160,7 @@
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorReceiveVolumeData.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorRegisterElement.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/TryToInterpolate.hpp"
+#include "ParallelAlgorithms/Interpolation/Callbacks/ObserveReggeWheelerZerilli.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveSurfaceData.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveTimeSeriesOnSurface.hpp"
 #include "ParallelAlgorithms/Interpolation/Events/Interpolate.hpp"
@@ -368,11 +369,9 @@ struct EvolutionMetavars {
     using tags_to_observe = source_vars_no_deriv;
     using vars_to_interpolate_to_target = source_vars_no_deriv;
     using compute_target_points =
-        intrp::TargetPoints::Sphere<FiniteRadiusExtraction,
-                                    ::Frame::Inertial>;
-    using post_interpolation_callbacks =
-        tmpl::list<intrp::callbacks::ObserveSurfaceData<
-            tags_to_observe, FiniteRadiusExtraction, ::Frame::Inertial>>;
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
+    using post_interpolation_callbacks = tmpl::list<
+        intrp::callbacks::ObserveReggeWheelerZerilli<FiniteRadiusExtraction>>;
     using compute_items_on_target = tmpl::list<>;
     template <typename metavariables>
     using interpolating_component = typename metavariables::gh_dg_element_array;
@@ -380,8 +379,7 @@ struct EvolutionMetavars {
 
   using interpolation_target_tags = tmpl::push_back<
       control_system::metafunctions::interpolation_target_tags<control_systems>,
-      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB,
-      FiniteRadiusExtraction>;
+      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB, FiniteRadiusExtraction>;
 
   using observe_fields = tmpl::append<
       tmpl::list<
@@ -712,8 +710,8 @@ struct EvolutionMetavars {
               tmpl::list<Actions::RunEventsOnFailure<::Tags::Time>,
                          Parallel::Actions::TerminatePhase>>>>>;
 
-  using observed_reduction_data_tags = observers::collect_reduction_data_tags<
-      tmpl::push_back<
+  using observed_reduction_data_tags =
+      observers::collect_reduction_data_tags<tmpl::push_back<
           tmpl::at<typename factory_creation::factory_classes, Event>,
           typename FiniteRadiusExtraction::post_interpolation_callbacks>>;
 
