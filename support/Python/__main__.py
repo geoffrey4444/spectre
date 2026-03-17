@@ -46,6 +46,7 @@ class Cli(click.Group):
             "status",
             "transform-volume-data",
             "validate",
+            "verify-h-psi4",
         ]
 
     def get_command(self, ctx, name):
@@ -171,6 +172,12 @@ class Cli(click.Group):
             )
 
             return transform_volume_data_command
+        elif name == "verify-h-psi4":
+            from spectre.IO.H5.VerifyFiniteRadiusStrainPsi4 import (
+                verify_finite_radius_strain_psi4_command,
+            )
+
+            return verify_finite_radius_strain_psi4_command
         elif name == "validate":
             from spectre.tools.ValidateInputFile import (
                 validate_input_file_command,

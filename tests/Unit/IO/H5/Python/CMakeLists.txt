@@ -77,3 +77,9 @@ spectre_add_python_bindings_test(
   Test_TransformVolumeData.py
   "unit;IO;H5;python"
   PyH5)
+
+spectre_add_python_bindings_test(
+  "Unit.IO.H5.Python.VerifyFiniteRadiusStrainPsi4"
+  Test_VerifyFiniteRadiusStrainPsi4.py
+  "unit;IO;H5;python"
+  PyH5)

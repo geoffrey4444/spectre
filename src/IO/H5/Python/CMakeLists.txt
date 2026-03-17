@@ -30,6 +30,7 @@ spectre_python_add_module(
   OpenVolfiles.py
   ReadH5.py
   TransformVolumeData.py
+  VerifyFiniteRadiusStrainPsi4.py
   MODULE_PATH "IO"
   )
 
