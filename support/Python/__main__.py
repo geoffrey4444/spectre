@@ -23,6 +23,7 @@ class Cli(click.Group):
         return [
             "bbh",
             "clean-output",
+            "compare-rwz",
             "combine-h5",
             "convert-rwz-to-spec",
             "delete-subfiles",
@@ -64,6 +65,12 @@ class Cli(click.Group):
             from spectre.IO.H5.CombineH5 import combine_h5_command
 
             return combine_h5_command
+        elif name == "compare-rwz":
+            from spectre.IO.H5.CompareFiniteRadiusRwz import (
+                compare_finite_radius_rwz_command,
+            )
+
+            return compare_finite_radius_rwz_command
         elif name == "convert-rwz-to-spec":
             from spectre.IO.H5.ConvertFiniteRadiusRwzToSpec import (
                 convert_finite_radius_rwz_to_spec_command,
