@@ -161,10 +161,11 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
       tmpl::size<control_systems>::value > 0;
 
   struct BondiSachs;
+  struct FiniteRadiusExtraction;
 
   using interpolation_target_tags = tmpl::push_back<
       control_system::metafunctions::interpolation_target_tags<control_systems>,
-      ExcisionBoundary, BondiSachs>;
+      ExcisionBoundary, BondiSachs, FiniteRadiusExtraction>;
   using source_vars_no_deriv =
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                  gh::Tags::Pi<DataVector, volume_dim>,
@@ -178,6 +179,23 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
         intrp::TargetPoints::Sphere<BondiSachs, ::Frame::Inertial>;
     using post_interpolation_callbacks =
         tmpl::list<intrp::callbacks::DumpBondiSachsOnWorldtube<BondiSachs>>;
+    using compute_items_on_target = tmpl::list<>;
+    template <typename Metavariables>
+    using interpolating_component = typename Metavariables::gh_dg_element_array;
+  };
+
+  struct FiniteRadiusExtraction
+      : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+    static std::string name() { return "FiniteRadiusExtraction"; }
+    using temporal_id = ::Tags::Time;
+    using tags_to_observe = source_vars_no_deriv;
+    using vars_to_interpolate_to_target = source_vars_no_deriv;
+    using compute_target_points =
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction,
+                                    ::Frame::Inertial>;
+    using post_interpolation_callbacks =
+        tmpl::list<intrp::callbacks::ObserveSurfaceData<
+            tags_to_observe, FiniteRadiusExtraction, ::Frame::Inertial>>;
     using compute_items_on_target = tmpl::list<>;
     template <typename Metavariables>
     using interpolating_component = typename Metavariables::gh_dg_element_array;
@@ -209,6 +227,8 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, BondiSachs, source_vars_no_deriv>,
                        intrp::Events::InterpolateWithoutInterpComponent<
+                           3, FiniteRadiusExtraction, source_vars_no_deriv>,
+                       intrp::Events::InterpolateWithoutInterpComponent<
                            3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
                        amr::Events::RefineMesh,
                        amr::Events::ObserveAmrStats<volume_dim>>>>,
@@ -222,8 +242,10 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
 
   using observed_reduction_data_tags =
       observers::collect_reduction_data_tags<tmpl::push_back<
-          tmpl::at<typename factory_creation::factory_classes, Event>,
-          typename ExcisionBoundary::post_interpolation_callbacks>>;
+          tmpl::push_back<
+              tmpl::at<typename factory_creation::factory_classes, Event>,
+              typename ExcisionBoundary::post_interpolation_callbacks>,
+          typename FiniteRadiusExtraction::post_interpolation_callbacks>>;
 
   using dg_registration_list = typename gh_base::dg_registration_list;
 
