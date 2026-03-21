@@ -229,15 +229,20 @@ void test_odd_m_mode_is_preserved_without_cutoff() {
   SimpleSparseMatrix filter_matrix_ij{};
   SimpleSparseMatrix filter_matrix_kii{};
   fill_filter<Scalar<DataVector>::structure>(
-      make_not_null(&filter_matrix_scalar), ell_max, 0, std::nullopt);
+      make_not_null(&filter_matrix_scalar), ell_max, 0, std::nullopt,
+      CoefficientNormalization::Spherepack);
   fill_filter<tnsr::i<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_i), ell_max, 0, std::nullopt);
+      make_not_null(&filter_matrix_i), ell_max, 0, std::nullopt,
+      CoefficientNormalization::Spherepack);
   fill_filter<tnsr::ii<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_ii), ell_max, 0, std::nullopt);
+      make_not_null(&filter_matrix_ii), ell_max, 0, std::nullopt,
+      CoefficientNormalization::Spherepack);
   fill_filter<tnsr::ij<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_ij), ell_max, 0, std::nullopt);
+      make_not_null(&filter_matrix_ij), ell_max, 0, std::nullopt,
+      CoefficientNormalization::Spherepack);
   fill_filter<tnsr::ijj<DataVector, 3>::structure>(
-      make_not_null(&filter_matrix_kii), ell_max, 0, std::nullopt);
+      make_not_null(&filter_matrix_kii), ell_max, 0, std::nullopt,
+      CoefficientNormalization::Spherepack);
 
   Variables<filter_detail::gh_spacetime_vars_list> temp_storage(
       spectral_mesh_size, 0.0);

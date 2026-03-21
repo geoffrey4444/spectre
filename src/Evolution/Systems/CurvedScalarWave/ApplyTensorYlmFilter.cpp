@@ -22,27 +22,6 @@
 namespace ylm::TensorYlm {
 
 namespace filter_detail {
-template <typename VarsList>
-void apply_condon_shortley_phase_to_modal_coefficients(
-    const gsl::not_null<Variables<VarsList>*> modal, const size_t ell_max,
-    const size_t radial_extents) {
-  SpherepackIterator iterator(ell_max, ell_max, radial_extents, true);
-  tmpl::for_each<VarsList>(
-      [&iterator, radial_extents, &modal](const auto tag_v) {
-        using tag = typename std::decay_t<decltype(tag_v)>::type;
-        auto& tensor = get<tag>(*modal);
-        for (auto& component : tensor) {
-          for (size_t offset = 0; offset < radial_extents; ++offset) {
-            for (iterator.reset(); iterator; ++iterator) {
-              if (iterator.m() % 2 == 1) {
-                component[iterator() + offset] *= -1.0;
-              }
-            }
-          }
-        }
-      });
-}
-
 template <typename SrcFrame, typename DestFrame>
 void transform_spatial_tensors_to_different_frame_without_hessians(
     const gsl::not_null<Variables<sw_vars_list<DestFrame>>*> dest,
@@ -135,8 +114,6 @@ void apply_tensor_ylm_filter(
   // dest: sw_spectral_vars
   filter_detail::nodal_to_modal_ylm(make_not_null(&sw_spectral_vars),
                                     temp_grid_vars, ylm, radial_extents);
-  filter_detail::apply_condon_shortley_phase_to_modal_coefficients(
-      make_not_null(&sw_spectral_vars), ell_max, radial_extents);
 
   // 3. Filter
   // src: sw_spectral_vars
@@ -203,8 +180,6 @@ void apply_tensor_ylm_filter(
         // Copy the result for this tensor back into sw_spectral_vars.
         get<Tag>(sw_spectral_vars) = get<Tag>(dest_tensor);
       });
-  filter_detail::apply_condon_shortley_phase_to_modal_coefficients(
-      make_not_null(&sw_spectral_vars), ell_max, radial_extents);
 
   // 4. Modal to nodal transformation.
   // src: sw_spectral_vars

@@ -376,15 +376,20 @@ inline const TensorYlmFilterMatrices& cached_filter_matrices(
 
   TensorYlmFilterMatrices matrices{};
   ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
-      make_not_null(&matrices.scalar), ell_max, num_modes_to_kill, half_power);
+      make_not_null(&matrices.scalar), ell_max, num_modes_to_kill, half_power,
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
   ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
-      make_not_null(&matrices.i), ell_max, num_modes_to_kill, half_power);
+      make_not_null(&matrices.i), ell_max, num_modes_to_kill, half_power,
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
   ylm::TensorYlm::fill_filter<tnsr::ii<DataVector, 3>::structure>(
-      make_not_null(&matrices.ii), ell_max, num_modes_to_kill, half_power);
+      make_not_null(&matrices.ii), ell_max, num_modes_to_kill, half_power,
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
   ylm::TensorYlm::fill_filter<tnsr::ij<DataVector, 3>::structure>(
-      make_not_null(&matrices.ij), ell_max, num_modes_to_kill, half_power);
+      make_not_null(&matrices.ij), ell_max, num_modes_to_kill, half_power,
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
   ylm::TensorYlm::fill_filter<tnsr::ijj<DataVector, 3>::structure>(
-      make_not_null(&matrices.kii), ell_max, num_modes_to_kill, half_power);
+      make_not_null(&matrices.kii), ell_max, num_modes_to_kill, half_power,
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
 
   const std::lock_guard<std::mutex> lock(cache_mutex);
   const auto [iter, inserted] = cache.emplace(key, std::move(matrices));
