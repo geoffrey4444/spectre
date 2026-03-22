@@ -3,7 +3,6 @@
 
 #include "Evolution/Executables/GeneralizedHarmonic/EvolveGhSingleBlackHole.hpp"
 
-#include <type_traits>
 #include <vector>
 
 #include "ControlSystem/ControlErrors/Size/RegisterDerivedWithCharm.hpp"
@@ -20,9 +19,6 @@ using metavariables = EvolutionMetavars<USE_LTS>;
 
 extern "C" void CkRegisterMainModule() {
   Parallel::charmxx::register_main_module<metavariables>();
-  if constexpr (not std::is_same_v<SpecInitialData, NoSuchType>) {
-    register_classes_with_charm<SpecInitialData>();
-  }
   Parallel::charmxx::register_init_node_and_proc(
       {&domain::creators::register_derived_with_charm,
        &domain::creators::time_dependence::register_derived_with_charm,
