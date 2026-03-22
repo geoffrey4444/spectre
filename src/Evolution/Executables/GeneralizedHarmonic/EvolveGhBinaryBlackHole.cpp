@@ -3,6 +3,7 @@
 
 #include "Evolution/Executables/GeneralizedHarmonic/EvolveGhBinaryBlackHole.hpp"
 
+#include <type_traits>
 #include <vector>
 
 #include "ControlSystem/ControlErrors/Size/RegisterDerivedWithCharm.hpp"
@@ -17,6 +18,9 @@
 
 extern "C" void CkRegisterMainModule() {
   Parallel::charmxx::register_main_module<EvolutionMetavars>();
+  if constexpr (not std::is_same_v<SpecInitialData, NoSuchType>) {
+    register_classes_with_charm<SpecInitialData>();
+  }
   Parallel::charmxx::register_init_node_and_proc(
       {&sys::attach_debugger, &domain::creators::register_derived_with_charm,
        &domain::creators::time_dependence::register_derived_with_charm,
