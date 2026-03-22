@@ -281,7 +281,8 @@ void regge_wheeler_zerilli_moncrief_from_gh_vars(
     return;
   }
 
-  tnsr::i<DataVector, 3, Frame::Inertial> radial_unit_vector{number_of_points};
+  tnsr::i<DataVector, 3, Frame::Inertial> radial_unit_vector{number_of_points,
+                                                             0.0};
   tnsr::i<DataVector, 3, Frame::Inertial> shift_vector{number_of_points, 0.0};
   tnsr::i<DataVector, 3, Frame::Inertial> shift_prime{number_of_points, 0.0};
   tnsr::ii<DataVector, 3, Frame::Inertial> spatial_metric_perturbation{
