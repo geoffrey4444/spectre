@@ -83,10 +83,6 @@ std::complex<double> standard_mode_from_spherepack(const DataVector& data,
                    data[iterator.set(
                        l, static_cast<size_t>(m),
                        ylm::SpherepackIterator::CoefficientArray::b)()]};
-  if (not(std::isfinite(real(spherepack_mode)) and
-          std::isfinite(imag(spherepack_mode)))) {
-    return {0.0, 0.0};
-  }
   const double sign = m % 2 == 0 ? 1.0 : -1.0;
   return sign * sqrt(M_PI / 2.0) * spherepack_mode;
 }
