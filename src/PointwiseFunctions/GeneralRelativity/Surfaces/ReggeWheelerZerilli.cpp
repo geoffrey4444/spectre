@@ -136,6 +136,7 @@ TensorType cartesian_to_spherical_tensor_modes(const TensorType& nodal_tensor,
   const gsl::span<double> cartesian_modes_span{flattened_cartesian_modes};
   cart_to_sphere_matrix.increment_multiply_on_right(
       make_not_null(&spherical_modes_span), 0, 1, cartesian_modes_span, 0, 1);
+
   for (size_t storage_index = 0; storage_index < spherical_modes.size();
        ++storage_index) {
     for (size_t mode_index = 0; mode_index < spectral_size; ++mode_index) {
@@ -295,6 +296,9 @@ void regge_wheeler_zerilli_moncrief_from_gh_vars(
   for (size_t i = 0; i < 3; ++i) {
     radial_unit_vector.get(i) =
         (inertial_coords.get(i) - center[i]) / extraction_radius;
+  }
+
+  for (size_t i = 0; i < 3; ++i) {
     shift_vector.get(i) = spacetime_metric.get(i + 1, 0);
     for (size_t j = i; j < 3; ++j) {
       spatial_metric_perturbation.get(i, j) =
@@ -355,7 +359,6 @@ void regge_wheeler_zerilli_moncrief_from_gh_vars(
       cartesian_to_spherical_tensor_modes(dt_spatial_metric, ylm_spherepack);
   const auto dr_metric_modes =
       cartesian_to_spherical_tensor_modes(dr_spatial_metric, ylm_spherepack);
-
   ComplexModalVector h_t{number_of_modes, 0.0};
   ComplexModalVector dr_h_t{number_of_modes, 0.0};
   ComplexModalVector dt_h_r{number_of_modes, 0.0};
