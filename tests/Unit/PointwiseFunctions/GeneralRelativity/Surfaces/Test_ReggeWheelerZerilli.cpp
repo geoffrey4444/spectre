@@ -7,14 +7,18 @@
 #include <cmath>
 #include <complex>
 #include <cstddef>
+#include <vector>
 
 #include "DataStructures/ComplexModalVector.hpp"
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/SimpleSparseMatrix.hpp"
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmCartToSphere.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/ReggeWheelerZerilli.hpp"
@@ -40,10 +44,439 @@ std::complex<double> mode(const ComplexModalVector& data, const size_t l_max,
   return data[goldberg_index(l_max, l, m)];
 }
 
+std::complex<double> standard_mode_from_spherepack(const DataVector& data,
+                                                   const size_t l_max,
+                                                   const size_t l,
+                                                   const int m) {
+  ylm::SpherepackIterator iterator(l_max, l_max, 1, false);
+  const auto a_index =
+      iterator.set(l, static_cast<size_t>(m),
+                   ylm::SpherepackIterator::CoefficientArray::a)();
+  const std::complex<double> spherepack_mode =
+      m == 0 ? std::complex<double>{data[a_index], 0.0}
+             : std::complex<double>{
+                   data[a_index],
+                   data[iterator.set(
+                       l, static_cast<size_t>(m),
+                       ylm::SpherepackIterator::CoefficientArray::b)()]};
+  const double sign = m % 2 == 0 ? 1.0 : -1.0;
+  return sign * sqrt(M_PI / 2.0) * spherepack_mode;
+}
+
+template <typename TensorType>
+TensorType cartesian_to_spherical_tensor_modes(const TensorType& nodal_tensor,
+                                               const ylm::Spherepack& ylm) {
+  const size_t spectral_size =
+      ylm::SpherepackIterator(ylm.l_max(), ylm.m_max(), 1, false)
+          .spherepack_array_size();
+  TensorType cartesian_modes{spectral_size, 0.0};
+  TensorType spherical_modes{spectral_size, 0.0};
+
+  for (size_t storage_index = 0; storage_index < nodal_tensor.size();
+       ++storage_index) {
+    cartesian_modes[storage_index] =
+        ylm.phys_to_spec(nodal_tensor[storage_index]);
+  }
+  ylm::SpherepackIterator iterator(ylm.l_max(), ylm.m_max(), 1, false);
+  for (size_t storage_index = 0; storage_index < cartesian_modes.size();
+       ++storage_index) {
+    for (size_t offset = 0; offset < spectral_size; ++offset) {
+      if (not iterator.compact_index(offset).has_value()) {
+        cartesian_modes[storage_index][offset] = 0.0;
+      }
+    }
+  }
+
+  SimpleSparseMatrix cart_to_sphere_matrix{};
+  ylm::TensorYlm::fill_cart_to_sphere<typename TensorType::structure>(
+      make_not_null(&cart_to_sphere_matrix), ylm.l_max(),
+      ylm::TensorYlm::CoefficientNormalization::Spherepack);
+
+  std::vector<double> flattened_cartesian_modes(cartesian_modes.size() *
+                                                spectral_size);
+  std::vector<double> flattened_spherical_modes(
+      spherical_modes.size() * spectral_size, 0.0);
+  for (size_t storage_index = 0; storage_index < cartesian_modes.size();
+       ++storage_index) {
+    for (size_t mode_index = 0; mode_index < spectral_size; ++mode_index) {
+      flattened_cartesian_modes[storage_index * spectral_size + mode_index] =
+          cartesian_modes[storage_index][mode_index];
+    }
+  }
+
+  gsl::span<double> spherical_modes_span{flattened_spherical_modes};
+  const gsl::span<double> cartesian_modes_span{flattened_cartesian_modes};
+  cart_to_sphere_matrix.increment_multiply_on_right(
+      make_not_null(&spherical_modes_span), 0, 1, cartesian_modes_span, 0, 1);
+
+  for (size_t storage_index = 0; storage_index < spherical_modes.size();
+       ++storage_index) {
+    for (size_t mode_index = 0; mode_index < spectral_size; ++mode_index) {
+      spherical_modes[storage_index][mode_index] =
+          flattened_spherical_modes[storage_index * spectral_size + mode_index];
+    }
+  }
+  return spherical_modes;
+}
+
 void check_complex_approx(const std::complex<double>& actual,
                           const std::complex<double>& expected) {
   CHECK(real(actual) == approx(real(expected)));
   CHECK(imag(actual) == approx(imag(expected)));
+}
+
+double teukolsky_coefficient_a(const double radius, const double time,
+                               const double amplitude, const double duration) {
+  const double u = time - radius;
+  return 3.0 * amplitude * exp(-square(u) / square(duration)) /
+         (pow<4>(duration) * pow<5>(radius)) *
+         (3.0 * pow<4>(duration) + 4.0 * square(radius) * square(u) -
+          2.0 * square(duration) * radius * (radius + 3.0 * u));
+}
+
+double teukolsky_coefficient_b(const double radius, const double time,
+                               const double amplitude, const double duration) {
+  const double u = time - radius;
+  return 2.0 * amplitude * exp(-square(u) / square(duration)) /
+         (pow<6>(duration) * pow<5>(radius)) *
+         (-3.0 * pow<6>(duration) + 4.0 * pow<3>(radius) * pow<3>(u) -
+          6.0 * square(duration) * square(radius) * u * (radius + u) +
+          3.0 * pow<4>(duration) * radius * (radius + 2.0 * u));
+}
+
+double teukolsky_coefficient_c(const double radius, const double time,
+                               const double amplitude, const double duration) {
+  const double u = time - radius;
+  return 0.25 * amplitude * exp(-square(u) / square(duration)) /
+         (pow<8>(duration) * pow<5>(radius)) *
+         (21.0 * pow<8>(duration) + 16.0 * pow<4>(radius) * pow<4>(u) -
+          16.0 * square(duration) * pow<3>(radius) * square(u) *
+              (3.0 * radius + u) -
+          6.0 * pow<6>(duration) * radius * (3.0 * radius + 7.0 * u) +
+          12.0 * pow<4>(duration) * square(radius) *
+              (square(radius) + 2.0 * radius * u + 3.0 * square(u)));
+}
+
+double dt_teukolsky_coefficient_a(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -2.0 * u / square(duration) *
+             teukolsky_coefficient_a(radius, time, amplitude, duration) +
+         3.0 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<4>(duration) * pow<5>(radius)) *
+             (8.0 * square(radius) * u - 6.0 * square(duration) * radius);
+}
+
+double dt_teukolsky_coefficient_b(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -2.0 * u / square(duration) *
+             teukolsky_coefficient_b(radius, time, amplitude, duration) +
+         2.0 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<6>(duration) * pow<5>(radius)) *
+             (12.0 * pow<3>(radius) * square(u) -
+              6.0 * square(duration) * square(radius) * (radius + 2.0 * u) +
+              6.0 * pow<4>(duration) * radius);
+}
+
+double dt_teukolsky_coefficient_c(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -2.0 * u / square(duration) *
+             teukolsky_coefficient_c(radius, time, amplitude, duration) +
+         0.25 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<8>(duration) * pow<5>(radius)) *
+             (64.0 * pow<4>(radius) * pow<3>(u) -
+              16.0 * square(duration) * pow<3>(radius) * u *
+                  (6.0 * radius + 3.0 * u) -
+              42.0 * pow<6>(duration) * radius +
+              12.0 * pow<4>(duration) * square(radius) *
+                  (2.0 * radius + 6.0 * u));
+}
+
+double dr_teukolsky_coefficient_a(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -dt_teukolsky_coefficient_a(radius, time, amplitude, duration) -
+         9.0 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<4>(duration) * pow<6>(radius)) *
+             (5.0 * pow<4>(duration) + 4.0 * square(radius) * square(u) -
+              2.0 * square(duration) * radius * (radius + 4.0 * u));
+}
+
+double dr_teukolsky_coefficient_b(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -dt_teukolsky_coefficient_b(radius, time, amplitude, duration) +
+         2.0 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<6>(duration) * pow<6>(radius)) *
+             (15.0 * pow<6>(duration) - 8.0 * pow<3>(radius) * pow<3>(u) +
+              6.0 * square(duration) * square(radius) * u *
+                  (2.0 * radius + 3.0 * u) -
+              3.0 * pow<4>(duration) * radius * (3.0 * radius + 8.0 * u));
+}
+
+double dr_teukolsky_coefficient_c(const double radius, const double time,
+                                  const double amplitude,
+                                  const double duration) {
+  const double u = time - radius;
+  return -dt_teukolsky_coefficient_c(radius, time, amplitude, duration) -
+         0.25 * amplitude * exp(-square(u) / square(duration)) /
+             (pow<8>(duration) * pow<6>(radius)) *
+             (105.0 * pow<8>(duration) + 16.0 * pow<4>(radius * u) -
+              16.0 * square(duration) * pow<3>(radius) * square(u) *
+                  (3.0 * radius + 2.0 * u) -
+              6.0 * pow<6>(duration) * radius * (9.0 * radius + 28.0 * u) +
+              12.0 * pow<4>(duration) * square(radius) *
+                  (square(radius) + 4.0 * radius * u + 9.0 * square(u)));
+}
+
+tnsr::Ij<DataVector, 3, Frame::Inertial> teukolsky_inverse_jacobian(
+    const tnsr::i<DataVector, 2, Frame::Spherical<Frame::Inertial>>& theta_phi,
+    const double radius) {
+  const size_t number_of_points = get<0>(theta_phi).size();
+  tnsr::Ij<DataVector, 3, Frame::Inertial> inverse_jacobian{number_of_points,
+                                                            0.0};
+  for (size_t s = 0; s < number_of_points; ++s) {
+    const double theta = theta_phi.get(0)[s];
+    const double phi = theta_phi.get(1)[s];
+    inverse_jacobian.get(0, 0)[s] = cos(phi) * sin(theta);
+    inverse_jacobian.get(0, 1)[s] = cos(phi) * cos(theta) / radius;
+    inverse_jacobian.get(0, 2)[s] = -sin(phi) / radius;
+    inverse_jacobian.get(1, 0)[s] = sin(phi) * sin(theta);
+    inverse_jacobian.get(1, 1)[s] = cos(theta) * sin(phi) / radius;
+    inverse_jacobian.get(1, 2)[s] = cos(phi) / radius;
+    inverse_jacobian.get(2, 0)[s] = cos(theta);
+    inverse_jacobian.get(2, 1)[s] = -sin(theta) / radius;
+    inverse_jacobian.get(2, 2)[s] = 0.0;
+  }
+  return inverse_jacobian;
+}
+
+tnsr::Ij<DataVector, 3, Frame::Inertial> teukolsky_dr_inverse_jacobian(
+    const tnsr::i<DataVector, 2, Frame::Spherical<Frame::Inertial>>& theta_phi,
+    const double radius) {
+  const size_t number_of_points = get<0>(theta_phi).size();
+  tnsr::Ij<DataVector, 3, Frame::Inertial> dr_inverse_jacobian{number_of_points,
+                                                               0.0};
+  for (size_t s = 0; s < number_of_points; ++s) {
+    const double theta = theta_phi.get(0)[s];
+    const double phi = theta_phi.get(1)[s];
+    dr_inverse_jacobian.get(0, 0)[s] = 0.0;
+    dr_inverse_jacobian.get(0, 1)[s] = -cos(phi) * cos(theta) / square(radius);
+    dr_inverse_jacobian.get(0, 2)[s] = sin(phi) / square(radius);
+    dr_inverse_jacobian.get(1, 0)[s] = 0.0;
+    dr_inverse_jacobian.get(1, 1)[s] = -cos(theta) * sin(phi) / square(radius);
+    dr_inverse_jacobian.get(1, 2)[s] = -cos(phi) / square(radius);
+    dr_inverse_jacobian.get(2, 0)[s] = 0.0;
+    dr_inverse_jacobian.get(2, 1)[s] = sin(theta) / square(radius);
+    dr_inverse_jacobian.get(2, 2)[s] = 0.0;
+  }
+  return dr_inverse_jacobian;
+}
+
+template <typename TensorType>
+TensorType transform_spherical_to_cartesian(
+    const TensorType& spherical_tensor,
+    const tnsr::Ij<DataVector, 3, Frame::Inertial>& inverse_jacobian) {
+  TensorType cartesian_tensor{get<0, 0>(spherical_tensor).size(), 0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = i; j < 3; ++j) {
+      for (size_t a = 0; a < 3; ++a) {
+        for (size_t b = 0; b < 3; ++b) {
+          cartesian_tensor.get(i, j) += inverse_jacobian.get(i, a) *
+                                        inverse_jacobian.get(j, b) *
+                                        spherical_tensor.get(a, b);
+        }
+      }
+    }
+  }
+  return cartesian_tensor;
+}
+
+tnsr::ii<DataVector, 3, Frame::Inertial> transform_dr_spherical_to_cartesian(
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spherical_tensor,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& dr_spherical_tensor,
+    const tnsr::Ij<DataVector, 3, Frame::Inertial>& inverse_jacobian,
+    const tnsr::Ij<DataVector, 3, Frame::Inertial>& dr_inverse_jacobian) {
+  tnsr::ii<DataVector, 3, Frame::Inertial> dr_cartesian{
+      get<0, 0>(spherical_tensor).size(), 0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = i; j < 3; ++j) {
+      for (size_t a = 0; a < 3; ++a) {
+        for (size_t b = 0; b < 3; ++b) {
+          dr_cartesian.get(i, j) +=
+              inverse_jacobian.get(i, a) * inverse_jacobian.get(j, b) *
+                  dr_spherical_tensor.get(a, b) +
+              (dr_inverse_jacobian.get(i, a) * inverse_jacobian.get(j, b) +
+               inverse_jacobian.get(i, a) * dr_inverse_jacobian.get(j, b)) *
+                  spherical_tensor.get(a, b);
+        }
+      }
+    }
+  }
+  return dr_cartesian;
+}
+
+gr::surfaces::ReggeWheelerZerilli teukolsky_rwz_reference(
+    const size_t l_max, const double radius, const double time,
+    const double amplitude, const double duration) {
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{
+      l_max, l_max, radius, {{0.0, 0.0, 0.0}}};
+  const auto theta_phi = ylm::theta_phi(strahlkorper);
+  const size_t number_of_points = get<0>(theta_phi).size();
+  const auto inverse_jacobian = teukolsky_inverse_jacobian(theta_phi, radius);
+  const auto dr_inverse_jacobian =
+      teukolsky_dr_inverse_jacobian(theta_phi, radius);
+
+  const double coefficient_a =
+      teukolsky_coefficient_a(radius, time, amplitude, duration);
+  const double coefficient_b =
+      teukolsky_coefficient_b(radius, time, amplitude, duration);
+  const double coefficient_c =
+      teukolsky_coefficient_c(radius, time, amplitude, duration);
+  const double dt_coefficient_a =
+      dt_teukolsky_coefficient_a(radius, time, amplitude, duration);
+  const double dt_coefficient_b =
+      dt_teukolsky_coefficient_b(radius, time, amplitude, duration);
+  const double dt_coefficient_c =
+      dt_teukolsky_coefficient_c(radius, time, amplitude, duration);
+  const double dr_coefficient_a =
+      dr_teukolsky_coefficient_a(radius, time, amplitude, duration);
+  const double dr_coefficient_b =
+      dr_teukolsky_coefficient_b(radius, time, amplitude, duration);
+  const double dr_coefficient_c =
+      dr_teukolsky_coefficient_c(radius, time, amplitude, duration);
+
+  tnsr::ii<DataVector, 3, Frame::Inertial> spherical_metric_perturbation{
+      number_of_points, 0.0};
+  tnsr::ii<DataVector, 3, Frame::Inertial> dt_spherical_metric_perturbation{
+      number_of_points, 0.0};
+  tnsr::ii<DataVector, 3, Frame::Inertial> dr_spherical_metric_perturbation{
+      number_of_points, 0.0};
+
+  for (size_t s = 0; s < number_of_points; ++s) {
+    const double theta = theta_phi.get(0)[s];
+    const double sin_theta = sin(theta);
+    const double cos_theta = cos(theta);
+    const double sin_sq = square(sin_theta);
+    const double f_rr = 2.0 - 3.0 * sin_sq;
+    const double f_r_theta = -3.0 * sin_theta * cos_theta;
+    const double f_c_theta_theta = 3.0 * sin_sq;
+    const double f_a_theta_theta = -1.0;
+    const double f_c_phi_phi = -3.0 * sin_sq;
+    const double f_a_phi_phi = 3.0 * sin_sq - 1.0;
+
+    spherical_metric_perturbation.get(0, 0)[s] = coefficient_a * f_rr;
+    spherical_metric_perturbation.get(0, 1)[s] =
+        coefficient_b * f_r_theta * radius;
+    spherical_metric_perturbation.get(1, 1)[s] =
+        (coefficient_c * f_c_theta_theta + coefficient_a * f_a_theta_theta) *
+        square(radius);
+    spherical_metric_perturbation.get(2, 2)[s] =
+        (coefficient_c * f_c_phi_phi + coefficient_a * f_a_phi_phi) *
+        square(radius);
+
+    dt_spherical_metric_perturbation.get(0, 0)[s] = dt_coefficient_a * f_rr;
+    dt_spherical_metric_perturbation.get(0, 1)[s] =
+        dt_coefficient_b * f_r_theta * radius;
+    dt_spherical_metric_perturbation.get(1, 1)[s] =
+        (dt_coefficient_c * f_c_theta_theta +
+         dt_coefficient_a * f_a_theta_theta) *
+        square(radius);
+    dt_spherical_metric_perturbation.get(2, 2)[s] =
+        (dt_coefficient_c * f_c_phi_phi + dt_coefficient_a * f_a_phi_phi) *
+        square(radius);
+
+    dr_spherical_metric_perturbation.get(0, 0)[s] = dr_coefficient_a * f_rr;
+    dr_spherical_metric_perturbation.get(0, 1)[s] =
+        (coefficient_b + radius * dr_coefficient_b) * f_r_theta;
+    dr_spherical_metric_perturbation.get(1, 1)[s] =
+        radius *
+        (2.0 +
+         (2.0 * coefficient_c + radius * dr_coefficient_c) * f_c_theta_theta +
+         (2.0 * coefficient_a + radius * dr_coefficient_a) * f_a_theta_theta);
+    dr_spherical_metric_perturbation.get(2, 2)[s] =
+        radius *
+        (2.0 + (2.0 * coefficient_c + radius * dr_coefficient_c) * f_c_phi_phi +
+         (2.0 * coefficient_a + radius * dr_coefficient_a) * f_a_phi_phi);
+  }
+
+  const auto spatial_metric_perturbation = transform_spherical_to_cartesian(
+      spherical_metric_perturbation, inverse_jacobian);
+  const auto dt_spatial_metric = transform_spherical_to_cartesian(
+      dt_spherical_metric_perturbation, inverse_jacobian);
+  const auto dr_spatial_metric = transform_dr_spherical_to_cartesian(
+      spherical_metric_perturbation, dr_spherical_metric_perturbation,
+      inverse_jacobian, dr_inverse_jacobian);
+
+  const auto metric_modes = cartesian_to_spherical_tensor_modes(
+      spatial_metric_perturbation, strahlkorper.ylm_spherepack());
+  const auto dt_metric_modes = cartesian_to_spherical_tensor_modes(
+      dt_spatial_metric, strahlkorper.ylm_spherepack());
+  const auto dr_metric_modes = cartesian_to_spherical_tensor_modes(
+      dr_spatial_metric, strahlkorper.ylm_spherepack());
+
+  const size_t number_of_modes = square(l_max + 1);
+  ComplexModalVector h_t{number_of_modes, 0.0};
+  ComplexModalVector dr_h_t{number_of_modes, 0.0};
+  ComplexModalVector dt_h_r{number_of_modes, 0.0};
+  ComplexModalVector h_rr{number_of_modes, 0.0};
+  ComplexModalVector q_r{number_of_modes, 0.0};
+  ComplexModalVector k{number_of_modes, 0.0};
+  ComplexModalVector dr_k{number_of_modes, 0.0};
+  ComplexModalVector g{number_of_modes, 0.0};
+  ComplexModalVector dr_g{number_of_modes, 0.0};
+
+  for (size_t l = 2; l <= l_max; ++l) {
+    const double vector_prefactor =
+        1.0 / sqrt(2.0 * static_cast<double>(l * (l + 1)));
+    const double tensor_prefactor =
+        1.0 / sqrt(static_cast<double>((l - 1) * l * (l + 1) * (l + 2)));
+    for (int m = 0; m <= static_cast<int>(l); ++m) {
+      const auto t_ll =
+          standard_mode_from_spherepack(metric_modes.get(0, 0), l_max, l, m);
+      const auto t_lm =
+          standard_mode_from_spherepack(metric_modes.get(0, 1), l_max, l, m);
+      const auto t_lmbar =
+          standard_mode_from_spherepack(metric_modes.get(0, 2), l_max, l, m);
+      const auto t_mm =
+          standard_mode_from_spherepack(metric_modes.get(1, 1), l_max, l, m);
+      const auto t_mmbar =
+          standard_mode_from_spherepack(metric_modes.get(1, 2), l_max, l, m);
+      const auto t_mbarmbar =
+          standard_mode_from_spherepack(metric_modes.get(2, 2), l_max, l, m);
+      const auto dt_lm =
+          standard_mode_from_spherepack(dt_metric_modes.get(0, 1), l_max, l, m);
+      const auto dt_lmbar =
+          standard_mode_from_spherepack(dt_metric_modes.get(0, 2), l_max, l, m);
+      const auto dr_mm =
+          standard_mode_from_spherepack(dr_metric_modes.get(1, 1), l_max, l, m);
+      const auto dr_mmbar =
+          standard_mode_from_spherepack(dr_metric_modes.get(1, 2), l_max, l, m);
+      const auto dr_mbarmbar =
+          standard_mode_from_spherepack(dr_metric_modes.get(2, 2), l_max, l, m);
+      h_rr[goldberg_index(l_max, l, m)] = t_ll;
+      q_r[goldberg_index(l_max, l, m)] =
+          -radius * vector_prefactor * (t_lmbar - t_lm);
+      k[goldberg_index(l_max, l, m)] = t_mmbar;
+      dr_k[goldberg_index(l_max, l, m)] = dr_mmbar;
+      g[goldberg_index(l_max, l, m)] = tensor_prefactor * (t_mbarmbar + t_mm);
+      dr_g[goldberg_index(l_max, l, m)] =
+          tensor_prefactor * (dr_mbarmbar + dr_mm);
+      dt_h_r[goldberg_index(l_max, l, m)] = std::complex<double>{0.0, 1.0} *
+                                            radius * vector_prefactor *
+                                            (dt_lmbar + dt_lm);
+    }
+  }
+
+  return gr::surfaces::regge_wheeler_zerilli_moncrief(
+      h_t, dr_h_t, dt_h_r, h_rr, q_r, k, dr_k, g, dr_g, l_max, radius);
 }
 
 void test_regge_wheeler_zerilli_moncrief() {
@@ -163,6 +596,51 @@ void test_regge_wheeler_zerilli_moncrief() {
   CHECK(mode(rwz.phi_minus, l_max, 1, -1) == std::complex<double>{0.0, 0.0});
   CHECK(mode(rwz.r_times_strain, l_max, 0, 0) ==
         std::complex<double>{0.0, 0.0});
+}
+
+void test_regge_wheeler_zerilli_teukolsky_reference_mode_structure() {
+  const size_t l_max = 6;
+  const double radius = 10.0;
+  const double duration = 1.4;
+  const double time = radius + 0.6 * duration;
+  const double amplitude = 0.03;
+
+  const auto rwz =
+      teukolsky_rwz_reference(l_max, radius, time, amplitude, duration);
+  const auto rwz_double_amplitude =
+      teukolsky_rwz_reference(l_max, radius, time, 2.0 * amplitude, duration);
+
+  const auto phi_plus_20 = mode(rwz.phi_plus, l_max, 2, 0);
+  const auto phi_minus_20 = mode(rwz.phi_minus, l_max, 2, 0);
+  const auto strain_20 = mode(rwz.r_times_strain, l_max, 2, 0);
+
+  CAPTURE(phi_plus_20);
+  CAPTURE(phi_minus_20);
+  CAPTURE(strain_20);
+
+  CHECK(abs(phi_plus_20) > 1.0e-4);
+  CHECK(abs(strain_20) > 1.0e-4);
+  CHECK(abs(phi_minus_20) < 1.0e-10);
+
+  check_complex_approx(mode(rwz_double_amplitude.phi_plus, l_max, 2, 0),
+                       2.0 * phi_plus_20);
+  check_complex_approx(mode(rwz_double_amplitude.phi_minus, l_max, 2, 0),
+                       2.0 * phi_minus_20);
+  check_complex_approx(mode(rwz_double_amplitude.r_times_strain, l_max, 2, 0),
+                       2.0 * strain_20);
+
+  for (size_t l = 2; l <= l_max; ++l) {
+    for (int m = -static_cast<int>(l); m <= static_cast<int>(l); ++m) {
+      if (l == 2 and m == 0) {
+        continue;
+      }
+      CAPTURE(l);
+      CAPTURE(m);
+      CHECK(abs(mode(rwz.phi_plus, l_max, l, m)) < 1.0e-10);
+      CHECK(abs(mode(rwz.phi_minus, l_max, l, m)) < 1.0e-10);
+      CHECK(abs(mode(rwz.r_times_strain, l_max, l, m)) < 1.0e-10);
+    }
+  }
 }
 
 void test_regge_wheeler_zerilli_from_gh_vars_minkowski() {
@@ -294,6 +772,7 @@ SPECTRE_TEST_CASE(
     "ReggeWheelerZerilli",
     "[PointwiseFunctions][Unit]") {
   test_regge_wheeler_zerilli_moncrief();
+  test_regge_wheeler_zerilli_teukolsky_reference_mode_structure();
   test_regge_wheeler_zerilli_from_gh_vars_minkowski();
   test_regge_wheeler_zerilli_from_gh_vars_kerr_schild_schwarzschild();
   test_extraction_sphere_metadata_from_gh_vars_minkowski();
