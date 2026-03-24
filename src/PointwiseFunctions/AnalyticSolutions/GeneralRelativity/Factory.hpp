@@ -11,6 +11,7 @@
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Minkowski.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/TeukolskyWave.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/TrumpetSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "Utilities/TMPL.hpp"
@@ -27,6 +28,7 @@ using all_solutions =
                      tmpl::list<WrappedGr<gr::Solutions::HarmonicSchwarzschild>,
                                 WrappedGr<gr::Solutions::KerrSchild>,
                                 WrappedGr<gr::Solutions::SphericalKerrSchild>,
+                                WrappedGr<gr::Solutions::TeukolskyWave>,
                                 WrappedGr<gr::Solutions::TrumpetSchwarzschild>>,
                      tmpl::list<>>>;
 }  // namespace gh::Solutions
