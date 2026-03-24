@@ -89,8 +89,17 @@
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/NoSuchType.hpp"
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
+
+// Check if SpEC is linked and therefore we can load SpEC initial data
+#ifdef HAS_SPEC_EXPORTER
+#include "PointwiseFunctions/AnalyticData/GeneralRelativity/SpecInitialData.hpp"
+using SpecInitialData = gr::AnalyticData::SpecInitialData;
+#else
+using SpecInitialData = NoSuchType;
+#endif
 
 template <bool UseLts>
 struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
@@ -221,10 +230,23 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
         // Restrict to monotonic time steppers in LTS to avoid control
         // systems deadlocking.
         tmpl::insert<
-            tmpl::erase<typename gh_base::factory_creation::factory_classes,
+            tmpl::insert<
+                tmpl::erase<
+                    tmpl::erase<
+                        typename gh_base::factory_creation::factory_classes,
                         LtsTimeStepper>,
-            tmpl::pair<LtsTimeStepper,
-                       TimeSteppers::monotonic_lts_time_steppers>>,
+                    evolution::initial_data::InitialData>,
+                tmpl::pair<LtsTimeStepper,
+                           TimeSteppers::monotonic_lts_time_steppers>>,
+            tmpl::pair<
+                evolution::initial_data::InitialData,
+                tmpl::append<
+                    tmpl::at<typename gh_base::factory_creation::factory_classes,
+                             evolution::initial_data::InitialData>,
+                    tmpl::conditional_t<std::is_same_v<SpecInitialData,
+                                                      NoSuchType>,
+                                        tmpl::list<>,
+                                        tmpl::list<SpecInitialData>>>>>,
         tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
         tmpl::pair<
             Event,
