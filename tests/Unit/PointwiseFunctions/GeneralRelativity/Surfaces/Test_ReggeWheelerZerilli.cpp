@@ -10,13 +10,17 @@
 
 #include "DataStructures/ComplexModalVector.hpp"
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/ReggeWheelerZerilli.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/TMPL.hpp"
 
 namespace {
 
@@ -249,6 +253,40 @@ void test_psi_4_modes_from_tensors_minkowski() {
   }
 }
 
+void test_regge_wheeler_zerilli_from_gh_vars_kerr_schild_schwarzschild() {
+  const size_t l_max = 8;
+  const double radius = 10.0;
+  const std::array<double, 3> center{{0.0, 0.0, 0.0}};
+  const std::array<double, 3> spin{{0.0, 0.0, 0.0}};
+  const std::array<double, 3> velocity{{0.0, 0.0, 0.0}};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const auto solution = gh::Solutions::WrappedGr<gr::Solutions::KerrSchild>{
+      1.0, spin, center, velocity};
+  const auto gh_vars = solution.variables(
+      coords, 0.0,
+      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
+                 gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>{});
+
+  const auto rwz = gr::surfaces::regge_wheeler_zerilli_moncrief_from_gh_vars(
+      get<gr::Tags::SpacetimeMetric<DataVector, 3>>(gh_vars),
+      get<gh::Tags::Pi<DataVector, 3>>(gh_vars),
+      get<gh::Tags::Phi<DataVector, 3>>(gh_vars), coords,
+      strahlkorper.ylm_spherepack(), center, radius);
+
+  const auto check_modes = [](const ComplexModalVector& modes) {
+    for (const auto& mode_value : modes) {
+      CHECK(std::isfinite(real(mode_value)));
+      CHECK(std::isfinite(imag(mode_value)));
+      CHECK(abs(mode_value) < 1.0e-11);
+    }
+  };
+  check_modes(rwz.phi_plus);
+  check_modes(rwz.phi_minus);
+  check_modes(rwz.r_times_strain);
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -257,6 +295,7 @@ SPECTRE_TEST_CASE(
     "[PointwiseFunctions][Unit]") {
   test_regge_wheeler_zerilli_moncrief();
   test_regge_wheeler_zerilli_from_gh_vars_minkowski();
+  test_regge_wheeler_zerilli_from_gh_vars_kerr_schild_schwarzschild();
   test_extraction_sphere_metadata_from_gh_vars_minkowski();
   test_psi_4_modes_from_tensors_minkowski();
 }
