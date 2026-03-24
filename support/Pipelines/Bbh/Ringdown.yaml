@@ -10,6 +10,8 @@ Lev: {{ Lev | default("None") }}
 Parallelization:
   ElementDistribution: NumGridPointsAndGridSpacing
 
+InitialAdmEnergy: {{ InitialAdmEnergy }}
+
 # Note: most of the parameters in this file are just made up. They should be
 # replaced with values that make sense once we have a better idea of the
 # transition to ringdown.
@@ -355,6 +357,11 @@ InterpolationTargets:
     Radius: [100, 150, 200]
     Center: [0, 0, 0]
     AngularOrdering: Cce
+  FiniteRadiusExtraction:
+    LMax: 8
+    Radius: 24.0
+    Center: [0, 0, 0]
+    AngularOrdering: Strahlkorper
   ExcisionBoundary: &ExBdry
     LMax: *MaximumL
     Center: [0., 0., 0.]

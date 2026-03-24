@@ -71,6 +71,7 @@ class TestInitialData(unittest.TestCase):
             id_subfile_name="VolumeData",
             refinement_level=1,
             polynomial_order=5,
+            initial_adm_energy=1.234,
             segments_dir=self.test_dir / "Inspiral",
             scheduler=None,
             submit=False,
@@ -189,6 +190,7 @@ class TestInitialData(unittest.TestCase):
             params["IdFileGlob"],
             str((self.inspiral_dir).resolve() / "BbhVolume*.h5"),
         )
+        self.assertEqual(params["InitialAdmEnergy"], 1.234)
 
     def test_cli(self):
         # Not using `CliRunner.invoke()` because it runs in an isolated
@@ -221,6 +223,11 @@ class TestInitialData(unittest.TestCase):
         self.assertTrue(
             (self.test_dir / "Ringdown/Segment_0000/Ringdown.yaml").exists()
         )
+        with open(
+            self.test_dir / "Ringdown/Segment_0000/Ringdown.yaml", "r"
+        ) as open_input_file:
+            _, ringdown_input = yaml.safe_load_all(open_input_file)
+        self.assertEqual(ringdown_input["InitialAdmEnergy"], 1.234)
         self.assertTrue(
             (self.test_dir / "RingdownCoefs.h5").exists(),
         )

@@ -63,6 +63,7 @@ def ringdown_parameters(
             / (inspiral_input_file["Observers"]["VolumeFileName"] + "*.h5")
         ),
         "IdFileGlobSubgroup": fot_vol_subfile,
+        "InitialAdmEnergy": inspiral_input_file.get("InitialAdmEnergy", 1.0),
         # Store target parameters in the input file
         "TargetParams": yaml.safe_dump(
             {"TargetParams": inspiral_metadata["TargetParams"]}

@@ -150,6 +150,11 @@ class TestInspiral(unittest.TestCase):
         self.assertTrue(
             (self.test_dir / "Inspiral/Segment_0000/Inspiral.yaml").exists()
         )
+        with open(
+            self.test_dir / "Inspiral/Segment_0000/Inspiral.yaml", "r"
+        ) as open_input_file:
+            _, inspiral_input = yaml.safe_load_all(open_input_file)
+        self.assertEqual(inspiral_input["InitialAdmEnergy"], 1.0)
         # Test with pipeline directory and lev specified
         try:
             start_inspiral_command(
@@ -159,6 +164,8 @@ class TestInspiral(unittest.TestCase):
                     "-2",
                     "-d",
                     str(self.test_dir / "Pipeline"),
+                    "--initial-adm-energy",
+                    "1.234",
                     "--continue-with-ringdown",
                     "--no-submit",
                 ]
@@ -169,7 +176,8 @@ class TestInspiral(unittest.TestCase):
             self.test_dir / "Pipeline/000_Inspiral/Segment_0000/Inspiral.yaml",
             "r",
         ) as open_input_file:
-            metadata = next(yaml.safe_load_all(open_input_file))
+            metadata, inspiral_input = yaml.safe_load_all(open_input_file)
+        self.assertEqual(inspiral_input["InitialAdmEnergy"], 1.234)
         self.assertEqual(
             metadata["Next"],
             {
