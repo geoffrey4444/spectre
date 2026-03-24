@@ -12,6 +12,7 @@
 #include "DataStructures/ComplexModalVector.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/SimpleSparseMatrix.hpp"
+#include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -23,6 +24,12 @@
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/TeukolskyWave.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Christoffel.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/CovariantDerivOfExtrinsicCurvature.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ExtrinsicCurvature.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Ricci.hpp"
+#include "PointwiseFunctions/GeneralRelativity/InverseSpacetimeMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/ReggeWheelerZerilli.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
@@ -603,6 +610,134 @@ gr::surfaces::ReggeWheelerZerilli teukolsky_wave_rwz_reference(
                                  strahlkorper.ylm_spherepack(), l_max, radius);
 }
 
+void finite_difference_pi_and_phi(
+    const gsl::not_null<tnsr::iaa<DataVector, 3, Frame::Inertial>*> d_pi,
+    const gsl::not_null<tnsr::ijaa<DataVector, 3, Frame::Inertial>*> d_phi,
+    const gh::Solutions::WrappedGr<gr::Solutions::TeukolskyWave>& solution,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& coords, const double time,
+    const double step) {
+  *d_pi =
+      make_with_value<tnsr::iaa<DataVector, 3, Frame::Inertial>>(coords, 0.0);
+  *d_phi =
+      make_with_value<tnsr::ijaa<DataVector, 3, Frame::Inertial>>(coords, 0.0);
+  for (size_t k = 0; k < 3; ++k) {
+    auto coords_plus = coords;
+    auto coords_minus = coords;
+    coords_plus.get(k) += step;
+    coords_minus.get(k) -= step;
+    const auto vars_plus =
+        solution.variables(coords_plus, time,
+                           tmpl::list<gh::Tags::Pi<DataVector, 3>,
+                                      gh::Tags::Phi<DataVector, 3>>{});
+    const auto vars_minus =
+        solution.variables(coords_minus, time,
+                           tmpl::list<gh::Tags::Pi<DataVector, 3>,
+                                      gh::Tags::Phi<DataVector, 3>>{});
+    const auto& pi_plus = get<gh::Tags::Pi<DataVector, 3>>(vars_plus);
+    const auto& pi_minus = get<gh::Tags::Pi<DataVector, 3>>(vars_minus);
+    const auto& phi_plus = get<gh::Tags::Phi<DataVector, 3>>(vars_plus);
+    const auto& phi_minus = get<gh::Tags::Phi<DataVector, 3>>(vars_minus);
+    for (size_t a = 0; a < 4; ++a) {
+      for (size_t b = a; b < 4; ++b) {
+        d_pi->get(k, a, b) =
+            (pi_plus.get(a, b) - pi_minus.get(a, b)) / (2.0 * step);
+      }
+    }
+    for (size_t i = 0; i < 3; ++i) {
+      for (size_t a = 0; a < 4; ++a) {
+        for (size_t b = a; b < 4; ++b) {
+          d_phi->get(k, i, a, b) =
+              (phi_plus.get(i, a, b) - phi_minus.get(i, a, b)) / (2.0 * step);
+        }
+      }
+    }
+  }
+}
+
+ComplexModalVector teukolsky_wave_psi4_modes(
+    const gr::Solutions::TeukolskyWave& base_solution, const size_t l_max,
+    const double radius, const double time) {
+  const auto center = base_solution.center();
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const auto solution =
+      gh::Solutions::WrappedGr<gr::Solutions::TeukolskyWave>{base_solution};
+  const auto gh_vars = solution.variables(
+      coords, time,
+      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
+                 gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>{});
+  const auto gr_vars = base_solution.variables(
+      coords, time,
+      tmpl::list<gr::Tags::Lapse<DataVector>, gr::Tags::Shift<DataVector, 3>,
+                 gr::Tags::InverseSpatialMetric<DataVector, 3>>{});
+
+  const auto& spacetime_metric =
+      get<gr::Tags::SpacetimeMetric<DataVector, 3>>(gh_vars);
+  const auto& pi = get<gh::Tags::Pi<DataVector, 3>>(gh_vars);
+  const auto& phi = get<gh::Tags::Phi<DataVector, 3>>(gh_vars);
+  const auto& lapse = get<gr::Tags::Lapse<DataVector>>(gr_vars);
+  const auto& shift = get<gr::Tags::Shift<DataVector, 3>>(gr_vars);
+  const auto& inverse_spatial_metric =
+      get<gr::Tags::InverseSpatialMetric<DataVector, 3>>(gr_vars);
+  const auto spacetime_normal_vector =
+      gr::spacetime_normal_vector(lapse, shift);
+  const auto extrinsic_curvature =
+      gh::extrinsic_curvature(spacetime_normal_vector, pi, phi);
+
+  const double step = 1.0e-4 * radius;
+  tnsr::iaa<DataVector, 3, Frame::Inertial> d_pi{};
+  tnsr::ijaa<DataVector, 3, Frame::Inertial> d_phi{};
+  finite_difference_pi_and_phi(make_not_null(&d_pi), make_not_null(&d_phi),
+                               solution, coords, time, step);
+
+  const auto spatial_ricci =
+      gh::spatial_ricci_tensor(phi, d_phi, inverse_spatial_metric);
+  const auto spatial_christoffel_second_kind =
+      gh::christoffel_second_kind(phi, inverse_spatial_metric);
+  const auto inverse_spacetime_metric =
+      gr::inverse_spacetime_metric(lapse, shift, inverse_spatial_metric);
+  const auto cov_deriv_extrinsic_curvature =
+      gh::covariant_deriv_of_extrinsic_curvature(
+          extrinsic_curvature, spacetime_normal_vector,
+          spatial_christoffel_second_kind, inverse_spacetime_metric, phi, d_pi,
+          d_phi);
+  return gr::surfaces::psi_4_modes_from_tensors(
+      spacetime_metric, spatial_ricci, extrinsic_curvature,
+      cov_deriv_extrinsic_curvature, coords, strahlkorper.ylm_spherepack(),
+      center, radius);
+}
+
+std::complex<double> teukolsky_wave_rh22_second_time_derivative(
+    const gr::Solutions::TeukolskyWave& solution, const size_t l_max,
+    const double radius, const double time, const double dt) {
+  const auto rwz_plus =
+      teukolsky_wave_rwz_reference(solution, l_max, radius, time + dt);
+  const auto rwz = teukolsky_wave_rwz_reference(solution, l_max, radius, time);
+  const auto rwz_minus =
+      teukolsky_wave_rwz_reference(solution, l_max, radius, time - dt);
+  return (mode(rwz_plus.r_times_strain, l_max, 2, 2) -
+          2.0 * mode(rwz.r_times_strain, l_max, 2, 2) +
+          mode(rwz_minus.r_times_strain, l_max, 2, 2)) /
+         square(dt);
+}
+
+std::complex<double> linear_fit_intercept(
+    const std::vector<double>& x, const std::vector<std::complex<double>>& y) {
+  const double n = static_cast<double>(x.size());
+  double sum_x = 0.0;
+  double sum_xx = 0.0;
+  std::complex<double> sum_y{0.0, 0.0};
+  std::complex<double> sum_xy{0.0, 0.0};
+  for (size_t i = 0; i < x.size(); ++i) {
+    sum_x += x[i];
+    sum_xx += square(x[i]);
+    sum_y += y[i];
+    sum_xy += x[i] * y[i];
+  }
+  return (sum_y * sum_xx - sum_xy * sum_x) / (n * sum_xx - square(sum_x));
+}
+
 void test_regge_wheeler_zerilli_moncrief() {
   const size_t l_max = 3;
   const double radius = 10.0;
@@ -935,6 +1070,36 @@ void test_regge_wheeler_zerilli_from_gh_vars_teukolsky_wave() {
   }
 }
 
+void test_psi_4_matches_minus_ddot_h_in_large_radius_limit() {
+  const size_t l_max = 8;
+  const std::array<double, 3> center{{0.0, 0.0, 0.0}};
+  const auto base_solution = gr::Solutions::TeukolskyWave{
+      1.0e-4, 2, "even", "outgoing", center, 8.0, 1.5};
+  const std::vector<double> radii{20.0, 30.0, 40.0, 60.0};
+  const double retarded_time = -7.6;
+  const double dt = 5.0e-3;
+
+  std::vector<double> inverse_radii{};
+  std::vector<std::complex<double>> residuals{};
+  double max_signal = 0.0;
+  for (const double radius : radii) {
+    const double time = radius + retarded_time;
+    const auto psi4_modes =
+        teukolsky_wave_psi4_modes(base_solution, l_max, radius, time);
+    const auto ddot_h = teukolsky_wave_rh22_second_time_derivative(
+        base_solution, l_max, radius, time, dt);
+    const auto residual = mode(psi4_modes, l_max, 2, 2) + ddot_h;
+    inverse_radii.push_back(1.0 / radius);
+    residuals.push_back(residual);
+    max_signal = std::max(
+        max_signal, std::max(abs(mode(psi4_modes, l_max, 2, 2)), abs(ddot_h)));
+  }
+  const auto intercept = linear_fit_intercept(inverse_radii, residuals);
+  CAPTURE(intercept);
+  CAPTURE(max_signal);
+  CHECK(abs(intercept) < 5.0e-1 * max_signal + 1.0e-8);
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -948,4 +1113,5 @@ SPECTRE_TEST_CASE(
   test_regge_wheeler_zerilli_from_gh_vars_teukolsky_wave();
   test_extraction_sphere_metadata_from_gh_vars_minkowski();
   test_psi_4_modes_from_tensors_minkowski();
+  test_psi_4_matches_minus_ddot_h_in_large_radius_limit();
 }
