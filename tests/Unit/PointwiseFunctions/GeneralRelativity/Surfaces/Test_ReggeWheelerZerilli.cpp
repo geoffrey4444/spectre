@@ -15,11 +15,13 @@
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/TensorYlmCartToSphere.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/TeukolskyWave.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/ReggeWheelerZerilli.hpp"
 #include "Utilities/ConstantExpressions.hpp"
@@ -479,6 +481,128 @@ gr::surfaces::ReggeWheelerZerilli teukolsky_rwz_reference(
       h_t, dr_h_t, dt_h_r, h_rr, q_r, k, dr_k, g, dr_g, l_max, radius);
 }
 
+gr::surfaces::ReggeWheelerZerilli rwz_from_metric_tensors(
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_metric_perturbation,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& dt_spatial_metric,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& dr_spatial_metric,
+    const ylm::Spherepack& ylm_spherepack, const size_t l_max,
+    const double radius) {
+  const auto metric_modes = cartesian_to_spherical_tensor_modes(
+      spatial_metric_perturbation, ylm_spherepack);
+  const auto dt_metric_modes =
+      cartesian_to_spherical_tensor_modes(dt_spatial_metric, ylm_spherepack);
+  const auto dr_metric_modes =
+      cartesian_to_spherical_tensor_modes(dr_spatial_metric, ylm_spherepack);
+
+  const size_t number_of_modes = square(l_max + 1);
+  ComplexModalVector h_t{number_of_modes, 0.0};
+  ComplexModalVector dr_h_t{number_of_modes, 0.0};
+  ComplexModalVector dt_h_r{number_of_modes, 0.0};
+  ComplexModalVector h_rr{number_of_modes, 0.0};
+  ComplexModalVector q_r{number_of_modes, 0.0};
+  ComplexModalVector k{number_of_modes, 0.0};
+  ComplexModalVector dr_k{number_of_modes, 0.0};
+  ComplexModalVector g{number_of_modes, 0.0};
+  ComplexModalVector dr_g{number_of_modes, 0.0};
+
+  for (size_t l = 2; l <= l_max; ++l) {
+    const double vector_prefactor =
+        1.0 / sqrt(2.0 * static_cast<double>(l * (l + 1)));
+    const double tensor_prefactor =
+        1.0 / sqrt(static_cast<double>((l - 1) * l * (l + 1) * (l + 2)));
+    for (int m = 0; m <= static_cast<int>(l); ++m) {
+      const auto t_ll =
+          standard_mode_from_spherepack(metric_modes.get(0, 0), l_max, l, m);
+      const auto t_lm =
+          standard_mode_from_spherepack(metric_modes.get(0, 1), l_max, l, m);
+      const auto t_lmbar =
+          standard_mode_from_spherepack(metric_modes.get(0, 2), l_max, l, m);
+      const auto t_mm =
+          standard_mode_from_spherepack(metric_modes.get(1, 1), l_max, l, m);
+      const auto t_mmbar =
+          standard_mode_from_spherepack(metric_modes.get(1, 2), l_max, l, m);
+      const auto t_mbarmbar =
+          standard_mode_from_spherepack(metric_modes.get(2, 2), l_max, l, m);
+      const auto dt_lm =
+          standard_mode_from_spherepack(dt_metric_modes.get(0, 1), l_max, l, m);
+      const auto dt_lmbar =
+          standard_mode_from_spherepack(dt_metric_modes.get(0, 2), l_max, l, m);
+      const auto dr_mm =
+          standard_mode_from_spherepack(dr_metric_modes.get(1, 1), l_max, l, m);
+      const auto dr_mmbar =
+          standard_mode_from_spherepack(dr_metric_modes.get(1, 2), l_max, l, m);
+      const auto dr_mbarmbar =
+          standard_mode_from_spherepack(dr_metric_modes.get(2, 2), l_max, l, m);
+      h_rr[goldberg_index(l_max, l, m)] = t_ll;
+      q_r[goldberg_index(l_max, l, m)] =
+          -radius * vector_prefactor * (t_lmbar - t_lm);
+      k[goldberg_index(l_max, l, m)] = t_mmbar;
+      dr_k[goldberg_index(l_max, l, m)] = dr_mmbar;
+      g[goldberg_index(l_max, l, m)] = tensor_prefactor * (t_mbarmbar + t_mm);
+      dr_g[goldberg_index(l_max, l, m)] =
+          tensor_prefactor * (dr_mbarmbar + dr_mm);
+      dt_h_r[goldberg_index(l_max, l, m)] = std::complex<double>{0.0, 1.0} *
+                                            radius * vector_prefactor *
+                                            (dt_lmbar + dt_lm);
+    }
+  }
+
+  return gr::surfaces::regge_wheeler_zerilli_moncrief(
+      h_t, dr_h_t, dt_h_r, h_rr, q_r, k, dr_k, g, dr_g, l_max, radius);
+}
+
+tnsr::ii<DataVector, 3, Frame::Inertial> subtract_flat_metric(
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& spatial_metric) {
+  auto perturbation = spatial_metric;
+  for (size_t i = 0; i < 3; ++i) {
+    perturbation.get(i, i) -= 1.0;
+  }
+  return perturbation;
+}
+
+gr::surfaces::ReggeWheelerZerilli teukolsky_wave_rwz_reference(
+    const gr::Solutions::TeukolskyWave& solution, const size_t l_max,
+    const double radius, const double time) {
+  const auto center = solution.center();
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const auto metric_vars = solution.variables(
+      coords, time,
+      tmpl::list<gr::Tags::SpatialMetric<DataVector, 3>,
+                 Tags::dt<gr::Tags::SpatialMetric<DataVector, 3>>>{});
+  const auto& spatial_metric =
+      get<gr::Tags::SpatialMetric<DataVector, 3>>(metric_vars);
+  const auto& dt_spatial_metric =
+      get<Tags::dt<gr::Tags::SpatialMetric<DataVector, 3>>>(metric_vars);
+
+  const double step = 1.0e-4 * radius;
+  auto coords_plus = coords;
+  auto coords_minus = coords;
+  for (size_t i = 0; i < 3; ++i) {
+    coords_plus.get(i) += (coords.get(i) - gsl::at(center, i)) * step / radius;
+    coords_minus.get(i) -= (coords.get(i) - gsl::at(center, i)) * step / radius;
+  }
+  const auto spatial_metric_plus = get<gr::Tags::SpatialMetric<DataVector, 3>>(
+      solution.variables(coords_plus, time,
+                         tmpl::list<gr::Tags::SpatialMetric<DataVector, 3>>{}));
+  const auto spatial_metric_minus = get<gr::Tags::SpatialMetric<DataVector, 3>>(
+      solution.variables(coords_minus, time,
+                         tmpl::list<gr::Tags::SpatialMetric<DataVector, 3>>{}));
+  auto dr_spatial_metric =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(coords, 0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = i; j < 3; ++j) {
+      dr_spatial_metric.get(i, j) =
+          (spatial_metric_plus.get(i, j) - spatial_metric_minus.get(i, j)) /
+          (2.0 * step);
+    }
+  }
+  return rwz_from_metric_tensors(subtract_flat_metric(spatial_metric),
+                                 dt_spatial_metric, dr_spatial_metric,
+                                 strahlkorper.ylm_spherepack(), l_max, radius);
+}
+
 void test_regge_wheeler_zerilli_moncrief() {
   const size_t l_max = 3;
   const double radius = 10.0;
@@ -765,6 +889,52 @@ void test_regge_wheeler_zerilli_from_gh_vars_kerr_schild_schwarzschild() {
   check_modes(rwz.r_times_strain);
 }
 
+void test_regge_wheeler_zerilli_from_gh_vars_teukolsky_wave() {
+  const size_t l_max = 8;
+  const double radius = 24.0;
+  const double time = 16.4;
+  const std::array<double, 3> center{{0.0, 0.0, 0.0}};
+  const auto base_solution = gr::Solutions::TeukolskyWave{
+      1.0e-4, 2, "even", "outgoing", center, 8.0, 1.5};
+  const auto solution =
+      gh::Solutions::WrappedGr<gr::Solutions::TeukolskyWave>{base_solution};
+  const ylm::Strahlkorper<Frame::Inertial> strahlkorper{l_max, l_max, radius,
+                                                        center};
+  const auto coords = ylm::cartesian_coords(strahlkorper);
+  const auto gh_vars = solution.variables(
+      coords, time,
+      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
+                 gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>{});
+  const auto rwz = gr::surfaces::regge_wheeler_zerilli_moncrief_from_gh_vars(
+      get<gr::Tags::SpacetimeMetric<DataVector, 3>>(gh_vars),
+      get<gh::Tags::Pi<DataVector, 3>>(gh_vars),
+      get<gh::Tags::Phi<DataVector, 3>>(gh_vars), coords,
+      strahlkorper.ylm_spherepack(), center, radius);
+  const auto reference =
+      teukolsky_wave_rwz_reference(base_solution, l_max, radius, time);
+
+  const auto approx =
+      Approx::custom().epsilon(2.0e-2).margin(1.0e-9).scale(1.0);
+  for (size_t l = 2; l <= l_max; ++l) {
+    for (int m = -static_cast<int>(l); m <= static_cast<int>(l); ++m) {
+      CAPTURE(l);
+      CAPTURE(m);
+      CHECK(real(mode(rwz.phi_plus, l_max, l, m)) ==
+            approx(real(mode(reference.phi_plus, l_max, l, m))));
+      CHECK(imag(mode(rwz.phi_plus, l_max, l, m)) ==
+            approx(imag(mode(reference.phi_plus, l_max, l, m))));
+      CHECK(real(mode(rwz.phi_minus, l_max, l, m)) ==
+            approx(real(mode(reference.phi_minus, l_max, l, m))));
+      CHECK(imag(mode(rwz.phi_minus, l_max, l, m)) ==
+            approx(imag(mode(reference.phi_minus, l_max, l, m))));
+      CHECK(real(mode(rwz.r_times_strain, l_max, l, m)) ==
+            approx(real(mode(reference.r_times_strain, l_max, l, m))));
+      CHECK(imag(mode(rwz.r_times_strain, l_max, l, m)) ==
+            approx(imag(mode(reference.r_times_strain, l_max, l, m))));
+    }
+  }
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
@@ -775,6 +945,7 @@ SPECTRE_TEST_CASE(
   test_regge_wheeler_zerilli_teukolsky_reference_mode_structure();
   test_regge_wheeler_zerilli_from_gh_vars_minkowski();
   test_regge_wheeler_zerilli_from_gh_vars_kerr_schild_schwarzschild();
+  test_regge_wheeler_zerilli_from_gh_vars_teukolsky_wave();
   test_extraction_sphere_metadata_from_gh_vars_minkowski();
   test_psi_4_modes_from_tensors_minkowski();
 }
