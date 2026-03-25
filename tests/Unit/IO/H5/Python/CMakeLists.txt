@@ -12,8 +12,20 @@ if (NOT PY_DEV_MODE)
 endif()
 
 spectre_add_python_bindings_test(
+  "Unit.IO.H5.Python.CompareFiniteRadiusRwz"
+  Test_CompareFiniteRadiusRwz.py
+  "unit;IO;H5;python"
+  PyH5)
+
+spectre_add_python_bindings_test(
   "Unit.IO.H5.Python.CombineH5Dat"
   Test_CombineH5Dat.py
+  "unit;IO;H5;python"
+  PyH5)
+
+spectre_add_python_bindings_test(
+  "Unit.IO.H5.Python.ConvertFiniteRadiusRwzToSpec"
+  Test_ConvertFiniteRadiusRwzToSpec.py
   "unit;IO;H5;python"
   PyH5)
 
@@ -63,5 +75,11 @@ spectre_add_python_bindings_test(
 spectre_add_python_bindings_test(
   "Unit.IO.H5.Python.TransformVolumeData"
   Test_TransformVolumeData.py
+  "unit;IO;H5;python"
+  PyH5)
+
+spectre_add_python_bindings_test(
+  "Unit.IO.H5.Python.VerifyFiniteRadiusStrainPsi4"
+  Test_VerifyFiniteRadiusStrainPsi4.py
   "unit;IO;H5;python"
   PyH5)

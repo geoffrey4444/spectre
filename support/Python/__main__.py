@@ -23,7 +23,9 @@ class Cli(click.Group):
         return [
             "bbh",
             "clean-output",
+            "compare-rwz",
             "combine-h5",
+            "convert-rwz-to-spec",
             "delete-subfiles",
             "eccentricity-control-params",
             "extend-connectivity",
@@ -44,6 +46,7 @@ class Cli(click.Group):
             "status",
             "transform-volume-data",
             "validate",
+            "verify-h-psi4",
         ]
 
     def get_command(self, ctx, name):
@@ -63,6 +66,18 @@ class Cli(click.Group):
             from spectre.IO.H5.CombineH5 import combine_h5_command
 
             return combine_h5_command
+        elif name == "compare-rwz":
+            from spectre.IO.H5.CompareFiniteRadiusRwz import (
+                compare_finite_radius_rwz_command,
+            )
+
+            return compare_finite_radius_rwz_command
+        elif name == "convert-rwz-to-spec":
+            from spectre.IO.H5.ConvertFiniteRadiusRwzToSpec import (
+                convert_finite_radius_rwz_to_spec_command,
+            )
+
+            return convert_finite_radius_rwz_to_spec_command
         elif name == "delete-subfiles":
             from spectre.IO.H5.DeleteSubfiles import delete_subfiles_command
 
@@ -157,6 +172,12 @@ class Cli(click.Group):
             )
 
             return transform_volume_data_command
+        elif name == "verify-h-psi4":
+            from spectre.IO.H5.VerifyFiniteRadiusStrainPsi4 import (
+                verify_finite_radius_strain_psi4_command,
+            )
+
+            return verify_finite_radius_strain_psi4_command
         elif name == "validate":
             from spectre.tools.ValidateInputFile import (
                 validate_input_file_command,

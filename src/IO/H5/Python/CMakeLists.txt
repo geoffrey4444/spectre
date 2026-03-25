@@ -16,8 +16,10 @@ spectre_python_add_module(
   VolumeData.cpp
   PYTHON_FILES
   __init__.py
+  CompareFiniteRadiusRwz.py
   CombineH5.py
   CombineH5Dat.py
+  ConvertFiniteRadiusRwzToSpec.py
   DeleteSubfiles.py
   ExtendConnectivityData.py
   ExtractDatFromH5.py
@@ -28,6 +30,7 @@ spectre_python_add_module(
   OpenVolfiles.py
   ReadH5.py
   TransformVolumeData.py
+  VerifyFiniteRadiusStrainPsi4.py
   MODULE_PATH "IO"
   )
 
