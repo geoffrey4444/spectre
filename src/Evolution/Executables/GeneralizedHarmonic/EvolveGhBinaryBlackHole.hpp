@@ -77,6 +77,7 @@
 #include "IO/Observer/Tags.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/ExponentialFilter.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/Options.hpp"
 #include "Options/ParseOptions.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
@@ -160,6 +161,7 @@
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorReceiveVolumeData.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorRegisterElement.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/TryToInterpolate.hpp"
+#include "ParallelAlgorithms/Interpolation/Callbacks/ObserveReggeWheelerZerilli.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveSurfaceData.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveTimeSeriesOnSurface.hpp"
 #include "ParallelAlgorithms/Interpolation/Events/Interpolate.hpp"
@@ -347,7 +349,15 @@ struct EvolutionMetavars {
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                  gh::Tags::Pi<DataVector, volume_dim>,
                  gh::Tags::Phi<DataVector, volume_dim>>;
-
+  using finite_radius_source_vars = tmpl::list<
+      gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
+      gh::Tags::Pi<DataVector, volume_dim>,
+      gh::Tags::Phi<DataVector, volume_dim>,
+      gr::Tags::SpatialRicci<DataVector, volume_dim, Frame::Inertial>,
+      gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+      ::Tags::deriv<
+          gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+          tmpl::size_t<volume_dim>, Frame::Inertial>>;
   struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "BondiSachsInterpolation"; }
     using temporal_id = ::Tags::Time;
@@ -361,9 +371,24 @@ struct EvolutionMetavars {
     using interpolating_component = typename metavariables::gh_dg_element_array;
   };
 
+  struct FiniteRadiusExtraction
+      : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+    static std::string name() { return "FiniteRadiusExtraction"; }
+    using temporal_id = ::Tags::Time;
+    using tags_to_observe = finite_radius_source_vars;
+    using vars_to_interpolate_to_target = finite_radius_source_vars;
+    using compute_target_points =
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
+    using post_interpolation_callbacks = tmpl::list<
+        intrp::callbacks::ObserveReggeWheelerZerilli<FiniteRadiusExtraction>>;
+    using compute_items_on_target = tmpl::list<>;
+    template <typename metavariables>
+    using interpolating_component = typename metavariables::gh_dg_element_array;
+  };
+
   using interpolation_target_tags = tmpl::push_back<
       control_system::metafunctions::interpolation_target_tags<control_systems>,
-      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB>;
+      BondiSachs, ExcisionBoundaryA, ExcisionBoundaryB, FiniteRadiusExtraction>;
 
   using observe_fields = tmpl::append<
       tmpl::list<
@@ -492,30 +517,33 @@ struct EvolutionMetavars {
             DomainCreator<volume_dim>,
             tmpl::list<::domain::creators::BinaryCompactObject<false>,
                        ::domain::creators::CylindricalBinaryCompactObject>>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       ah::Events::FindApparentHorizon<AhA>,
-                       ah::Events::FindApparentHorizon<AhB>,
-                       ah::Events::FindCommonHorizon<AhC, observe_fields,
-                                                     non_tensor_compute_tags>,
-                       gh::bbh::Events::CheckConstraintThresholds,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, BondiSachs, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryA, ah::source_vars<3>>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryB, ah::source_vars<3>>,
-                       Events::MonitorMemory<3>, Events::Completion,
-                       dg::Events::field_observations<
-                           volume_dim, observe_fields, non_tensor_compute_tags>,
-                       control_system::metafunctions::control_system_events<
-                           control_systems>,
-                       control_system::CleanFunctionsOfTime,
-                       Events::time_events<system>,
-                       dg::Events::ObserveTimeStepVolume<system>,
-                       amr::Events::RefineMesh,
-                       amr::Events::ObserveAmrStats<volume_dim>,
-                       amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
+        tmpl::pair<
+            Event,
+            tmpl::flatten<tmpl::list<
+                ah::Events::FindApparentHorizon<AhA>,
+                ah::Events::FindApparentHorizon<AhB>,
+                ah::Events::FindCommonHorizon<AhC, observe_fields,
+                                              non_tensor_compute_tags>,
+                gh::bbh::Events::CheckConstraintThresholds,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, BondiSachs, source_vars_no_deriv>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, FiniteRadiusExtraction, finite_radius_source_vars>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundaryA, ah::source_vars<3>>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundaryB, ah::source_vars<3>>,
+                Events::MonitorMemory<3>, Events::Completion,
+                dg::Events::field_observations<volume_dim, observe_fields,
+                                               non_tensor_compute_tags>,
+                control_system::metafunctions::control_system_events<
+                    control_systems>,
+                control_system::CleanFunctionsOfTime,
+                Events::time_events<system>,
+                dg::Events::ObserveTimeStepVolume<system>,
+                amr::Events::RefineMesh,
+                amr::Events::ObserveAmrStats<volume_dim>,
+                amr::Events::ObserveAmrCriteria<EvolutionMetavars>>>>,
         tmpl::pair<
             evolution::BoundaryCorrection,
             gh::BoundaryCorrections::standard_boundary_corrections<volume_dim>>,
@@ -559,7 +587,8 @@ struct EvolutionMetavars {
       tmpl::list<gh::gauges::Tags::GaugeCondition,
                  gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
                  gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>;
+                 gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
+                 intrp::callbacks::cache_tags::InitialAdmEnergy>;
 
   using mutable_global_cache_tags = tmpl::list<>;
 
@@ -692,8 +721,10 @@ struct EvolutionMetavars {
               tmpl::list<Actions::RunEventsOnFailure<::Tags::Time>,
                          Parallel::Actions::TerminatePhase>>>>>;
 
-  using observed_reduction_data_tags = observers::collect_reduction_data_tags<
-      tmpl::at<typename factory_creation::factory_classes, Event>>;
+  using observed_reduction_data_tags =
+      observers::collect_reduction_data_tags<tmpl::push_back<
+          tmpl::at<typename factory_creation::factory_classes, Event>,
+          typename FiniteRadiusExtraction::post_interpolation_callbacks>>;
 
   struct registration
       : tt::ConformsTo<Parallel::protocols::RegistrationMetavariables> {

@@ -42,6 +42,8 @@ Next:
 Parallelization:
   ElementDistribution: NumGridPointsAndGridSpacing
 
+InitialAdmEnergy: {{ InitialAdmEnergy }}
+
 InitialData:
 {% if SpecDataDirectory is defined %}
   SpecInitialData:
@@ -574,6 +576,11 @@ InterpolationTargets:
     Radius: [100, 150, 200]
     Center: [0, 0, 0]
     AngularOrdering: Cce
+  FiniteRadiusExtraction:
+    LMax: 8
+    Radius: 24.0
+    Center: [0, 0, 0]
+    AngularOrdering: Strahlkorper
   ObservationExcisionBoundaryA: &ExBdryA
     LMax: *ObsLMax
     Center: [*XCoordA, *YOffset, *ZOffset]

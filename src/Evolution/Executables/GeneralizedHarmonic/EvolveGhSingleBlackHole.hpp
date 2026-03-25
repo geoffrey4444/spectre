@@ -25,6 +25,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "Options/FactoryHelpers.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
 #include "Options/String.hpp"
@@ -66,6 +67,7 @@
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorReceiveVolumeData.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/InterpolatorRegisterElement.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/TryToInterpolate.hpp"
+#include "ParallelAlgorithms/Interpolation/Callbacks/ObserveReggeWheelerZerilli.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveSurfaceData.hpp"
 #include "ParallelAlgorithms/Interpolation/Callbacks/ObserveTimeSeriesOnSurface.hpp"
 #include "ParallelAlgorithms/Interpolation/Events/Interpolate.hpp"
@@ -87,8 +89,17 @@
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/NoSuchType.hpp"
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
+
+// Check if SpEC is linked and therefore we can load SpEC initial data
+#ifdef HAS_SPEC_EXPORTER
+#include "PointwiseFunctions/AnalyticData/GeneralRelativity/SpecInitialData.hpp"
+using SpecInitialData = gr::AnalyticData::SpecInitialData;
+#else
+using SpecInitialData = NoSuchType;
+#endif
 
 template <bool UseLts>
 struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
@@ -161,15 +172,24 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
       tmpl::size<control_systems>::value > 0;
 
   struct BondiSachs;
+  struct FiniteRadiusExtraction;
 
   using interpolation_target_tags = tmpl::push_back<
       control_system::metafunctions::interpolation_target_tags<control_systems>,
-      ExcisionBoundary, BondiSachs>;
+      ExcisionBoundary, BondiSachs, FiniteRadiusExtraction>;
   using source_vars_no_deriv =
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
                  gh::Tags::Pi<DataVector, volume_dim>,
                  gh::Tags::Phi<DataVector, volume_dim>>;
-
+  using finite_radius_source_vars = tmpl::list<
+      gr::Tags::SpacetimeMetric<DataVector, volume_dim>,
+      gh::Tags::Pi<DataVector, volume_dim>,
+      gh::Tags::Phi<DataVector, volume_dim>,
+      gr::Tags::SpatialRicci<DataVector, volume_dim, Frame::Inertial>,
+      gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+      ::Tags::deriv<
+          gr::Tags::ExtrinsicCurvature<DataVector, volume_dim, Frame::Inertial>,
+          tmpl::size_t<volume_dim>, Frame::Inertial>>;
   struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
     static std::string name() { return "BondiSachsInterpolation"; }
     using temporal_id = ::Tags::Time;
@@ -178,6 +198,21 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
         intrp::TargetPoints::Sphere<BondiSachs, ::Frame::Inertial>;
     using post_interpolation_callbacks =
         tmpl::list<intrp::callbacks::DumpBondiSachsOnWorldtube<BondiSachs>>;
+    using compute_items_on_target = tmpl::list<>;
+    template <typename Metavariables>
+    using interpolating_component = typename Metavariables::gh_dg_element_array;
+  };
+
+  struct FiniteRadiusExtraction
+      : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+    static std::string name() { return "FiniteRadiusExtraction"; }
+    using temporal_id = ::Tags::Time;
+    using tags_to_observe = finite_radius_source_vars;
+    using vars_to_interpolate_to_target = finite_radius_source_vars;
+    using compute_target_points =
+        intrp::TargetPoints::Sphere<FiniteRadiusExtraction, ::Frame::Inertial>;
+    using post_interpolation_callbacks = tmpl::list<
+        intrp::callbacks::ObserveReggeWheelerZerilli<FiniteRadiusExtraction>>;
     using compute_items_on_target = tmpl::list<>;
     template <typename Metavariables>
     using interpolating_component = typename Metavariables::gh_dg_element_array;
@@ -195,35 +230,55 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
         // Restrict to monotonic time steppers in LTS to avoid control
         // systems deadlocking.
         tmpl::insert<
-            tmpl::erase<typename gh_base::factory_creation::factory_classes,
+            tmpl::insert<
+                tmpl::erase<
+                    tmpl::erase<
+                        typename gh_base::factory_creation::factory_classes,
                         LtsTimeStepper>,
-            tmpl::pair<LtsTimeStepper,
-                       TimeSteppers::monotonic_lts_time_steppers>>,
+                    evolution::initial_data::InitialData>,
+                tmpl::pair<LtsTimeStepper,
+                           TimeSteppers::monotonic_lts_time_steppers>>,
+            tmpl::pair<
+                evolution::initial_data::InitialData,
+                tmpl::append<
+                    tmpl::at<typename gh_base::factory_creation::factory_classes,
+                             evolution::initial_data::InitialData>,
+                    tmpl::conditional_t<std::is_same_v<SpecInitialData,
+                                                      NoSuchType>,
+                                        tmpl::list<>,
+                                        tmpl::list<SpecInitialData>>>>>,
         tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
-        tmpl::pair<Event,
-                   tmpl::flatten<tmpl::list<
-                       ah::Events::FindApparentHorizon<ApparentHorizon>,
-                       control_system::metafunctions::control_system_events<
-                           control_systems>,
-                       control_system::CleanFunctionsOfTime,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, BondiSachs, source_vars_no_deriv>,
-                       intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
-                       amr::Events::RefineMesh,
-                       amr::Events::ObserveAmrStats<volume_dim>>>>,
+        tmpl::pair<
+            Event,
+            tmpl::flatten<tmpl::list<
+                ah::Events::FindApparentHorizon<ApparentHorizon>,
+                control_system::metafunctions::control_system_events<
+                    control_systems>,
+                control_system::CleanFunctionsOfTime,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, BondiSachs, source_vars_no_deriv>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, FiniteRadiusExtraction, finite_radius_source_vars>,
+                intrp::Events::InterpolateWithoutInterpComponent<
+                    3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
+                amr::Events::RefineMesh,
+                amr::Events::ObserveAmrStats<volume_dim>>>>,
         tmpl::pair<DenseTrigger,
                    control_system::control_system_triggers<control_systems>>,
         tmpl::pair<control_system::size::State,
                    control_system::size::States::factory_creatable_states>>;
   };
 
-  using typename gh_base::const_global_cache_tags;
+  using const_global_cache_tags =
+      tmpl::push_back<typename gh_base::const_global_cache_tags,
+                      intrp::callbacks::cache_tags::InitialAdmEnergy>;
 
   using observed_reduction_data_tags =
       observers::collect_reduction_data_tags<tmpl::push_back<
-          tmpl::at<typename factory_creation::factory_classes, Event>,
-          typename ExcisionBoundary::post_interpolation_callbacks>>;
+          tmpl::push_back<
+              tmpl::at<typename factory_creation::factory_classes, Event>,
+              typename ExcisionBoundary::post_interpolation_callbacks>,
+          typename FiniteRadiusExtraction::post_interpolation_callbacks>>;
 
   using dg_registration_list = typename gh_base::dg_registration_list;
 

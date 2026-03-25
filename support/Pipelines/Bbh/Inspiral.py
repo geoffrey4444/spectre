@@ -403,6 +403,7 @@ def start_inspiral(
     lev: Optional[int] = None,
     refinement_level: Optional[int] = None,
     polynomial_order: Optional[int] = None,
+    initial_adm_energy: float = 1.0,
     id_run_dir: Optional[Union[str, Path]] = None,
     id_subfile_name: Optional[str] = None,
     inspiral_input_file_template: Union[
@@ -479,6 +480,7 @@ def start_inspiral(
         )
     inspiral_params.update(
         {
+            "InitialAdmEnergy": initial_adm_energy,
             "Lev": lev,
             "L": refinement_level,
             "P": polynomial_order,
@@ -608,6 +610,13 @@ def start_inspiral(
         " postprocess-id' in the ID directory to generate it. Note that this is"
         " not needed if you are starting from a SpEC ID_Params.perl file."
     ),
+)
+@click.option(
+    "--initial-adm-energy",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help="Initial ADM energy metadata to write into finite-radius RWZ files.",
 )
 @click.option(
     "--lev",
