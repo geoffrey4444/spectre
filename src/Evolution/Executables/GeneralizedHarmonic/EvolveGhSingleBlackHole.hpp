@@ -191,12 +191,14 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
         // Restrict to monotonic time steppers in LTS to avoid control
         // systems deadlocking.
         tmpl::insert<
-            tmpl::erase<
-                tmpl::erase<typename gh_base::factory_creation::factory_classes,
-                            LtsTimeStepper>,
-                evolution::initial_data::InitialData>,
-            tmpl::pair<LtsTimeStepper,
-                       TimeSteppers::monotonic_lts_time_steppers>,
+            tmpl::insert<
+                tmpl::erase<
+                    tmpl::erase<
+                        typename gh_base::factory_creation::factory_classes,
+                        LtsTimeStepper>,
+                    evolution::initial_data::InitialData>,
+                tmpl::pair<LtsTimeStepper,
+                           TimeSteppers::monotonic_lts_time_steppers>>,
             tmpl::pair<
                 evolution::initial_data::InitialData,
                 tmpl::flatten<tmpl::list<
