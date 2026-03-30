@@ -202,6 +202,7 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3, UseLts> {
             tmpl::pair<
                 evolution::initial_data::InitialData,
                 tmpl::flatten<tmpl::list<
+                    gh::Solutions::all_solutions<volume_dim>,
                     gh::NumericInitialData,
                     tmpl::conditional_t<std::is_same_v<SpecInitialData,
                                                       NoSuchType>,
