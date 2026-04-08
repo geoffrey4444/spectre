@@ -6,16 +6,20 @@ import unittest
 import numpy as np
 
 from spectre.DataStructures import DataVector
+from spectre.DataStructures.Tensor import Scalar, tnsr
 from spectre.NumericalAlgorithms.LinearOperators import (
     absolute_truncation_error,
     convergence_rate_and_number_of_pile_up_modes,
     power_monitors,
     relative_truncation_error,
+    shell_power_monitor_buffer,
+    shell_power_monitors,
 )
 from spectre.Spectral import (
     Basis,
     Mesh1D,
     Mesh2D,
+    Mesh3D,
     Quadrature,
     logical_coordinates,
 )
@@ -107,6 +111,97 @@ class TestPowerMonitors(unittest.TestCase):
         )["number_of_pile_up_modes"]
         np.testing.assert_allclose(
             np.floor(pile_up_modes), expected_pile_up_modes
+        )
+
+    def test_shell_power_monitors_scalar(self):
+        mesh = Mesh3D(
+            [3, 4, 7],
+            [
+                Basis.Legendre,
+                Basis.SphericalHarmonic,
+                Basis.SphericalHarmonic,
+            ],
+            [
+                Quadrature.GaussLobatto,
+                Quadrature.Equiangular,
+                Quadrature.Equiangular,
+            ],
+        )
+        test_data = np.ones(mesh.number_of_grid_points())
+        buffer = shell_power_monitor_buffer(test_data, mesh)
+        monitors = shell_power_monitors(test_data, mesh)
+
+        expected_radial = np.sqrt(
+            np.array(buffer["radial_sums"]) / np.array(buffer["radial_counts"])
+        )
+        expected_angular = np.sqrt(
+            np.array(buffer["angular_sums"])
+            / np.array(buffer["angular_counts"])
+        )
+        radial = np.array(monitors["radial"])
+        angular = np.array(monitors["angular"])
+        np.testing.assert_allclose(radial, expected_radial)
+        np.testing.assert_allclose(angular, expected_angular)
+        self.assertGreater(radial[0], 0.0)
+        self.assertGreater(angular[0], 0.0)
+        np.testing.assert_allclose(radial[1:], 0.0, atol=1.0e-12)
+        np.testing.assert_allclose(angular[1:], 0.0, atol=1.0e-12)
+
+        scalar_tensor_buffer = shell_power_monitor_buffer(
+            Scalar[DataVector](test_data), mesh
+        )
+        scalar_tensor_monitors = shell_power_monitors(
+            Scalar[DataVector](test_data), mesh
+        )
+        np.testing.assert_array_equal(
+            np.array(scalar_tensor_buffer["angular_counts"]),
+            np.array(buffer["angular_counts"]),
+        )
+        np.testing.assert_allclose(
+            np.array(scalar_tensor_monitors["radial"]), radial
+        )
+        np.testing.assert_allclose(
+            np.array(scalar_tensor_monitors["angular"]), angular
+        )
+
+    def test_shell_power_monitors_tensor(self):
+        mesh = Mesh3D(
+            [3, 4, 7],
+            [
+                Basis.Legendre,
+                Basis.SphericalHarmonic,
+                Basis.SphericalHarmonic,
+            ],
+            [
+                Quadrature.GaussLobatto,
+                Quadrature.Equiangular,
+                Quadrature.Equiangular,
+            ],
+        )
+        num_points = mesh.number_of_grid_points()
+        vector = tnsr.i[DataVector, 3](num_points)
+        vector[0] = DataVector(np.ones(num_points))
+        vector[1] = DataVector(np.zeros(num_points))
+        vector[2] = DataVector(np.zeros(num_points))
+
+        buffer = shell_power_monitor_buffer(vector, mesh)
+        monitors = shell_power_monitors(vector, mesh)
+
+        np.testing.assert_allclose(
+            np.array(monitors["radial"]),
+            np.sqrt(
+                np.array(buffer["radial_sums"])
+                / np.array(buffer["radial_counts"])
+            ),
+        )
+        angular_counts = np.array(buffer["angular_counts"])
+        valid = angular_counts > 0
+        expected_angular = np.zeros(len(angular_counts))
+        expected_angular[valid] = np.sqrt(
+            np.array(buffer["angular_sums"])[valid] / angular_counts[valid]
+        )
+        np.testing.assert_allclose(
+            np.array(monitors["angular"]), expected_angular
         )
 
 

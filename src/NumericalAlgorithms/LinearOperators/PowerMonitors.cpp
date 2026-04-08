@@ -7,21 +7,286 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <optional>
+#include <type_traits>
 
 #include "DataStructures/ComplexDataVector.hpp"
 #include "DataStructures/ComplexModalVector.hpp"
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Index.hpp"
 #include "DataStructures/ModalVector.hpp"
 #include "DataStructures/SliceIterator.hpp"
+#include "DataStructures/Tensor/Tensor.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
 #include "NumericalAlgorithms/Interpolation/LinearRegression.hpp"
 #include "NumericalAlgorithms/LinearOperators/CoefficientTransforms.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmHelpers.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmTransforms.hpp"
+#include "Utilities/Array.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/EqualWithinRoundoff.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/MakeWithValue.hpp"
 
 namespace PowerMonitors {
+
+namespace {
+
+template <typename TensorType, typename = void>
+struct is_scalar_shell_input : std::false_type {};
+
+template <>
+struct is_scalar_shell_input<DataVector> : std::true_type {};
+
+template <typename TensorType>
+struct is_scalar_shell_input<TensorType,
+                             std::void_t<decltype(TensorType::rank())>>
+    : std::bool_constant<TensorType::rank() == 0> {};
+
+const DataVector& scalar_shell_data(const DataVector& data) { return data; }
+
+template <typename TensorType>
+const DataVector& scalar_shell_data(const TensorType& tensor) {
+  return get(tensor);
+}
+
+struct ShellLayout {
+  size_t radial_dim{};
+  size_t theta_dim{};
+  size_t phi_dim{};
+};
+
+ShellLayout shell_layout(const Mesh<3>& mesh) {
+  std::optional<size_t> radial_dim{};
+  std::optional<size_t> theta_dim{};
+  std::optional<size_t> phi_dim{};
+  for (size_t d = 0; d < 3; ++d) {
+    if (mesh.basis(d) == Spectral::Basis::SphericalHarmonic) {
+      if (not theta_dim.has_value()) {
+        theta_dim = d;
+      } else if (not phi_dim.has_value()) {
+        phi_dim = d;
+      } else {
+        ERROR(
+            "Shell power monitors support exactly two spherical-harmonic "
+            "dimensions, but the mesh is "
+            << mesh);
+      }
+    } else {
+      if (radial_dim.has_value()) {
+        ERROR(
+            "Shell power monitors support exactly one non-angular dimension, "
+            "but the mesh is "
+            << mesh);
+      }
+      radial_dim = d;
+    }
+  }
+  ASSERT(
+      radial_dim.has_value() and theta_dim.has_value() and phi_dim.has_value(),
+      "Shell power monitors require one radial and two spherical-harmonic "
+      "dimensions, but the mesh is "
+          << mesh);
+  if (*radial_dim != 0 or *theta_dim != 1 or *phi_dim != 2) {
+    ERROR(
+        "Shell power monitors currently support only meshes with the radial "
+        "dimension first and the two spherical-harmonic dimensions last, but "
+        "the mesh is "
+        << mesh);
+  }
+  return ShellLayout{*radial_dim, *theta_dim, *phi_dim};
+}
+
+template <typename TensorType>
+int tensor_ylm_component_spin_weight(const size_t component) {
+  if constexpr (TensorType::rank() == 0) {
+    return 0;
+  } else {
+    const auto tensor_index =
+        convert_to_cpp20_array(TensorType::get_tensor_index(component));
+    const auto basis_vectors =
+        ylm::TensorYlm::helpers::to_sphere_basis_vector(tensor_index);
+    return std::accumulate(
+        basis_vectors.begin(), basis_vectors.end(), 0,
+        [](const int running_spin,
+           const ylm::TensorYlm::helpers::BasisVector basis_vector) {
+          return running_spin + ylm::TensorYlm::helpers::bv_to_s(basis_vector);
+        });
+  }
+}
+
+template <typename TensorType>
+void accumulate_radial_shell_power(
+    const gsl::not_null<DataVector*> radial_sums,
+    const gsl::not_null<std::vector<size_t>*> radial_counts,
+    const TensorType& tensor, const Mesh<3>& mesh, const ShellLayout& layout) {
+  const auto radial_mesh = mesh.slice_through(layout.radial_dim);
+  const size_t n_r = radial_mesh.extents(0);
+  if (radial_sums->size() != n_r) {
+    radial_sums->destructive_resize(n_r);
+    *radial_sums = 0.0;
+  }
+  if (radial_counts->size() != n_r) {
+    radial_counts->assign(n_r, 0);
+  }
+
+  const auto extents = mesh.extents();
+  const size_t n_theta = extents[layout.theta_dim];
+  const size_t n_phi = extents[layout.phi_dim];
+  DataVector radial_slice(n_r, 0.0);
+  ModalVector radial_modes(n_r, 0.0);
+
+  if constexpr (std::is_same_v<TensorType, DataVector>) {
+    for (size_t theta = 0; theta < n_theta; ++theta) {
+      for (size_t phi = 0; phi < n_phi; ++phi) {
+        for (size_t r = 0; r < n_r; ++r) {
+          Index<3> index{};
+          index[layout.radial_dim] = r;
+          index[layout.theta_dim] = theta;
+          index[layout.phi_dim] = phi;
+          radial_slice[r] = tensor[collapsed_index(index, extents)];
+        }
+        to_modal_coefficients(make_not_null(&radial_modes), radial_slice,
+                              radial_mesh);
+        for (size_t mode = 0; mode < n_r; ++mode) {
+          (*radial_sums)[mode] += square(radial_modes[mode]);
+          ++((*radial_counts)[mode]);
+        }
+      }
+    }
+  } else {
+    for (size_t component = 0; component < tensor.size(); ++component) {
+      const auto& data = tensor[component];
+      for (size_t theta = 0; theta < n_theta; ++theta) {
+        for (size_t phi = 0; phi < n_phi; ++phi) {
+          for (size_t r = 0; r < n_r; ++r) {
+            Index<3> index{};
+            index[layout.radial_dim] = r;
+            index[layout.theta_dim] = theta;
+            index[layout.phi_dim] = phi;
+            radial_slice[r] = data[collapsed_index(index, extents)];
+          }
+          to_modal_coefficients(make_not_null(&radial_modes), radial_slice,
+                                radial_mesh);
+          for (size_t mode = 0; mode < n_r; ++mode) {
+            (*radial_sums)[mode] += square(radial_modes[mode]);
+            ++((*radial_counts)[mode]);
+          }
+        }
+      }
+    }
+  }
+}
+
+void accumulate_scalar_angular_shell_power(
+    const gsl::not_null<DataVector*> angular_sums,
+    const gsl::not_null<std::vector<size_t>*> angular_counts,
+    const DataVector& data, const Mesh<3>& mesh, const ShellLayout& layout) {
+  const size_t l_max = mesh.extents(layout.theta_dim) - 1;
+  const size_t m_max = (mesh.extents(layout.phi_dim) - 1) / 2;
+  ylm::Spherepack spherepack(l_max, m_max);
+  const size_t n_r = mesh.extents(layout.radial_dim);
+  const DataVector spectrum = spherepack.phys_to_spec_all_offsets(data, n_r);
+
+  if (angular_sums->size() != l_max + 1) {
+    angular_sums->destructive_resize(l_max + 1);
+    *angular_sums = 0.0;
+  }
+  if (angular_counts->size() != l_max + 1) {
+    angular_counts->assign(l_max + 1, 0);
+  }
+
+  for (ylm::SpherepackIterator it(l_max, m_max); it; ++it) {
+    for (size_t r = 0; r < n_r; ++r) {
+      (*angular_sums)[it.l()] += square(spectrum[it() * n_r + r]);
+      ++((*angular_counts)[it.l()]);
+    }
+  }
+}
+
+template <typename TensorType>
+void accumulate_tensor_angular_shell_power(
+    const gsl::not_null<DataVector*> angular_sums,
+    const gsl::not_null<std::vector<size_t>*> angular_counts,
+    const TensorType& tensor, const Mesh<3>& mesh, const ShellLayout& layout) {
+  const size_t l_max = mesh.extents(layout.theta_dim) - 1;
+  const size_t m_max = (mesh.extents(layout.phi_dim) - 1) / 2;
+  ylm::Spherepack spherepack(l_max, m_max);
+  const size_t n_r = mesh.extents(layout.radial_dim);
+
+  if (angular_sums->size() != l_max + 1) {
+    angular_sums->destructive_resize(l_max + 1);
+    *angular_sums = 0.0;
+  }
+  if (angular_counts->size() != l_max + 1) {
+    angular_counts->assign(l_max + 1, 0);
+  }
+
+  auto scalar_ylm_coefficients = make_with_value<TensorType>(tensor, 0.0);
+  for (size_t component = 0; component < tensor.size(); ++component) {
+    scalar_ylm_coefficients[component] =
+        spherepack.phys_to_spec_all_offsets(tensor[component], n_r);
+  }
+  const auto tensor_ylm_coefficients =
+      ylm::TensorYlm::scalar_to_tensor_ylm_coefficients(
+          scalar_ylm_coefficients, l_max, n_r,
+          ylm::TensorYlm::CoefficientNormalization::Spherepack);
+
+  for (size_t component = 0; component < tensor_ylm_coefficients.size();
+       ++component) {
+    const int spin_weight =
+        tensor_ylm_component_spin_weight<TensorType>(component);
+    const size_t abs_spin_weight = static_cast<size_t>(abs(spin_weight));
+    for (ylm::SpherepackIterator it(l_max, m_max, 1, false); it; ++it) {
+      const bool keep_low_l_m0_real =
+          spin_weight < 0 and it.l() == 0 and it.m() == 0 and
+          it.coefficient_array() ==
+              ylm::SpherepackIterator::CoefficientArray::a;
+      if (it.l() < abs_spin_weight and not keep_low_l_m0_real) {
+        continue;
+      }
+      for (size_t r = 0; r < n_r; ++r) {
+        (*angular_sums)[it.l()] +=
+            square(tensor_ylm_coefficients[component][it() * n_r + r]);
+        ++((*angular_counts)[it.l()]);
+      }
+    }
+  }
+}
+
+template <typename TensorType>
+ShellPowerMonitorBuffer shell_power_monitor_buffer_impl(
+    const TensorType& tensor, const Mesh<3>& mesh) {
+  const auto layout = shell_layout(mesh);
+  ShellPowerMonitorBuffer buffer{};
+  accumulate_radial_shell_power(make_not_null(&buffer.radial_sums),
+                                make_not_null(&buffer.radial_counts), tensor,
+                                mesh, layout);
+  if constexpr (is_scalar_shell_input<TensorType>::value) {
+    accumulate_scalar_angular_shell_power(make_not_null(&buffer.angular_sums),
+                                          make_not_null(&buffer.angular_counts),
+                                          scalar_shell_data(tensor), mesh,
+                                          layout);
+  } else {
+    accumulate_tensor_angular_shell_power(make_not_null(&buffer.angular_sums),
+                                          make_not_null(&buffer.angular_counts),
+                                          tensor, mesh, layout);
+  }
+  return buffer;
+}
+
+template <typename TensorType>
+ShellPowerMonitor shell_power_monitors_impl(const TensorType& tensor,
+                                            const Mesh<3>& mesh) {
+  return finalize_shell_power_monitor_buffer(
+      shell_power_monitor_buffer_impl(tensor, mesh));
+}
+
+}  // namespace
 
 template <typename VectorType, size_t Dim>
 void power_monitors(const gsl::not_null<std::array<DataVector, Dim>*> result,
@@ -286,6 +551,50 @@ ConvergenceInfo convergence_rate_and_number_of_pile_up_modes(
   return result;
 }
 
+ShellPowerMonitor finalize_shell_power_monitor_buffer(
+    const ShellPowerMonitorBuffer& buffer) {
+  ShellPowerMonitor result{};
+  result.radial = buffer.radial_sums;
+  result.angular = buffer.angular_sums;
+  for (size_t i = 0; i < result.radial.size(); ++i) {
+    result.radial[i] =
+        gsl::at(buffer.radial_counts, i) == 0
+            ? 0.0
+            : sqrt(result.radial[i] /
+                   static_cast<double>(gsl::at(buffer.radial_counts, i)));
+  }
+  for (size_t i = 0; i < result.angular.size(); ++i) {
+    result.angular[i] =
+        gsl::at(buffer.angular_counts, i) == 0
+            ? 0.0
+            : sqrt(result.angular[i] /
+                   static_cast<double>(gsl::at(buffer.angular_counts, i)));
+  }
+  return result;
+}
+
+ShellPowerMonitorBuffer shell_power_monitor_buffer(const DataVector& u,
+                                                   const Mesh<3>& mesh) {
+  return shell_power_monitor_buffer_impl(u, mesh);
+}
+
+ShellPowerMonitor shell_power_monitors(const DataVector& u,
+                                       const Mesh<3>& mesh) {
+  return shell_power_monitors_impl(u, mesh);
+}
+
+template <typename TensorType>
+ShellPowerMonitorBuffer shell_power_monitor_buffer(const TensorType& tensor,
+                                                   const Mesh<3>& mesh) {
+  return shell_power_monitor_buffer_impl(tensor, mesh);
+}
+
+template <typename TensorType>
+ShellPowerMonitor shell_power_monitors(const TensorType& tensor,
+                                       const Mesh<3>& mesh) {
+  return shell_power_monitors_impl(tensor, mesh);
+}
+
 #define DTYPE(data) BOOST_PP_TUPLE_ELEM(0, data)
 #define DIM(data) BOOST_PP_TUPLE_ELEM(1, data)
 
@@ -303,7 +612,27 @@ ConvergenceInfo convergence_rate_and_number_of_pile_up_modes(
 GENERATE_INSTANTIATIONS(INSTANTIATE_DIM, (DataVector, ComplexDataVector),
                         (1, 2, 3))
 
-#undef INSTANTIATE
+template ShellPowerMonitorBuffer shell_power_monitor_buffer(
+    const Scalar<DataVector>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitor shell_power_monitors(
+    const Scalar<DataVector>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitorBuffer shell_power_monitor_buffer(
+    const tnsr::i<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitor shell_power_monitors(
+    const tnsr::i<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitorBuffer shell_power_monitor_buffer(
+    const tnsr::ii<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitor shell_power_monitors(
+    const tnsr::ii<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitorBuffer shell_power_monitor_buffer(
+    const tnsr::ij<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitor shell_power_monitors(
+    const tnsr::ij<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitorBuffer shell_power_monitor_buffer(
+    const tnsr::ijj<DataVector, 3>& tensor, const Mesh<3>& mesh);
+template ShellPowerMonitor shell_power_monitors(
+    const tnsr::ijj<DataVector, 3>& tensor, const Mesh<3>& mesh);
+
 #undef DIM
 
 }  // namespace PowerMonitors

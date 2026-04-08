@@ -24,7 +24,14 @@
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmHelpers.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmTransforms.hpp"
+#include "Utilities/Array.hpp"
 #include "Utilities/ConstantExpressions.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/MakeWithValue.hpp"
 
 namespace {
 
@@ -364,6 +371,270 @@ void test_pile_up_modes() {
           .number_of_pile_up_modes;
   CHECK(pile_up_modes_zero_convergence == 0.0);
 }
+
+void test_shell_power_monitors() {
+  const Mesh<3> shell_mesh{
+      {3_st, 4_st, 7_st},
+      {Spectral::Basis::Legendre, Spectral::Basis::SphericalHarmonic,
+       Spectral::Basis::SphericalHarmonic},
+      {Spectral::Quadrature::GaussLobatto, Spectral::Quadrature::Equiangular,
+       Spectral::Quadrature::Equiangular}};
+
+  const DataVector scalar_data(shell_mesh.number_of_grid_points(), 1.0);
+  const auto scalar_buffer =
+      PowerMonitors::shell_power_monitor_buffer(scalar_data, shell_mesh);
+  const auto scalar_monitors =
+      PowerMonitors::shell_power_monitors(scalar_data, shell_mesh);
+  const auto finalized_scalar =
+      PowerMonitors::finalize_shell_power_monitor_buffer(scalar_buffer);
+
+  CHECK_ITERABLE_APPROX(scalar_monitors.radial, finalized_scalar.radial);
+  CHECK_ITERABLE_APPROX(scalar_monitors.angular, finalized_scalar.angular);
+  CHECK(scalar_monitors.radial[0] > 0.0);
+  CHECK(scalar_monitors.angular[0] > 0.0);
+  for (size_t i = 1; i < scalar_monitors.radial.size(); ++i) {
+    CHECK(scalar_monitors.radial[i] == approx(0.0));
+  }
+  for (size_t i = 1; i < scalar_monitors.angular.size(); ++i) {
+    CHECK(scalar_monitors.angular[i] == approx(0.0));
+  }
+
+  tnsr::i<DataVector, 3> vector_data(shell_mesh.number_of_grid_points(), 0.0);
+  vector_data.get(0) = DataVector(shell_mesh.number_of_grid_points(), 1.0);
+  const auto tensor_buffer =
+      PowerMonitors::shell_power_monitor_buffer(vector_data, shell_mesh);
+  const auto tensor_monitors =
+      PowerMonitors::shell_power_monitors(vector_data, shell_mesh);
+  const auto finalized_tensor =
+      PowerMonitors::finalize_shell_power_monitor_buffer(tensor_buffer);
+  const Scalar<DataVector> scalar_tensor{scalar_data};
+  const auto scalar_tensor_buffer =
+      PowerMonitors::shell_power_monitor_buffer(scalar_tensor, shell_mesh);
+  const auto scalar_tensor_monitors =
+      PowerMonitors::shell_power_monitors(scalar_tensor, shell_mesh);
+
+  CHECK_ITERABLE_APPROX(tensor_monitors.radial, finalized_tensor.radial);
+  CHECK_ITERABLE_APPROX(tensor_monitors.angular, finalized_tensor.angular);
+  CHECK(tensor_monitors.radial[0] > 0.0);
+  CHECK_ITERABLE_APPROX(scalar_tensor_monitors.radial, scalar_monitors.radial);
+  CHECK_ITERABLE_APPROX(scalar_tensor_monitors.angular,
+                        scalar_monitors.angular);
+  CHECK(scalar_tensor_buffer.angular_counts == scalar_buffer.angular_counts);
+  CHECK_ITERABLE_APPROX(
+      PowerMonitors::finalize_shell_power_monitor_buffer(scalar_tensor_buffer)
+          .angular,
+      scalar_monitors.angular);
+
+  const auto call_shell_power_on_non_shell_mesh = []() {
+    const Mesh<3> mesh{3_st, Spectral::Basis::Legendre,
+                       Spectral::Quadrature::GaussLobatto};
+    const DataVector data(mesh.number_of_grid_points(), 1.0);
+    (void)PowerMonitors::shell_power_monitors(data, mesh);
+  };
+  CHECK_THROWS_WITH(
+      call_shell_power_on_non_shell_mesh(),
+      Catch::Matchers::ContainsSubstring(
+          "Shell power monitors support exactly one non-angular dimension"));
+
+  const auto call_shell_power_on_non_radial_first_shell_mesh = []() {
+    const Mesh<3> mesh{
+        {4_st, 7_st, 3_st},
+        {Spectral::Basis::SphericalHarmonic, Spectral::Basis::SphericalHarmonic,
+         Spectral::Basis::Legendre},
+        {Spectral::Quadrature::Gauss, Spectral::Quadrature::Equiangular,
+         Spectral::Quadrature::GaussLobatto}};
+    const DataVector data(mesh.number_of_grid_points(), 1.0);
+    (void)PowerMonitors::shell_power_monitors(data, mesh);
+  };
+  CHECK_THROWS_WITH(
+      call_shell_power_on_non_radial_first_shell_mesh(),
+      Catch::Matchers::ContainsSubstring(
+          "radial dimension first and the two spherical-harmonic dimensions "
+          "last"));
+}
+
+std::vector<size_t> scalar_tensor_angular_counts(const size_t n_r,
+                                                 const size_t l_max) {
+  std::vector<size_t> result(l_max + 1, 0);
+  for (size_t l = 0; l <= l_max; ++l) {
+    result[l] = n_r * (2 * l + 1);
+  }
+  return result;
+}
+
+std::vector<size_t> vector_tensor_angular_counts(const size_t n_r,
+                                                 const size_t l_max) {
+  std::vector<size_t> result(l_max + 1, 0);
+  if (l_max + 1 > 0) {
+    result[0] = 3 * n_r;
+  }
+  for (size_t l = 1; l <= l_max; ++l) {
+    result[l] = n_r * 3 * 2 * (l + 1);
+  }
+  return result;
+}
+
+std::vector<size_t> symmetric_rank2_tensor_angular_counts(const size_t n_r,
+                                                          const size_t l_max) {
+  std::vector<size_t> result(l_max + 1, 0);
+  if (l_max + 1 > 0) {
+    result[0] = 6 * n_r;
+  }
+  if (l_max + 1 > 1) {
+    result[1] = 16 * n_r;
+  }
+  for (size_t l = 2; l <= l_max; ++l) {
+    result[l] = n_r * 6 * 2 * (l + 1);
+  }
+  return result;
+}
+
+void test_shell_tensor_count_semantics() {
+  const Mesh<3> shell_mesh{
+      {3_st, 4_st, 7_st},
+      {Spectral::Basis::Legendre, Spectral::Basis::SphericalHarmonic,
+       Spectral::Basis::SphericalHarmonic},
+      {Spectral::Quadrature::GaussLobatto, Spectral::Quadrature::Equiangular,
+       Spectral::Quadrature::Equiangular}};
+  const size_t n_r = shell_mesh.extents(0);
+  const size_t l_max = shell_mesh.extents(1) - 1;
+
+  const Scalar<DataVector> scalar_tensor{
+      DataVector(shell_mesh.number_of_grid_points(), 1.0)};
+  const auto scalar_buffer =
+      PowerMonitors::shell_power_monitor_buffer(scalar_tensor, shell_mesh);
+  CHECK(scalar_buffer.angular_counts ==
+        scalar_tensor_angular_counts(n_r, l_max));
+
+  tnsr::i<DataVector, 3> vector_tensor(shell_mesh.number_of_grid_points(), 1.0);
+  const auto vector_buffer =
+      PowerMonitors::shell_power_monitor_buffer(vector_tensor, shell_mesh);
+  CHECK(vector_buffer.angular_counts ==
+        vector_tensor_angular_counts(n_r, l_max));
+
+  tnsr::ii<DataVector, 3> symmetric_rank2_tensor(
+      shell_mesh.number_of_grid_points(), 1.0);
+  const auto symmetric_rank2_buffer = PowerMonitors::shell_power_monitor_buffer(
+      symmetric_rank2_tensor, shell_mesh);
+  CHECK(symmetric_rank2_buffer.angular_counts ==
+        symmetric_rank2_tensor_angular_counts(n_r, l_max));
+}
+
+template <typename TensorType>
+void fill_nontrivial_shell_tensor(const gsl::not_null<TensorType*> tensor,
+                                  const Mesh<3>& shell_mesh) {
+  const auto logical_coords = logical_coordinates(shell_mesh);
+  const DataVector& xi = logical_coords.get(0);
+  const DataVector& eta = logical_coords.get(1);
+  const DataVector& zeta = logical_coords.get(2);
+  for (size_t component = 0; component < tensor->size(); ++component) {
+    (*tensor)[component] =
+        DataVector(shell_mesh.number_of_grid_points(),
+                   1.0 + 0.2 * static_cast<double>(component)) +
+        (1.0 + static_cast<double>(component)) * xi +
+        (0.5 + 0.1 * static_cast<double>(component)) * eta +
+        (0.25 - 0.05 * static_cast<double>(component)) * zeta +
+        0.125 * xi * eta - 0.2 * eta * zeta +
+        (0.05 + 0.01 * static_cast<double>(component)) * xi * zeta;
+  }
+}
+
+template <typename TensorType>
+int tensor_component_spin_weight(const size_t component) {
+  if constexpr (TensorType::rank() == 0) {
+    return 0;
+  } else {
+    const auto tensor_index =
+        convert_to_cpp20_array(TensorType::get_tensor_index(component));
+    const auto basis_vectors =
+        ylm::TensorYlm::helpers::to_sphere_basis_vector(tensor_index);
+    return std::accumulate(
+        basis_vectors.begin(), basis_vectors.end(), 0,
+        [](const int running_spin,
+           const ylm::TensorYlm::helpers::BasisVector basis_vector) {
+          return running_spin + ylm::TensorYlm::helpers::bv_to_s(basis_vector);
+        });
+  }
+}
+
+template <typename TensorType>
+PowerMonitors::ShellPowerMonitorBuffer
+expected_tensor_shell_power_monitor_buffer(const TensorType& tensor,
+                                           const Mesh<3>& shell_mesh) {
+  auto buffer = PowerMonitors::shell_power_monitor_buffer(
+      make_with_value<DataVector>(tensor[0], 0.0), shell_mesh);
+  buffer.angular_sums = 0.0;
+  std::fill(buffer.angular_counts.begin(), buffer.angular_counts.end(), 0);
+
+  if constexpr (TensorType::rank() == 0) {
+    const auto scalar_buffer =
+        PowerMonitors::shell_power_monitor_buffer(get(tensor), shell_mesh);
+    buffer.angular_sums = scalar_buffer.angular_sums;
+    buffer.angular_counts = scalar_buffer.angular_counts;
+    return buffer;
+  }
+
+  const size_t l_max = shell_mesh.extents(1) - 1;
+  const size_t m_max = (shell_mesh.extents(2) - 1) / 2;
+  const size_t n_r = shell_mesh.extents(0);
+  const ylm::Spherepack spherepack(l_max, m_max);
+
+  auto scalar_ylm_coefficients = make_with_value<TensorType>(tensor, 0.0);
+  for (size_t component = 0; component < tensor.size(); ++component) {
+    scalar_ylm_coefficients[component] =
+        spherepack.phys_to_spec_all_offsets(tensor[component], n_r);
+  }
+  const auto tensor_ylm_coefficients =
+      ylm::TensorYlm::scalar_to_tensor_ylm_coefficients(
+          scalar_ylm_coefficients, l_max, n_r,
+          ylm::TensorYlm::CoefficientNormalization::Spherepack);
+
+  for (size_t component = 0; component < tensor_ylm_coefficients.size();
+       ++component) {
+    const int spin_weight = tensor_component_spin_weight<TensorType>(component);
+    const size_t abs_spin_weight = static_cast<size_t>(abs(spin_weight));
+    for (ylm::SpherepackIterator it(l_max, m_max, 1, false); it; ++it) {
+      const bool keep_low_l_m0_real =
+          spin_weight < 0 and it.l() == 0 and it.m() == 0 and
+          it.coefficient_array() ==
+              ylm::SpherepackIterator::CoefficientArray::a;
+      if (it.l() < abs_spin_weight and not keep_low_l_m0_real) {
+        continue;
+      }
+      for (size_t r = 0; r < n_r; ++r) {
+        buffer.angular_sums[it.l()] +=
+            square(tensor_ylm_coefficients[component][it() * n_r + r]);
+        ++(buffer.angular_counts[it.l()]);
+      }
+    }
+  }
+  return buffer;
+}
+
+template <typename TensorType>
+void test_tensor_shell_angular_power_monitor_impl() {
+  const Mesh<3> shell_mesh{
+      {3_st, 4_st, 7_st},
+      {Spectral::Basis::Legendre, Spectral::Basis::SphericalHarmonic,
+       Spectral::Basis::SphericalHarmonic},
+      {Spectral::Quadrature::GaussLobatto, Spectral::Quadrature::Equiangular,
+       Spectral::Quadrature::Equiangular}};
+
+  TensorType tensor(shell_mesh.number_of_grid_points(), 0.0);
+  fill_nontrivial_shell_tensor(make_not_null(&tensor), shell_mesh);
+
+  const auto buffer =
+      PowerMonitors::shell_power_monitor_buffer(tensor, shell_mesh);
+  const auto expected_buffer =
+      expected_tensor_shell_power_monitor_buffer(tensor, shell_mesh);
+  const auto monitors = PowerMonitors::shell_power_monitors(tensor, shell_mesh);
+  const auto expected_monitors =
+      PowerMonitors::finalize_shell_power_monitor_buffer(expected_buffer);
+
+  CHECK_ITERABLE_APPROX(buffer.angular_sums, expected_buffer.angular_sums);
+  CHECK(buffer.angular_counts == expected_buffer.angular_counts);
+  CHECK_ITERABLE_APPROX(monitors.angular, expected_monitors.angular);
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.Numerical.LinearOperators.PowerMonitors",
@@ -375,4 +646,10 @@ SPECTRE_TEST_CASE("Unit.Numerical.LinearOperators.PowerMonitors",
   test_relative_truncation_error_linear_function();
   test_convergence_rate();
   test_pile_up_modes();
+  test_shell_power_monitors();
+  test_shell_tensor_count_semantics();
+  test_tensor_shell_angular_power_monitor_impl<Scalar<DataVector>>();
+  test_tensor_shell_angular_power_monitor_impl<tnsr::i<DataVector, 3>>();
+  test_tensor_shell_angular_power_monitor_impl<tnsr::ii<DataVector, 3>>();
+  test_tensor_shell_angular_power_monitor_impl<tnsr::ijj<DataVector, 3>>();
 }

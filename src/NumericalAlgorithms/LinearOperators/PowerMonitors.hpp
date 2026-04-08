@@ -5,14 +5,14 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
+#include <vector>
 
+#include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
-
-/// \cond
-class DataVector;
-/// \endcond
 
 /*!
  * \brief Items for assessing truncation error in spectral methods.
@@ -125,6 +125,65 @@ struct ConvergenceInfo {
   double convergence_rate{std::numeric_limits<double>::signaling_NaN()};
   double number_of_pile_up_modes{std::numeric_limits<double>::signaling_NaN()};
 };
+
+/// Holds the raw sums and counts accumulated for shell power monitors.
+struct ShellPowerMonitorBuffer {
+  DataVector radial_sums{};
+  DataVector angular_sums{};
+  std::vector<size_t> radial_counts{};
+  std::vector<size_t> angular_counts{};
+};
+
+/// Holds the finalized power monitors for a spherical shell.
+struct ShellPowerMonitor {
+  DataVector radial{};
+  DataVector angular{};
+};
+
+/*!
+ * \brief Finalize a shell power-monitor buffer by dividing through the counts
+ * and taking square roots.
+ */
+ShellPowerMonitor finalize_shell_power_monitor_buffer(
+    const ShellPowerMonitorBuffer& buffer);
+
+/*!
+ * \brief Compute raw shell power-monitor accumulators for a scalar on a shell
+ * mesh with the radial direction first and the two spherical-harmonic
+ * directions last.
+ */
+ShellPowerMonitorBuffer shell_power_monitor_buffer(const DataVector& u,
+                                                   const Mesh<3>& mesh);
+
+/*!
+ * \brief Compute the radial and angular shell power monitors for a scalar on a
+ * shell mesh with the radial direction first and the two
+ * spherical-harmonic directions last.
+ */
+ShellPowerMonitor shell_power_monitors(const DataVector& u,
+                                       const Mesh<3>& mesh);
+
+/*!
+ * \brief Compute raw shell power-monitor accumulators for a tensor on a shell
+ * mesh with the radial direction first and the two spherical-harmonic
+ * directions last.
+ *
+ * Rank-0 tensors are treated identically to the scalar `DataVector` overload.
+ */
+template <typename TensorType>
+ShellPowerMonitorBuffer shell_power_monitor_buffer(const TensorType& tensor,
+                                                   const Mesh<3>& mesh);
+
+/*!
+ * \brief Compute the radial and angular shell power monitors for a tensor on a
+ * shell mesh with the radial direction first and the two spherical-harmonic
+ * directions last.
+ *
+ * Rank-0 tensors are treated identically to the scalar `DataVector` overload.
+ */
+template <typename TensorType>
+ShellPowerMonitor shell_power_monitors(const TensorType& tensor,
+                                       const Mesh<3>& mesh);
 
 /*!
  * \ingroup SpectralGroup
