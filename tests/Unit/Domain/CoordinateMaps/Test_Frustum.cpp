@@ -18,13 +18,108 @@
 #include "Framework/TestHelpers.hpp"
 #include "Helpers/Domain/CoordinateMaps/TestMapHelpers.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TypeTraits.hpp"
 
 namespace domain {
 namespace {
+class Version0Frustum {
+ public:
+  Version0Frustum(const std::array<std::array<double, 2>, 4>& face_vertices,
+                  const double lower_bound, const double upper_bound,
+                  const OrientationMap<3>& orientation_of_frustum,
+                  const bool with_equiangular_map, const double sphericity,
+                  const double transition_phi)
+      : orientation_of_frustum_(orientation_of_frustum),
+        with_equiangular_map_(with_equiangular_map),
+        is_identity_(
+            face_vertices ==
+                std::array<std::array<double, 2>, 4>{{{{-1.0, -1.0}},
+                                                      {{1.0, 1.0}},
+                                                      {{-1.0, -1.0}},
+                                                      {{1.0, 1.0}}}} and
+            lower_bound == -1.0 and upper_bound == 1.0 and
+            orientation_of_frustum_.is_aligned() and not with_equiangular_map_),
+        sigma_x_(0.25 * (face_vertices[2][0] + face_vertices[3][0] +
+                         face_vertices[0][0] + face_vertices[1][0])),
+        delta_x_zeta_(0.25 * (face_vertices[2][0] + face_vertices[3][0] -
+                              face_vertices[0][0] - face_vertices[1][0])),
+        delta_x_xi_(0.25 * (face_vertices[3][0] - face_vertices[2][0] +
+                            face_vertices[1][0] - face_vertices[0][0])),
+        delta_x_xi_zeta_(0.25 * (face_vertices[3][0] - face_vertices[2][0] -
+                                 face_vertices[1][0] + face_vertices[0][0])),
+        sigma_y_(0.25 * (face_vertices[2][1] + face_vertices[3][1] +
+                         face_vertices[0][1] + face_vertices[1][1])),
+        delta_y_zeta_(0.25 * (face_vertices[2][1] + face_vertices[3][1] -
+                              face_vertices[0][1] - face_vertices[1][1])),
+        delta_y_eta_(0.25 * (face_vertices[3][1] - face_vertices[2][1] +
+                             face_vertices[1][1] - face_vertices[0][1])),
+        delta_y_eta_zeta_(0.25 * (face_vertices[3][1] - face_vertices[2][1] -
+                                  face_vertices[1][1] + face_vertices[0][1])),
+        sigma_z_(0.5 * (upper_bound + lower_bound)),
+        delta_z_zeta_(0.5 * (upper_bound - lower_bound)),
+        w_plus_(2.0),
+        w_minus_(0.0),
+        sphericity_(sphericity),
+        radius_(sqrt(
+            square(std::max({abs(face_vertices[3][0]), abs(face_vertices[1][0]),
+                             abs(face_vertices[2][0]),
+                             abs(face_vertices[0][0])})) +
+            square(std::max({abs(face_vertices[3][1]), abs(face_vertices[1][1]),
+                             abs(face_vertices[2][1]),
+                             abs(face_vertices[0][1])})) +
+            square(std::max(abs(upper_bound), abs(lower_bound))))),
+        phi_(transition_phi) {}
+
+  // NOLINTNEXTLINE(google-runtime-references)
+  void pup(PUP::er& p) {
+    size_t version = 0;
+    p | version;
+    p | orientation_of_frustum_;
+    p | with_equiangular_map_;
+    p | is_identity_;
+    p | with_projective_map_;
+    p | sigma_x_;
+    p | delta_x_zeta_;
+    p | delta_x_xi_;
+    p | delta_x_xi_zeta_;
+    p | sigma_y_;
+    p | delta_y_zeta_;
+    p | delta_y_eta_;
+    p | delta_y_eta_zeta_;
+    p | sigma_z_;
+    p | delta_z_zeta_;
+    p | w_plus_;
+    p | w_minus_;
+    p | sphericity_;
+    p | radius_;
+    p | phi_;
+  }
+
+ private:
+  OrientationMap<3> orientation_of_frustum_;
+  bool with_equiangular_map_{false};
+  bool is_identity_{false};
+  bool with_projective_map_{false};
+  double sigma_x_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_x_zeta_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_x_xi_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_x_xi_zeta_{std::numeric_limits<double>::signaling_NaN()};
+  double sigma_y_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_y_zeta_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_y_eta_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_y_eta_zeta_{std::numeric_limits<double>::signaling_NaN()};
+  double sigma_z_{std::numeric_limits<double>::signaling_NaN()};
+  double delta_z_zeta_{std::numeric_limits<double>::signaling_NaN()};
+  double w_plus_{std::numeric_limits<double>::signaling_NaN()};
+  double w_minus_{std::numeric_limits<double>::signaling_NaN()};
+  double sphericity_{std::numeric_limits<double>::signaling_NaN()};
+  double radius_{std::numeric_limits<double>::signaling_NaN()};
+  double phi_{std::numeric_limits<double>::signaling_NaN()};
+};
+
 void test_suite_for_frustum(
-    const bool equiangular_map_at_outer,
-    const bool equiangular_map_at_inner,
+    const bool equiangular_map_at_outer, const bool equiangular_map_at_inner,
     const CoordinateMaps::Distribution zeta_distribution) {
   INFO("Suite for frustum");
   // Set up random number generator
@@ -576,6 +671,31 @@ void test_bulged_frustum_inverse() {
                         -82.337943622612172589}});
   CHECK_FALSE(inverse.has_value());
 }
+
+void test_version_zero_deserialization() {
+  INFO("Version-0 deserialization");
+  const std::array<std::array<double, 2>, 4> face_vertices{
+      {{{-2.0, -2.0}}, {{2.0, 2.0}}, {{-4.0, -4.0}}, {{4.0, 4.0}}}};
+  const double lower_bound = 2.0;
+  const double upper_bound = 4.0;
+  const double sphericity = 1.0;
+  const double transition_phi = 1.0;
+  const auto orientation = OrientationMap<3>::create_aligned();
+  const Version0Frustum old_frustum(face_vertices, lower_bound, upper_bound,
+                                    orientation, false, sphericity,
+                                    transition_phi);
+  const CoordinateMaps::Frustum expected_map(
+      face_vertices, lower_bound, upper_bound, orientation, false, false,
+      CoordinateMaps::Distribution::Linear, std::nullopt, sphericity,
+      transition_phi, M_PI_2);
+
+  const auto deserialized_map =
+      deserialize<CoordinateMaps::Frustum>(serialize(old_frustum).data());
+
+  CHECK(deserialized_map == expected_map);
+  CHECK_ITERABLE_APPROX(deserialized_map({{0.3, -0.2, 0.4}}),
+                        expected_map({{0.3, -0.2, 0.4}}));
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.Domain.CoordinateMaps.Frustum", "[Domain][Unit]") {
@@ -601,6 +721,7 @@ SPECTRE_TEST_CASE("Unit.Domain.CoordinateMaps.Frustum", "[Domain][Unit]") {
   test_bulged_frustum_equiangular_lower();
   test_frustum_fail_equiangular();
   test_bulged_frustum_inverse();
+  test_version_zero_deserialization();
 
 #ifdef SPECTRE_DEBUG
   CHECK_THROWS_WITH(
