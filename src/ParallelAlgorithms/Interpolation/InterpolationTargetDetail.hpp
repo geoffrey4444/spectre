@@ -629,11 +629,10 @@ void set_up_interpolation(
         // Set the indices of invalid points.
         indices_of_invalid_points->erase(temporal_id);
         for (size_t i = 0; i < block_logical_coords.size(); ++i) {
-          // The sphere target is optimized specially. Because of this, a
-          // nullopt in block_logical_coords from the sphere target doesn't
-          // actually mean the point is invalid. Therefore we ignore this check
-          // for the sphere target. The downside of this is that we don't catch
-          // invalid points here.
+          // Sphere targets send element-local block logical coordinates, so
+          // nullopt entries do not necessarily identify points outside the
+          // domain on the first call. Those invalid points are set once the
+          // target recomputes the full target-wide block logical coordinates.
           constexpr bool is_sphere = tt::is_a_v<
               TargetPoints::Sphere,
               typename InterpolationTargetTag::compute_target_points>;
@@ -652,6 +651,26 @@ void set_up_interpolation(
           vars_dest = Variables<
               typename InterpolationTargetTag::vars_to_interpolate_to_target>(
               block_logical_coords.size());
+        }
+      },
+      box);
+}
+
+template <typename TemporalId, typename DbTags, size_t VolumeDim>
+void set_indices_of_invalid_points(
+    const gsl::not_null<db::DataBox<DbTags>*> box,
+    const TemporalId& temporal_id,
+    const std::vector<BlockLogicalCoords<VolumeDim>>& block_logical_coords) {
+  db::mutate<Tags::IndicesOfInvalidInterpPoints<TemporalId>>(
+      [&block_logical_coords, &temporal_id](
+          const gsl::not_null<
+              std::unordered_map<TemporalId, std::unordered_set<size_t>>*>
+              indices_of_invalid_points) {
+        indices_of_invalid_points->erase(temporal_id);
+        for (size_t i = 0; i < block_logical_coords.size(); ++i) {
+          if (not block_logical_coords[i].has_value()) {
+            (*indices_of_invalid_points)[temporal_id].insert(i);
+          }
         }
       },
       box);

@@ -146,8 +146,10 @@ struct InterpolationTargetVarsFromElement {
     // same temporal_id (by an invocation of InterpolationTargetVarsFromElement
     // by a different Element) and hence set_up_interpolation has already
     // been called.
-    if (InterpolationTarget_detail::flag_temporal_id_for_interpolation<
-            InterpolationTargetTag>(make_not_null(&box), temporal_id)) {
+    const bool first_call_for_temporal_id =
+        InterpolationTarget_detail::flag_temporal_id_for_interpolation<
+            InterpolationTargetTag>(make_not_null(&box), temporal_id);
+    if (first_call_for_temporal_id) {
       InterpolationTarget_detail::set_up_interpolation<InterpolationTargetTag>(
           make_not_null(&box), temporal_id, block_logical_coords);
     }
@@ -156,6 +158,32 @@ struct InterpolationTargetVarsFromElement {
       InterpolationTarget_detail::add_received_variables<
           InterpolationTargetTag>(make_not_null(&box), vars_src, global_offsets,
                                   temporal_id);
+    }
+
+    if constexpr (tt::is_a_v<
+                      TargetPoints::Sphere,
+                      typename InterpolationTargetTag::compute_target_points>) {
+      if (first_call_for_temporal_id or vars_have_already_been_received) {
+        // Sphere targets initially send element-local block logical
+        // coordinates. Recompute the full target-wide coordinates on the
+        // target once FunctionsOfTime are ready so invalid points can be
+        // identified without dropping already-received interpolation data.
+        if (not domain::functions_of_time_are_ready_simple_action_callback<
+                domain::Tags::FunctionsOfTime,
+                InterpolationTargetVarsFromElement>(
+                cache, array_index,
+                std::add_pointer_t<ParallelComponent>{nullptr},
+                InterpolationTarget_detail::get_temporal_id_value(temporal_id),
+                std::nullopt, std::decay_t<decltype(vars_src)>{},
+                std::decay_t<decltype(block_logical_coords)>{},
+                std::decay_t<decltype(global_offsets)>{}, temporal_id, true)) {
+          return;
+        }
+        InterpolationTarget_detail::set_indices_of_invalid_points(
+            make_not_null(&box), temporal_id,
+            InterpolationTarget_detail::block_logical_coords<
+                InterpolationTargetTag>(box, cache, temporal_id));
+      }
     }
 
     if (InterpolationTarget_detail::have_data_at_all_points<

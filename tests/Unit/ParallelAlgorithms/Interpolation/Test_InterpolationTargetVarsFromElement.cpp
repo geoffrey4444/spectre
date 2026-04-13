@@ -25,6 +25,7 @@
 #include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "IO/Logging/Verbosity.hpp"
+#include "Parallel/ParallelComponentHelpers.hpp"
 #include "Parallel/Phase.hpp"
 #include "Parallel/PhaseDependentActionList.hpp"
 #include "ParallelAlgorithms/Interpolation/Actions/InitializeInterpolationTarget.hpp"
@@ -33,6 +34,7 @@
 #include "ParallelAlgorithms/Interpolation/Protocols/ComputeTargetPoints.hpp"
 #include "ParallelAlgorithms/Interpolation/Protocols/InterpolationTargetTag.hpp"
 #include "ParallelAlgorithms/Interpolation/Protocols/PostInterpolationCallback.hpp"
+#include "ParallelAlgorithms/Interpolation/Targets/Sphere.hpp"
 #include "Time/Slab.hpp"
 #include "Time/Tags/TimeStepId.hpp"
 #include "Time/Time.hpp"
@@ -157,6 +159,35 @@ struct MockPostInterpolationCallbackWithInvalidPoints
   static constexpr double fill_invalid_points_with = 0.0;
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+size_t num_sphere_callback_calls = 0;
+
+struct MockSpherePostInterpolationCallback
+    : tt::ConformsTo<intrp::protocols::PostInterpolationCallback> {
+  static constexpr double fill_invalid_points_with = -1.0;
+
+  template <typename DbTags, typename Metavariables, typename TemporalId>
+  static void apply(const db::DataBox<DbTags>& box,
+                    const Parallel::GlobalCache<Metavariables>& /*cache*/,
+                    const TemporalId& temporal_id) {
+    const auto& vars =
+        db::get<::Tags::Variables<tmpl::list<Tags::TestSolution>>>(box);
+    const auto& test_solution = get<Tags::TestSolution>(vars);
+    const size_t points_per_sphere = 15;
+
+    CHECK(temporal_id ==
+          TimeStepId{true, 0, Time{Slab{0.0, 1.0}, Rational{1, 2}}});
+    REQUIRE(get(test_solution).size() == 2 * points_per_sphere);
+
+    for (size_t i = 0; i < points_per_sphere; ++i) {
+      CHECK(get(test_solution)[i] == approx(static_cast<double>(i + 1)));
+      CHECK(get(test_solution)[points_per_sphere + i] ==
+            approx(fill_invalid_points_with));
+    }
+    ++num_sphere_callback_calls;
+  }
+};
+
 template <typename Metavariables, typename InterpolationTargetTag>
 struct mock_interpolation_target {
   static_assert(
@@ -177,6 +208,27 @@ struct mock_interpolation_target {
       tmpl::list<ActionTesting::InitializeDataBox<
           simple_tags,
           typename InterpolationTargetTag::compute_items_on_target>>>>;
+};
+
+template <typename Metavariables, typename InterpolationTargetTag>
+struct initialized_mock_interpolation_target {
+  static_assert(
+      tt::assert_conforms_to_v<InterpolationTargetTag,
+                               intrp::protocols::InterpolationTargetTag>);
+  using metavariables = Metavariables;
+  using chare_type = ActionTesting::MockArrayChare;
+  using array_index = int;
+  using component_being_mocked =
+      intrp::InterpolationTarget<Metavariables, InterpolationTargetTag>;
+  using const_global_cache_tags = tmpl::flatten<tmpl::append<
+      Parallel::get_const_global_cache_tags_from_actions<
+          tmpl::list<typename InterpolationTargetTag::compute_target_points>>,
+      tmpl::list<domain::Tags::Domain<Metavariables::volume_dim>,
+                 intrp::Tags::Verbosity>>>;
+  using phase_dependent_action_list = tmpl::list<Parallel::PhaseActions<
+      Parallel::Phase::Initialization,
+      tmpl::list<intrp::Actions::InitializeInterpolationTarget<
+          Metavariables, InterpolationTargetTag>>>>;
 };
 
 template <bool UseTimeDepMaps>
@@ -201,6 +253,162 @@ struct MockMetavariables {
   using component_list = tmpl::list<
       mock_interpolation_target<MockMetavariables, InterpolationTargetA>>;
 };
+
+template <bool UseTimeDepMaps>
+struct SphereMockMetavariables {
+  struct InterpolationTargetA
+      : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+    using temporal_id = ::Tags::TimeStepId;
+    using vars_to_interpolate_to_target = tmpl::list<Tags::TestSolution>;
+    using compute_items_on_target = tmpl::list<>;
+    using compute_target_points =
+        intrp::TargetPoints::Sphere<InterpolationTargetA, Frame::Inertial>;
+    using post_interpolation_callbacks =
+        tmpl::list<MockSpherePostInterpolationCallback>;
+  };
+
+  static constexpr size_t volume_dim = 3;
+  using interpolation_target_tags = tmpl::list<InterpolationTargetA>;
+  using mutable_global_cache_tags =
+      tmpl::conditional_t<UseTimeDepMaps,
+                          tmpl::list<domain::Tags::FunctionsOfTimeInitialize>,
+                          tmpl::list<>>;
+  using component_list =
+      tmpl::list<initialized_mock_interpolation_target<SphereMockMetavariables,
+                                                       InterpolationTargetA>>;
+};
+
+template <bool UseTimeDepMaps>
+void test_sphere_invalid_points() {
+  domain::creators::register_derived_with_charm();
+  if constexpr (UseTimeDepMaps) {
+    domain::creators::time_dependence::register_derived_with_charm();
+    domain::FunctionsOfTime::register_derived_with_charm();
+  }
+  num_sphere_callback_calls = 0_st;
+
+  using metavars = SphereMockMetavariables<UseTimeDepMaps>;
+  using target_tag = typename metavars::InterpolationTargetA;
+  using temporal_id_type = typename target_tag::temporal_id::type;
+  using target_component =
+      initialized_mock_interpolation_target<metavars, target_tag>;
+  const Slab slab(0.0, 1.0);
+  const std::string function_of_time_name = "Rotation";
+  std::unordered_map<std::string, double> initial_expiration_times{};
+  initial_expiration_times[function_of_time_name] = slab.end().value();
+
+  const domain::creators::Sphere domain_creator = [&slab]() {
+    return domain::creators::Sphere(
+        0.9, 4.9, domain::creators::Sphere::Excision{}, 1_st, 5_st, false,
+        std::nullopt, {}, {domain::CoordinateMaps::Distribution::Linear},
+        ShellWedges::All,
+        std::make_unique<
+            domain::creators::time_dependence::RotationAboutZAxis<3>>(
+            slab.start().value(), 0.0, 0.1, 0.0));
+  }();
+  const domain::creators::Sphere stationary_domain_creator{
+      0.9, 4.9, domain::creators::Sphere::Excision{}, 1_st, 5_st, false};
+  const domain::creators::Sphere& selected_domain_creator =
+      UseTimeDepMaps ? domain_creator : stationary_domain_creator;
+  const intrp::OptionHolders::Sphere sphere_options{
+      2_st,
+      {{0.0, 0.0, 0.0}},
+      std::vector<double>{1.0, 5.5},
+      ylm::AngularOrdering::Cce};
+
+  ActionTesting::MockRuntimeSystem<metavars> runner = [&]() {
+    if constexpr (UseTimeDepMaps) {
+      return ActionTesting::MockRuntimeSystem<metavars>(
+          {sphere_options, selected_domain_creator.create_domain(),
+           ::Verbosity::Silent},
+          {selected_domain_creator.functions_of_time(
+              initial_expiration_times)});
+    } else {
+      return ActionTesting::MockRuntimeSystem<metavars>(
+          {sphere_options, selected_domain_creator.create_domain(),
+           ::Verbosity::Silent});
+    }
+  }();
+  ActionTesting::set_phase(make_not_null(&runner),
+                           Parallel::Phase::Initialization);
+  ActionTesting::emplace_component<target_component>(&runner, 0);
+  for (size_t i = 0; i < 2; ++i) {
+    ActionTesting::next_action<target_component>(make_not_null(&runner), 0);
+  }
+  ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
+
+  auto& target_box =
+      ActionTesting::get_databox<target_component>(make_not_null(&runner), 0);
+  const auto& cache = ActionTesting::cache<target_component>(runner, 0_st);
+  const TimeStepId temporal_id(true, 0, Time{slab, Rational{1, 2}});
+  const auto full_block_logical_coords =
+      intrp::InterpolationTarget_detail::block_logical_coords<target_tag>(
+          target_box, cache, temporal_id);
+
+  const size_t points_per_sphere = 15;
+  REQUIRE(full_block_logical_coords.size() == 2 * points_per_sphere);
+  std::vector<BlockLogicalCoords<3>> sparse_block_logical_coords(
+      2 * points_per_sphere);
+  for (size_t i = 0; i < points_per_sphere; ++i) {
+    CHECK(full_block_logical_coords[i].has_value());
+    CHECK(not full_block_logical_coords[points_per_sphere + i].has_value());
+    sparse_block_logical_coords[i] = full_block_logical_coords[i];
+  }
+
+  Variables<typename target_tag::vars_to_interpolate_to_target> vars(
+      points_per_sphere);
+  for (size_t i = 0; i < points_per_sphere; ++i) {
+    get(get<Tags::TestSolution>(vars))[i] = static_cast<double>(i + 1);
+  }
+  std::vector<size_t> global_offsets(points_per_sphere);
+  for (size_t i = 0; i < points_per_sphere; ++i) {
+    global_offsets[i] = i;
+  }
+
+  if constexpr (UseTimeDepMaps) {
+    Parallel::mutate<domain::Tags::FunctionsOfTime, ResetFoT>(
+        ActionTesting::cache<target_component>(runner, 0),
+        function_of_time_name, temporal_id.substep_time() / 2.0);
+  }
+
+  ActionTesting::simple_action<
+      target_component,
+      intrp::Actions::InterpolationTargetVarsFromElement<target_tag>>(
+      make_not_null(&runner), 0,
+      std::vector<
+          Variables<typename target_tag::vars_to_interpolate_to_target>>{
+          std::move(vars)},
+      sparse_block_logical_coords,
+      std::vector<std::vector<size_t>>{global_offsets}, temporal_id);
+
+  if constexpr (UseTimeDepMaps) {
+    CHECK(num_sphere_callback_calls == 0_st);
+    CHECK(ActionTesting::get_databox_tag<
+              target_component, intrp::Tags::TemporalIds<temporal_id_type>>(
+              runner, 0)
+              .contains(temporal_id));
+
+    Parallel::mutate<domain::Tags::FunctionsOfTime, ResetFoT>(
+        ActionTesting::cache<target_component>(runner, 0),
+        function_of_time_name,
+        initial_expiration_times.at(function_of_time_name));
+    CHECK(ActionTesting::number_of_queued_simple_actions<target_component>(
+              runner, 0) == 1);
+    ActionTesting::invoke_queued_simple_action<target_component>(
+        make_not_null(&runner), 0);
+  }
+
+  CHECK(num_sphere_callback_calls == 1_st);
+  CHECK(ActionTesting::get_databox_tag<
+            target_component, intrp::Tags::TemporalIds<temporal_id_type>>(
+            runner, 0)
+            .empty());
+  const auto& completed_ids = ActionTesting::get_databox_tag<
+      target_component, intrp::Tags::CompletedTemporalIds<temporal_id_type>>(
+      runner, 0);
+  REQUIRE(completed_ids.size() == 1);
+  CHECK(completed_ids.front() == temporal_id);
+}
 
 template <bool UseTimeDepMaps>
 void test() {
@@ -559,5 +767,7 @@ SPECTRE_TEST_CASE("Unit.NumericalAlgorithms.Interpolator.TargetVarsFromElement",
                   "[Unit]") {
   test<false>();
   test<true>();
+  test_sphere_invalid_points<false>();
+  test_sphere_invalid_points<true>();
 }
 }  // namespace
