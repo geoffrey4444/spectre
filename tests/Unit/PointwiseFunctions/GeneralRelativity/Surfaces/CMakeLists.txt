@@ -6,6 +6,7 @@ set(LIBRARY "Test_GrSurfaces")
 set(LIBRARY_SOURCES
   Test_ComputeItems.cpp
   Test_GrSurfaces.cpp
+  Test_ReggeWheelerZerilli.cpp
   Test_Tags.cpp
   )
 
