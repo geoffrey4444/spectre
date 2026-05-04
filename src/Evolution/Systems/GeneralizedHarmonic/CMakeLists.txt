@@ -57,8 +57,8 @@ target_link_libraries(
   LinearOperators
   Options
   Serialization
-  SphericalHarmonics
   Spectral
+  SphericalHarmonics
   Utilities
   INTERFACE
   Initialization

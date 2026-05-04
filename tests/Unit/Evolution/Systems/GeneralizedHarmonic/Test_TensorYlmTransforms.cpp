@@ -442,6 +442,24 @@ void test_asserts() {
           matrices.i, matrices.ii, matrices.ij, matrices.ijj, spherepack,
           radial_extents),
       Catch::Matchers::ContainsSubstring("Expected GH variables"));
+
+  const Spherepack spherepack_with_truncated_m{ell_max, ell_max - 1};
+  Variables<filter_detail::gh_spacetime_vars_list> gh_vars_truncated_m{
+      spherepack_with_truncated_m.physical_size() * radial_extents, 0.0};
+  Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>
+      result_truncated_m{spherepack_with_truncated_m.spectral_size() *
+                         radial_extents};
+  Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp_truncated_m{
+      spherepack_with_truncated_m.physical_size() * radial_extents};
+  CHECK_THROWS_WITH(
+      gh_variables_to_tensor_ylm_coefficients(
+          make_not_null(&result_truncated_m), make_not_null(&temp_truncated_m),
+          gh_vars_truncated_m,
+          identity_jacobian(spherepack_with_truncated_m.physical_size() *
+                            radial_extents),
+          matrices.i, matrices.ii, matrices.ij, matrices.ijj,
+          spherepack_with_truncated_m, radial_extents),
+      Catch::Matchers::ContainsSubstring("require m_max == l_max"));
 }
 #endif
 

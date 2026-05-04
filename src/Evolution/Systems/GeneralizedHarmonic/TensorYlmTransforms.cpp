@@ -73,6 +73,12 @@ void gh_variables_to_tensor_ylm_coefficients(
     const SimpleSparseMatrix& cart_to_sphere_matrix_ij,
     const SimpleSparseMatrix& cart_to_sphere_matrix_ijj,
     const Spherepack& spherepack, const size_t radial_extents) {
+  ASSERT(spherepack.m_max() == spherepack.l_max(),
+         "TensorYlm transforms require m_max == l_max because the "
+         "cartesian-to-spherical matrices are built for the full set of m "
+         "modes, but got l_max = "
+             << spherepack.l_max() << " and m_max = " << spherepack.m_max()
+             << ".");
   const size_t physical_size = radial_extents * spherepack.physical_size();
   const size_t spectral_size = radial_extents * spherepack.spectral_size();
   ASSERT(gh_vars.number_of_grid_points() == physical_size,

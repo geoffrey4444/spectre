@@ -45,7 +45,8 @@ namespace ylm::TensorYlm {
  * `temp_storage` and precomputed matrices. `temp_storage` is used for
  * grid-frame nodal spatial pieces and for one spectral tensor at a time, so it
  * must have enough storage for the physical GH spatial variables and for the
- * largest spectral GH spatial tensor.
+ * largest spectral GH spatial tensor. The `spherepack` must have
+ * `m_max == l_max`, matching the cartesian-to-spherical matrices.
  */
 void gh_variables_to_tensor_ylm_coefficients(
     gsl::not_null<Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
