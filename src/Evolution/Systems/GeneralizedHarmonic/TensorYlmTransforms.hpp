@@ -40,13 +40,40 @@ namespace ylm::TensorYlm {
  * component index 1 denotes an \f$m\f$ basis index, and component index 2
  * denotes an \f$\bar m\f$ basis index.
  *
+ * Scalar quantities are transformed by the nodal-to-modal spherical-harmonic
+ * transform. Non-scalar quantities are then transformed from Cartesian
+ * components to the TensorYlm basis with the supplied sparse matrices.
+ *
  * For performance, the function does not allocate large buffers and does not
  * build the cartesian-to-spherical matrices. The caller supplies
- * `temp_storage` and precomputed matrices. `temp_storage` is used for
- * grid-frame nodal spatial pieces and for one spectral tensor at a time, so it
- * must have enough storage for the physical GH spatial variables and for the
- * largest spectral GH spatial tensor. The `spherepack` must have
+ * `temp_storage` and precomputed matrices. `temp_storage` has the same type as
+ * the output so the implementation can reuse one contiguous buffer as
+ * grid-frame nodal spatial pieces and as one non-owning spectral tensor view at
+ * a time. It must have enough storage for the physical GH spatial variables and
+ * for the largest spectral GH spatial tensor. The `spherepack` must have
  * `m_max == l_max`, matching the cartesian-to-spherical matrices.
+ *
+ * \param gh_spatial_tensor_ylm_coefficients Output coefficients for the GH
+ *   variables broken into spatial pieces. The output is overwritten and must
+ *   have `radial_extents * spherepack.spectral_size()` grid points.
+ * \param temp_storage Temporary storage allocated by the caller. It is
+ *   overwritten and must not alias `gh_spatial_tensor_ylm_coefficients`.
+ * \param gh_vars Generalized Harmonic variables at collocation points. Must
+ *   have `radial_extents * spherepack.physical_size()` grid points.
+ * \param jac_inertial_to_grid Jacobian taking spatial tensor components from
+ *   the inertial frame to the grid frame.
+ * \param cart_to_sphere_matrix_i Cartesian-to-TensorYlm matrix for rank-1
+ *   spatial tensors.
+ * \param cart_to_sphere_matrix_ii Cartesian-to-TensorYlm matrix for symmetric
+ *   rank-2 spatial tensors.
+ * \param cart_to_sphere_matrix_ij Cartesian-to-TensorYlm matrix for rank-2
+ *   spatial tensors with no symmetry.
+ * \param cart_to_sphere_matrix_ijj Cartesian-to-TensorYlm matrix for rank-3
+ *   spatial tensors symmetric on the last two indices.
+ * \param spherepack The spherical-harmonic transform object describing the S2
+ *   grid and spectral storage.
+ * \param radial_extents The number of radial grid points, or 1 for a single
+ *   spherical slice.
  */
 void gh_variables_to_tensor_ylm_coefficients(
     gsl::not_null<Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>

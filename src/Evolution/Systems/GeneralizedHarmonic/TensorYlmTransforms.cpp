@@ -38,6 +38,8 @@ void apply_cartesian_to_tensor_ylm_matrix(
   Variables<tmpl::list<Tag>> transformed_tensor(
       temp_storage->data(),
       result->number_of_grid_points() * num_independent_components);
+  // SimpleSparseMatrix::increment_multiply_on_right does `dest += matrix*src`,
+  // so the destination must be zeroed for this pure basis transformation.
   for (auto& component : get<Tag>(transformed_tensor)) {
     component = 0.0;
   }

@@ -3,8 +3,6 @@
 
 #include "Framework/TestingFramework.hpp"
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <random>
@@ -83,7 +81,7 @@ InverseJacobian<DataVector, 3, Frame::Inertial, Frame::Grid> identity_jacobian(
 }
 
 template <typename TensorType>
-void apply_matrix_to_tensor_coefficients(
+void apply_tensor_ylm_basis_matrix_to_coefficients(
     const gsl::not_null<TensorType*> result, const TensorType& coefficients,
     const SimpleSparseMatrix& matrix, const size_t spectral_size,
     const size_t radial_extents) {
@@ -119,34 +117,20 @@ void apply_matrix_to_tensor_coefficients(
 }
 
 template <typename Tag>
-void apply_cart_to_sphere_to_tag(
+void apply_tensor_ylm_basis_matrix_to_tag(
     const gsl::not_null<
         Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
         coefficients,
     const SimpleSparseMatrix& matrix, const size_t spectral_size,
     const size_t radial_extents) {
   auto transformed = get<Tag>(*coefficients);
-  apply_matrix_to_tensor_coefficients(make_not_null(&transformed),
-                                      get<Tag>(*coefficients), matrix,
-                                      spectral_size, radial_extents);
+  apply_tensor_ylm_basis_matrix_to_coefficients(make_not_null(&transformed),
+                                                get<Tag>(*coefficients), matrix,
+                                                spectral_size, radial_extents);
   get<Tag>(*coefficients) = transformed;
 }
 
-template <typename Tag>
-void apply_sphere_to_cart_to_tag(
-    const gsl::not_null<
-        Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
-        coefficients,
-    const SimpleSparseMatrix& matrix, const size_t spectral_size,
-    const size_t radial_extents) {
-  auto transformed = get<Tag>(*coefficients);
-  apply_matrix_to_tensor_coefficients(make_not_null(&transformed),
-                                      get<Tag>(*coefficients), matrix,
-                                      spectral_size, radial_extents);
-  get<Tag>(*coefficients) = transformed;
-}
-
-void apply_cart_to_sphere_matrices(
+void apply_tensor_ylm_basis_matrices(
     const gsl::not_null<
         Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
         coefficients,
@@ -158,50 +142,20 @@ void apply_cart_to_sphere_matrices(
                         const tmpl::type_<Tag> /*meta*/) {
     if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
                                  Symmetry<1>>) {
-      apply_cart_to_sphere_to_tag<Tag>(coefficients, matrices.i, spectral_size,
-                                       radial_extents);
+      apply_tensor_ylm_basis_matrix_to_tag<Tag>(coefficients, matrices.i,
+                                                spectral_size, radial_extents);
     } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
                                         Symmetry<1, 1>>) {
-      apply_cart_to_sphere_to_tag<Tag>(coefficients, matrices.ii, spectral_size,
-                                       radial_extents);
+      apply_tensor_ylm_basis_matrix_to_tag<Tag>(coefficients, matrices.ii,
+                                                spectral_size, radial_extents);
     } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
                                         Symmetry<2, 1>>) {
-      apply_cart_to_sphere_to_tag<Tag>(coefficients, matrices.ij, spectral_size,
-                                       radial_extents);
+      apply_tensor_ylm_basis_matrix_to_tag<Tag>(coefficients, matrices.ij,
+                                                spectral_size, radial_extents);
     } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
                                         Symmetry<2, 1, 1>>) {
-      apply_cart_to_sphere_to_tag<Tag>(coefficients, matrices.ijj,
-                                       spectral_size, radial_extents);
-    }
-  });
-}
-
-void apply_sphere_to_cart_matrices(
-    const gsl::not_null<
-        Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
-        coefficients,
-    const TransformMatrices& matrices, const size_t spectral_size,
-    const size_t radial_extents) {
-  tmpl::for_each<filter_detail::gh_spatial_vars_list<
-      Frame::Grid>>([coefficients, &matrices, spectral_size,
-                     radial_extents]<class Tag>(
-                        const tmpl::type_<Tag> /*meta*/) {
-    if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
-                                 Symmetry<1>>) {
-      apply_sphere_to_cart_to_tag<Tag>(coefficients, matrices.i, spectral_size,
-                                       radial_extents);
-    } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
-                                        Symmetry<1, 1>>) {
-      apply_sphere_to_cart_to_tag<Tag>(coefficients, matrices.ii, spectral_size,
-                                       radial_extents);
-    } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
-                                        Symmetry<2, 1>>) {
-      apply_sphere_to_cart_to_tag<Tag>(coefficients, matrices.ij, spectral_size,
-                                       radial_extents);
-    } else if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
-                                        Symmetry<2, 1, 1>>) {
-      apply_sphere_to_cart_to_tag<Tag>(coefficients, matrices.ijj,
-                                       spectral_size, radial_extents);
+      apply_tensor_ylm_basis_matrix_to_tag<Tag>(coefficients, matrices.ijj,
+                                                spectral_size, radial_extents);
     }
   });
 }
@@ -222,16 +176,8 @@ Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> transform_gh_vars(
   return result;
 }
 
-template <typename TagsList>
-void check_variables_approx(const Variables<TagsList>& result,
-                            const Variables<TagsList>& expected) {
-  REQUIRE(result.size() == expected.size());
-  for (size_t i = 0; i < result.size(); ++i) {
-    CHECK(result.data()[i] == approx(expected.data()[i]));
-  }
-}
-
-void test_against_old_transform_path() {
+void test_against_alt_transform_path(
+    const gsl::not_null<std::mt19937*> generator) {
   constexpr size_t ell_max = 4;
   constexpr size_t radial_extents = 3;
   const Spherepack spherepack{ell_max, ell_max};
@@ -241,14 +187,19 @@ void test_against_old_transform_path() {
   const auto jacobian = identity_jacobian(physical_size);
 
   Variables<filter_detail::gh_spacetime_vars_list> gh_vars{physical_size};
-  MAKE_GENERATOR(generator);
   std::uniform_real_distribution<> dist{-1.0, 1.0};
   for (size_t i = 0; i < gh_vars.size(); ++i) {
-    gh_vars.data()[i] = dist(generator);
+    gh_vars.data()[i] = dist(*generator);
   }
 
-  const auto result =
-      transform_gh_vars(gh_vars, spherepack, radial_extents, matrices);
+  Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> result{
+      spectral_size};
+  Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp_storage{
+      physical_size};
+  gh_variables_to_tensor_ylm_coefficients(
+      make_not_null(&result), make_not_null(&temp_storage), gh_vars, jacobian,
+      matrices.i, matrices.ii, matrices.ij, matrices.ijj, spherepack,
+      radial_extents);
 
   Variables<filter_detail::gh_spatial_vars_list<Frame::Inertial>>
       inertial_spatial_vars{physical_size};
@@ -262,10 +213,10 @@ void test_against_old_transform_path() {
       make_not_null(&grid_spatial_vars), inertial_spatial_vars, jacobian);
   filter_detail::nodal_to_modal_ylm(make_not_null(&expected), grid_spatial_vars,
                                     spherepack, radial_extents);
-  apply_cart_to_sphere_matrices(make_not_null(&expected), matrices,
-                                spherepack.spectral_size(), radial_extents);
+  apply_tensor_ylm_basis_matrices(make_not_null(&expected), matrices,
+                                  spherepack.spectral_size(), radial_extents);
 
-  check_variables_approx(result, expected);
+  CHECK_VARIABLES_APPROX(result, expected);
 }
 
 void test_minkowski_has_only_constant_metric_modes() {
@@ -371,9 +322,9 @@ void test_controlled_mode_roundtrip_and_power_selection() {
   metric_modes.get(1, 2)[b21 * radial_extents + 1] = 0.5;
 
   auto cartesian_modal_coefficients = tensor_ylm_coefficients;
-  apply_sphere_to_cart_matrices(make_not_null(&cartesian_modal_coefficients),
-                                sphere_to_cart, spherepack.spectral_size(),
-                                radial_extents);
+  apply_tensor_ylm_basis_matrices(make_not_null(&cartesian_modal_coefficients),
+                                  sphere_to_cart, spherepack.spectral_size(),
+                                  radial_extents);
 
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> grid_nodal_vars{
       physical_size};
@@ -388,7 +339,7 @@ void test_controlled_mode_roundtrip_and_power_selection() {
 
   const auto result =
       transform_gh_vars(gh_vars, spherepack, radial_extents, cart_to_sphere);
-  check_variables_approx(result, tensor_ylm_coefficients);
+  CHECK_VARIABLES_APPROX(result, tensor_ylm_coefficients);
 
   DataVector power_by_l{ell_max + 1, 0.0};
   tmpl::for_each<filter_detail::gh_spatial_vars_list<Frame::Grid>>(
@@ -467,7 +418,8 @@ void test_asserts() {
 SPECTRE_TEST_CASE(
     "Unit.Evolution.Systems.GeneralizedHarmonic.TensorYlmTransforms",
     "[Unit][NumericalAlgorithms]") {
-  test_against_old_transform_path();
+  MAKE_GENERATOR(generator);
+  test_against_alt_transform_path(make_not_null(&generator));
   test_minkowski_has_only_constant_metric_modes();
   test_radial_vector_basis_component();
   test_controlled_mode_roundtrip_and_power_selection();
