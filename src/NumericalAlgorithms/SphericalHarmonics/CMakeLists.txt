@@ -22,7 +22,6 @@ spectre_target_sources(
   TensorYlmFilter.cpp
   TensorYlmHelpers.cpp
   TensorYlmSphereToCart.cpp
-  TensorYlmTransforms.cpp
   WignerThreeJ.cpp
   YlmToStf.cpp
   )
@@ -50,7 +49,6 @@ spectre_target_headers(
   TensorYlmFilter.hpp
   TensorYlmHelpers.hpp
   TensorYlmSphereToCart.hpp
-  TensorYlmTransforms.hpp
   WignerThreeJ.hpp
   YlmToStf.hpp
   )

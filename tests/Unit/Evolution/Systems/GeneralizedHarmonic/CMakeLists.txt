@@ -21,6 +21,7 @@ set(LIBRARY_SOURCES
   Test_DuDt.cpp
   Test_DuDtTempTags.cpp
   Test_Fluxes.cpp
+  Test_TensorYlmTransforms.cpp
   Test_BbhCompletionCriteria.cpp
   Test_BbhCompletionSingleton.cpp
   Test_BbhCheckpointAndExitIfCompletePhaseChange.cpp
