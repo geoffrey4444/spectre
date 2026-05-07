@@ -3,13 +3,19 @@
 
 #pragma once
 
-#include "NumericalAlgorithms/SphericalHarmonics/TensorYlm.hpp"
-
 #include <cstddef>
 #include <optional>
 
-#include "DataStructures/DataVector.hpp"
+#include "DataStructures/SimpleSparseMatrix.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlm.hpp"
 #include "Utilities/Gsl.hpp"
+
+/// \cond
+class DataVector;
+template <typename TagsList>
+class Variables;
+/// \encond
 
 namespace ylm::TensorYlm {
 
@@ -235,4 +241,56 @@ void fill_filter(gsl::not_null<SparseMatrixType*> matrix, size_t ell_max,
                  std::optional<size_t> half_power,
                  CoefficientNormalization coefficient_normalization);
 
+struct FilterMatrixHolder {
+  SimpleSparseMatrix scalar;
+  SimpleSparseMatrix i;
+  SimpleSparseMatrix ii;
+  SimpleSparseMatrix ij;
+  SimpleSparseMatrix kii;
+};
+
+/*!
+ * \brief Applies TensorYlm filter in place to variables.
+ *
+ * When radial_extents is 1, `vars` and `temp_storage` are assumed to
+ * be defined on a spherical slice, with number of grid points
+ * corresponding to a spherical-harmonic grid of `ell_max`, and the
+ * filter happens only on that slice.
+ *
+ * When radial_extents is > 1, `vars` and `temp_storage` are assumed to
+ * be defined on a spherical shell of topology I1 x S2. The filter
+ * happens in the entire volume, internally iterating over each
+ * spherical slice at a time.
+ *
+ * For performance reasons, `apply_tensor_ylm_filter` does not allocate
+ * or deallocate memory, but takes a `temp_storage` buffer.  The size of
+ * `temp_storage` should at least `radial_extents*spectral_size*num_components`,
+ * where `num_components` is the total number of independent components in the
+ * variable list (e.g. 5 for curved scalar wave and 50 for generalized
+ * harmonic), and `spectral_size` is the size of the S2 Spherepack spectral
+ * coefficient array for `ell_max`, as obtained from the member function
+ * ylm::Spherepack::spectral_size().  Note that for S2 on Spherepack, the number
+ * of collocation points is different than the number of spectral coefficients,
+ * and both are different than the size of the Spherepack storage array.
+ *
+ * \param vars Variables at collocation points to filter.
+ * \param temp_storage Temporary storage for the variables,
+ *   allocated outside apply_tensor_ylm_filter. See above for size requirements.
+ * \param jac_inertial_to_grid Jacobian taking V_x from inertial to grid.
+ * \param jac_grid_to_inertial Jacobian taking V_x from grid to inertial.
+ * \param filter_matrices The bundle of filter matrices computed by
+ *   fill_filter. The members used depend on the ranks present in `TagList`.
+ * \param ell_max The maximum ylm ell.
+ * \param radial_extents The number of radial grid points, can be 1 for slices.
+ */
+template <typename TagList>
+void apply_tensor_ylm_filter(
+    gsl::not_null<Variables<TagList>*> vars,
+    gsl::not_null<Variables<TagList>*> temp_storage,
+    const InverseJacobian<DataVector, 3, Frame::Inertial, Frame::Grid>&
+        jac_inertial_to_grid,
+    const InverseJacobian<DataVector, 3, Frame::Grid, Frame::Inertial>&
+        jac_grid_to_inertial,
+    const FilterMatrixHolder& filter_matrices, size_t ell_max,
+    size_t radial_extents);
 }  // namespace ylm::TensorYlm

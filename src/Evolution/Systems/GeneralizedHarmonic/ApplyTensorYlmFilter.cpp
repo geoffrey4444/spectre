@@ -12,6 +12,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackCache.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmFilter.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -173,6 +174,7 @@ void transform_spatial_tensors_to_different_frame_without_hessians(
 
 }  // namespace filter_detail
 
+template <>
 void apply_tensor_ylm_filter(
     const gsl::not_null<Variables<filter_detail::gh_spacetime_vars_list>*>
         gh_vars,
@@ -182,12 +184,8 @@ void apply_tensor_ylm_filter(
         jac_inertial_to_grid,
     const InverseJacobian<DataVector, 3, Frame::Grid, Frame::Inertial>&
         jac_grid_to_inertial,
-    const SimpleSparseMatrix& filter_matrix_scalar,
-    const SimpleSparseMatrix& filter_matrix_i,
-    const SimpleSparseMatrix& filter_matrix_ii,
-    const SimpleSparseMatrix& filter_matrix_ij,
-    const SimpleSparseMatrix& filter_matrix_kii, const size_t ell_max,
-    const size_t radial_extents) {
+    const ylm::TensorYlm::FilterMatrixHolder& filter_matrices, size_t ell_max,
+    size_t radial_extents) {
   const auto& ylm = ylm::get_spherepack_cache(ell_max);
   ASSERT(
       radial_extents * ylm.physical_size() == gh_vars->number_of_grid_points(),
@@ -254,9 +252,7 @@ void apply_tensor_ylm_filter(
   // but using temp_spatial_vars as temp storage for each tensor
   tmpl::for_each<filter_detail::gh_spatial_vars_list<Frame::Grid>>(
       [&gh_spatial_spectral_vars, &temp_spatial_vars, radial_extents,
-       &filter_matrix_i, &filter_matrix_ii, &filter_matrix_ij,
-       &filter_matrix_kii,
-       &filter_matrix_scalar]<class Tag>(const tmpl::type_<Tag> /*meta*/) {
+       &filter_matrices]<class Tag>(const tmpl::type_<Tag> /*meta*/) {
         // Different compilers disagree on whether radial_extents
         // needs to be in the capture list of this lambda, and
         // whether radial_extents is 'used' in the lambda.
@@ -306,25 +302,25 @@ void apply_tensor_ylm_filter(
           // Each type of tensor gets a different filter matrix.
           if constexpr (std::is_same_v<typename Tag::type::structure::symmetry,
                                        Symmetry<1>>) {
-            filter_matrix_i.increment_multiply_on_right(
+            filter_matrices.i.increment_multiply_on_right(
                 make_not_null(&dest), offset, stride, src, offset, stride);
           } else if constexpr (std::is_same_v<
                                    typename Tag::type::structure::symmetry,
                                    Symmetry<1, 1>>) {
-            filter_matrix_ii.increment_multiply_on_right(
+            filter_matrices.ii.increment_multiply_on_right(
                 make_not_null(&dest), offset, stride, src, offset, stride);
           } else if constexpr (std::is_same_v<
                                    typename Tag::type::structure::symmetry,
                                    Symmetry<2, 1>>) {
-            filter_matrix_ij.increment_multiply_on_right(
+            filter_matrices.ij.increment_multiply_on_right(
                 make_not_null(&dest), offset, stride, src, offset, stride);
           } else if constexpr (std::is_same_v<
                                    typename Tag::type::structure::symmetry,
                                    Symmetry<2, 1, 1>>) {
-            filter_matrix_kii.increment_multiply_on_right(
+            filter_matrices.kii.increment_multiply_on_right(
                 make_not_null(&dest), offset, stride, src, offset, stride);
           } else {
-            filter_matrix_scalar.increment_multiply_on_right(
+            filter_matrices.scalar.increment_multiply_on_right(
                 make_not_null(&dest), offset, stride, src, offset, stride);
           }
         }
