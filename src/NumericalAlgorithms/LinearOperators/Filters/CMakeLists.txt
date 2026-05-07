@@ -8,6 +8,8 @@ spectre_target_headers(
   Filters/Filter.hpp
   Filters/Hypercube.hpp
   Filters/Hypercube.tpp
+  Filters/None.hpp
+  Filters/None.tpp
   Filters/SphericalShell.hpp
   Filters/SphericalShell.tpp
   )
