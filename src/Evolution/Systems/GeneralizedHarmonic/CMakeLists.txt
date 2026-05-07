@@ -12,6 +12,7 @@ spectre_target_sources(
   Characteristics.cpp
   Constraints.cpp
   Equations.cpp
+  SpectralFilter.cpp
   TimeDerivative.cpp
   )
 
