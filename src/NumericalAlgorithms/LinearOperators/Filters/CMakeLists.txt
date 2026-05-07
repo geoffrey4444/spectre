@@ -5,6 +5,7 @@ spectre_target_headers(
   ${LIBRARY}
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
+  Filters/Factory.hpp
   Filters/Filter.hpp
   Filters/Hypercube.hpp
   Filters/Hypercube.tpp
