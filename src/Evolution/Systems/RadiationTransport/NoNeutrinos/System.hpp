@@ -9,5 +9,7 @@
 /// \brief Items related to general relativistic radiation transport
 namespace RadiationTransport::NoNeutrinos {
 /// No neutrino placeholder
-struct System {};
+struct System {
+  static std::string name() { return "NoNeutrinos"; }
+};
 }  // namespace RadiationTransport::NoNeutrinos
