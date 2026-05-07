@@ -264,13 +264,16 @@ SpatialDiscretization:
       SpacetimeDissipation: 0.3
 
 Filtering:
-  ExpFilter0:
-    Alpha: 64
-    # Half power was determined to filter only the last term up to N = 19
-    # since we support up to 20 gridpoints.
-    HalfPower: 420
-    Enable: true
-    BlocksToFilter: All
+  # Half power was determined to filter only the last term up to N = 19
+  # since we support up to 20 gridpoints.
+  - Hypercube:
+      HalfPower: 420
+      Enable: true
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 EventsAndTriggersAtCheckpoints:
 

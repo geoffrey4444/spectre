@@ -63,11 +63,14 @@ SpatialDiscretization:
     Quadrature: GaussLobatto
 
 Filtering:
-  ExpFilter0:
-    Alpha: 12
-    HalfPower: 32
-    Enable: false
-    BlocksToFilter: All
+  - Hypercube:
+      HalfPower: 32
+      Enable: false
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 EventsAndTriggersAtCheckpoints:
 

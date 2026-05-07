@@ -179,12 +179,14 @@ SpatialDiscretization:
       SpacetimeDissipation: 0.1
 
 Filtering:
-  ExpFilter0:
-    Alpha: 36
-    HalfPower: 64
-    Enable: true
-    BlocksToFilter: All
-
+  - Hypercube:
+      HalfPower: 64
+      Enable: true
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 EventsAndTriggersAtCheckpoints:
 

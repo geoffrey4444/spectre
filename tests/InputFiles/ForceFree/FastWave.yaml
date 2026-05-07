@@ -54,11 +54,14 @@ SpatialDiscretization:
     Quadrature: GaussLobatto
 
 Filtering:
-  ExpFilter0:
-    Alpha: 36
-    HalfPower: 50
-    Enable: false
-    BlocksToFilter: All
+  - Hypercube:
+      HalfPower: 50
+      Enable: false
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 Observers:
   VolumeFileName: "ForceFreeFastWaveVolume"

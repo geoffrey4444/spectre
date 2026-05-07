@@ -174,11 +174,14 @@ InterpolationTargets:
     AngularOrdering: Strahlkorper
 
 Filtering:
-  ExpFilter0:
-    Alpha: 12
-    HalfPower: 32
-    Enable: true
-    BlocksToFilter: All
+  - Hypercube:
+      HalfPower: 32
+      Enable: true
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 EventsAndDenseTriggers:
 

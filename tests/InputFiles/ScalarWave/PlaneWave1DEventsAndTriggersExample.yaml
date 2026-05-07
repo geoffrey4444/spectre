@@ -83,6 +83,16 @@ SpatialDiscretization:
     Formulation: StrongInertial
     Quadrature: GaussLobatto
 
+Filtering:
+  - Hypercube:
+      HalfPower: 128
+      Enable: false
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
+
 EventsAndDenseTriggers:
 
 EventsAndTriggersAtCheckpoints:

@@ -91,11 +91,14 @@ EvolutionSystem:
         Center: [0.0, 0.0, 0.0]
 
 Filtering:
-  ExpFilter0:
-    Alpha: 36.0
-    HalfPower: 64
-    Enable: false
-    BlocksToFilter: All
+  - Hypercube:
+      HalfPower: 64
+      Enable: false
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 SpatialDiscretization:
   DiscontinuousGalerkin:

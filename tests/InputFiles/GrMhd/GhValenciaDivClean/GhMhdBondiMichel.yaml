@@ -141,11 +141,14 @@ SpatialDiscretization:
       Rusanov:
 
 Filtering:
-  ExpFilter0:
-    Enable: false
-    Alpha: 64
-    HalfPower: 420
-    BlocksToFilter: All
+  - Hypercube:
+      HalfPower: 420
+      Enable: false
+      BlocksToFilter: All
+      VolumeFilterOnSubstep: false
+      BoundaryFilterOnSubstep: false
+      VolumeFilterEveryNSteps: Auto
+      BoundaryFilterEveryNSteps: Auto
 
 EventsAndTriggersAtCheckpoints:
 
