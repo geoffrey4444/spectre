@@ -79,8 +79,8 @@ void test_apply_filter(const size_t num_to_kill) {
   fill_filter<tnsr::i<DataVector, 3>::structure>(
       make_not_null(&filter_matrices.i), ell_max, num_to_kill, std::nullopt,
       CoefficientNormalization::Spherepack);
-  if constexpr (std::is_same_v<
-                    VarsList, typename filter_detail::gh_spacetime_vars_list>) {
+  if constexpr (tmpl::list_contains_v<
+                    VarsList, gr::Tags::SpacetimeMetric<DataVector, 3>>) {
     fill_filter<tnsr::ii<DataVector, 3>::structure>(
         make_not_null(&filter_matrices.ii), ell_max, num_to_kill, std::nullopt,
         CoefficientNormalization::Spherepack);
