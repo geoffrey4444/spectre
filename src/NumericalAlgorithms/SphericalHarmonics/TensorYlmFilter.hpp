@@ -250,6 +250,15 @@ struct FilterMatrixHolder {
 };
 
 /*!
+ * \brief Fill the FilterMatrixHolder for the specific TagList (system).
+ */
+template <typename TagList>
+void fill_tensor_ylm_filters(
+    gsl::not_null<FilterMatrixHolder*> matrix, size_t ell_max,
+    size_t number_of_ell_modes_to_kill, std::optional<size_t> half_power,
+    CoefficientNormalization coefficient_normalization);
+
+/*!
  * \brief Applies TensorYlm filter in place to variables.
  *
  * When radial_extents is 1, `vars` and `temp_storage` are assumed to

@@ -175,6 +175,29 @@ void transform_spatial_tensors_to_different_frame_without_hessians(
 }  // namespace filter_detail
 
 template <>
+void fill_tensor_ylm_filters<filter_detail::gh_spacetime_vars_list>(
+    const gsl::not_null<FilterMatrixHolder*> matrix, const size_t ell_max,
+    const size_t number_of_ell_modes_to_kill,
+    const std::optional<size_t> half_power,
+    const CoefficientNormalization coefficient_normalization) {
+  ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
+      make_not_null(&matrix->scalar), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+  ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
+      make_not_null(&matrix->i), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+  ylm::TensorYlm::fill_filter<tnsr::ii<DataVector, 3>::structure>(
+      make_not_null(&matrix->ii), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+  ylm::TensorYlm::fill_filter<tnsr::ij<DataVector, 3>::structure>(
+      make_not_null(&matrix->ij), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+  ylm::TensorYlm::fill_filter<tnsr::ijj<DataVector, 3>::structure>(
+      make_not_null(&matrix->kii), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+}
+
+template <>
 void apply_tensor_ylm_filter(
     const gsl::not_null<Variables<filter_detail::gh_spacetime_vars_list>*>
         gh_vars,

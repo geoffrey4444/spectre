@@ -12,6 +12,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackCache.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/TensorYlmFilter.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -40,6 +41,20 @@ void transform_spatial_tensors_to_different_frame_without_hessians(
   }
 }
 }  // namespace filter_detail
+
+template <>
+void fill_tensor_ylm_filters<filter_detail::sw_vars_list<Frame::Inertial>>(
+    const gsl::not_null<FilterMatrixHolder*> matrix, const size_t ell_max,
+    const size_t number_of_ell_modes_to_kill,
+    const std::optional<size_t> half_power,
+    const CoefficientNormalization coefficient_normalization) {
+  ylm::TensorYlm::fill_filter<Scalar<DataVector>::structure>(
+      make_not_null(&matrix->scalar), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+  ylm::TensorYlm::fill_filter<tnsr::i<DataVector, 3>::structure>(
+      make_not_null(&matrix->i), ell_max, number_of_ell_modes_to_kill,
+      half_power, coefficient_normalization);
+}
 
 template <>
 void apply_tensor_ylm_filter(
