@@ -23,6 +23,7 @@
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Domain/Structure/ObjectLabel.hpp"
 #include "Options/Auto.hpp"
+#include "Options/Options.hpp"
 #include "Options/String.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -104,21 +105,31 @@ struct TimeDependentMapOptions {
         "shell"};
   };
 
-  using options = tmpl::list<InitialTime, ShapeMapOptions, RotationMapOptions,
-                             ExpansionMapOptions, TranslationMapOptions,
-                             TransitionRotScaleTrans>;
+  struct NumberOfRadialShellsWithShapeMap {
+    using type = Options::Auto<size_t>;
+    static constexpr Options::String help = {
+        "Number of innermost radial shells that use the shape map. Specify "
+        "'Auto' to use the default for the domain."};
+  };
+
+  using options =
+      tmpl::list<InitialTime, ShapeMapOptions, RotationMapOptions,
+                 ExpansionMapOptions, TranslationMapOptions,
+                 TransitionRotScaleTrans, NumberOfRadialShellsWithShapeMap>;
   static constexpr Options::String help{
       "The options for all the hard-coded time dependent maps in the "
       "Sphere domain."};
 
   TimeDependentMapOptions() = default;
 
-  TimeDependentMapOptions(double initial_time,
-                          ShapeMapOptionType shape_map_options,
-                          RotationMapOptionType rotation_map_options,
-                          ExpansionMapOptionType expansion_map_options,
-                          TranslationMapOptionType translation_map_options,
-                          bool transition_rot_scale_trans);
+  TimeDependentMapOptions(
+      double initial_time, ShapeMapOptionType shape_map_options,
+      RotationMapOptionType rotation_map_options,
+      ExpansionMapOptionType expansion_map_options,
+      TranslationMapOptionType translation_map_options,
+      bool transition_rot_scale_trans,
+      std::optional<size_t> number_of_radial_shells_with_shape_map =
+          std::nullopt);
 
   /*!
    * \brief Create the function of time map using the options that were
@@ -162,8 +173,7 @@ struct TimeDependentMapOptions {
    * blocks, this returns `nullptr`.
    */
   MapType<Frame::Distorted, Frame::Inertial> distorted_to_inertial_map(
-      size_t block_number, bool is_inner_cube,
-      size_t num_blocks_per_shell) const;
+      size_t radial_shell, bool is_inner_cube) const;
 
   /*!
    * \brief This will construct the map from `Frame::Grid` to
@@ -173,8 +183,7 @@ struct TimeDependentMapOptions {
    * function of time). For other blocks, this returns `nullptr`.
    */
   MapType<Frame::Grid, Frame::Distorted> grid_to_distorted_map(
-      size_t block_number, bool is_inner_cube,
-      size_t num_blocks_per_shell) const;
+      size_t radial_shell, size_t shape_map_index, bool is_inner_cube) const;
 
   /*!
    * \brief This will construct the map from `Frame::Grid` to `Frame::Inertial`.
@@ -185,8 +194,8 @@ struct TimeDependentMapOptions {
    * transition to zero.
    */
   MapType<Frame::Grid, Frame::Inertial> grid_to_inertial_map(
-      size_t block_number, bool is_outer_shell, bool is_central_region,
-      size_t num_blocks_per_shell) const;
+      size_t radial_shell, size_t shape_map_index, bool is_outer_shell,
+      bool is_central_region) const;
 
   /*!
    * \brief Whether or not the distorted frame is being used. I.e. whether or
@@ -215,5 +224,22 @@ struct TimeDependentMapOptions {
   ExpansionMapOptionType expansion_map_options_;
   TranslationMapOptionType translation_map_options_;
   bool transition_rot_scale_trans_{false};
+  std::optional<size_t> number_of_radial_shells_with_shape_map_{};
+  size_t resolved_number_of_radial_shells_with_shape_map_{0};
 };
 }  // namespace domain::creators::sphere
+
+template <>
+struct Options::create_from_yaml<
+    domain::creators::sphere::TimeDependentMapOptions> {
+  template <typename Metavariables>
+  static domain::creators::sphere::TimeDependentMapOptions create(
+      const Options::Option& options) {
+    return create<void>(options);
+  }
+};
+
+template <>
+domain::creators::sphere::TimeDependentMapOptions
+Options::create_from_yaml<domain::creators::sphere::TimeDependentMapOptions>::
+    create<void>(const Options::Option& options);

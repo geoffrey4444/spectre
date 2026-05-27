@@ -26,6 +26,7 @@
 #include "Domain/FunctionsOfTime/SettleToConstant.hpp"
 #include "Domain/FunctionsOfTime/SettleToConstantQuaternion.hpp"
 #include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
+#include "Options/ParseOptions.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 
 namespace domain::creators::sphere {
@@ -35,13 +36,16 @@ TimeDependentMapOptions::TimeDependentMapOptions(
     RotationMapOptionType rotation_map_options,
     ExpansionMapOptionType expansion_map_options,
     TranslationMapOptionType translation_map_options,
-    const bool transition_rot_scale_trans)
+    const bool transition_rot_scale_trans,
+    std::optional<size_t> number_of_radial_shells_with_shape_map)
     : initial_time_(initial_time),
       shape_map_options_(std::move(shape_map_options)),
       rotation_map_options_(std::move(rotation_map_options)),
       expansion_map_options_(std::move(expansion_map_options)),
       translation_map_options_(std::move(translation_map_options)),
-      transition_rot_scale_trans_(transition_rot_scale_trans) {}
+      transition_rot_scale_trans_(transition_rot_scale_trans),
+      number_of_radial_shells_with_shape_map_(
+          std::move(number_of_radial_shells_with_shape_map)) {}
 
 std::unordered_map<std::string,
                    std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
@@ -107,7 +111,30 @@ void TimeDependentMapOptions::build_maps(
     const double inner_radius, const std::vector<double>& radial_partitions,
     const double outer_radius) {
   filled_ = filled;
+  resolved_number_of_radial_shells_with_shape_map_ = 0;
   if (shape_map_options_.has_value()) {
+    const size_t number_of_radial_shells = radial_partitions.size() + 1;
+    resolved_number_of_radial_shells_with_shape_map_ =
+        number_of_radial_shells_with_shape_map_.value_or(filled_ ? 2 : 1);
+    if (resolved_number_of_radial_shells_with_shape_map_ == 0) {
+      ERROR(
+          "The number of radial shells with a shape map must be at least one.");
+    }
+    if (filled_ and resolved_number_of_radial_shells_with_shape_map_ < 2) {
+      ERROR(
+          "At least two radial shells must have a shape map when the interior "
+          "is filled.");
+    }
+    if (resolved_number_of_radial_shells_with_shape_map_ >=
+        number_of_radial_shells) {
+      ERROR(
+          "The number of radial shells with a shape map must be smaller than "
+          "the total number of radial shells, but there are "
+          << number_of_radial_shells << " radial shells and "
+          << resolved_number_of_radial_shells_with_shape_map_
+          << " were requested.");
+    }
+
     const double coefficient_truncation_limit =
         time_dependent_options::coefficient_truncation_limit_from_shape_options(
             shape_map_options_.value());
@@ -124,17 +151,16 @@ void TimeDependentMapOptions::build_maps(
       using WedgeTransition =
           domain::CoordinateMaps::ShapeMapTransitionFunctions::Wedge;
       // Shape map transitions from 0 to 1 from the inner cube to this surface
-      deformed_radius_ =
-          radial_partitions.empty() ? outer_radius : radial_partitions.front();
-      // Shape map transitions from 1 to 0 from the deformed surface to the next
-      // radial partition or to the outer radius
-      const bool has_shape_rolloff = not radial_partitions.empty();
+      deformed_radius_ = radial_partitions.front();
+      // Shape map transitions from 1 to 0 from the deformed surface to the
+      // outer boundary of the last shell with a shape map.
       const double shape_outer_radius =
-          radial_partitions.size() > 1 ? radial_partitions[1] : outer_radius;
+          gsl::at(radial_partitions,
+                  resolved_number_of_radial_shells_with_shape_map_ - 1);
       // These must match the order of orientations_for_sphere_wrappings() in
       // DomainHelpers.hpp. The values must match that of Wedge::Axis
       const std::array<int, 6> axes{3, -3, 2, -2, 1, -1};
-      for (size_t j = 0; j < (has_shape_rolloff ? 12 : 6); ++j) {
+      for (size_t j = 0; j < 12; ++j) {
         if (j < 6) {
           // Reverse the transition function so the shape map goes to zero at
           // the inner cube
@@ -157,10 +183,11 @@ void TimeDependentMapOptions::build_maps(
       }
     } else {
       // Shape map transitions from 1 to 0 from the inner radius to the first
-      // radial partition or to the outer radius
+      // radial shell boundary outside the shape-map region
       deformed_radius_ = inner_radius;
       const double shape_outer_radius =
-          radial_partitions.empty() ? outer_radius : radial_partitions.front();
+          gsl::at(radial_partitions,
+                  resolved_number_of_radial_shells_with_shape_map_ - 1);
       transition_func =
           std::make_unique<domain::CoordinateMaps::ShapeMapTransitionFunctions::
                                SphereTransition>(inner_radius,
@@ -227,12 +254,10 @@ void TimeDependentMapOptions::build_maps(
 // in the Sphere domain creator as well as this class' documentation.
 TimeDependentMapOptions::MapType<Frame::Distorted, Frame::Inertial>
 TimeDependentMapOptions::distorted_to_inertial_map(
-    const size_t block_number, const bool is_inner_cube,
-    const size_t num_blocks_per_shell) const {
+    const size_t radial_shell, const bool is_inner_cube) const {
   const bool block_has_shape_map =
       shape_map_options_.has_value() and
-      block_number <
-          (filled_ ? 2 * num_blocks_per_shell : num_blocks_per_shell) and
+      radial_shell < resolved_number_of_radial_shells_with_shape_map_ and
       not is_inner_cube;
   if (block_has_shape_map) {
     return std::make_unique<DistortedToInertialComposition>(
@@ -243,13 +268,12 @@ TimeDependentMapOptions::distorted_to_inertial_map(
 }
 
 TimeDependentMapOptions::MapType<Frame::Grid, Frame::Distorted>
-TimeDependentMapOptions::grid_to_distorted_map(
-    const size_t block_number, const bool is_inner_cube,
-    const size_t num_blocks_per_shell) const {
+TimeDependentMapOptions::grid_to_distorted_map(const size_t radial_shell,
+                                               const size_t shape_map_index,
+                                               const bool is_inner_cube) const {
   const bool block_has_shape_map =
       shape_map_options_.has_value() and
-      block_number <
-          (filled_ ? 2 * num_blocks_per_shell : num_blocks_per_shell) and
+      radial_shell < resolved_number_of_radial_shells_with_shape_map_ and
       not is_inner_cube;
   if (block_has_shape_map) {
     // If the interior is not filled we use the SphereTransition function and
@@ -257,8 +281,10 @@ TimeDependentMapOptions::grid_to_distorted_map(
     // we use the Wedge transition function and build a shape map for each
     // direction, so we have to use the block number here to get the correct
     // shape map.
-    return std::make_unique<GridToDistortedComposition>(
-        gsl::at(shape_maps_, filled_ ? block_number : 0));
+    return std::make_unique<GridToDistortedComposition>(gsl::at(
+        shape_maps_,
+        filled_ ? (radial_shell == 0 ? shape_map_index : 6 + shape_map_index)
+                : 0));
   } else {
     return nullptr;
   }
@@ -266,12 +292,11 @@ TimeDependentMapOptions::grid_to_distorted_map(
 
 TimeDependentMapOptions::MapType<Frame::Grid, Frame::Inertial>
 TimeDependentMapOptions::grid_to_inertial_map(
-    const size_t block_number, const bool is_outer_shell,
-    const bool is_central_region, const size_t num_blocks_per_shell) const {
+    const size_t radial_shell, const size_t shape_map_index,
+    const bool is_outer_shell, const bool is_central_region) const {
   const bool block_has_shape_map =
       shape_map_options_.has_value() and
-      block_number <
-          (filled_ ? 2 * num_blocks_per_shell : num_blocks_per_shell) and
+      radial_shell < resolved_number_of_radial_shells_with_shape_map_ and
       not(is_central_region and filled_);
   if (block_has_shape_map) {
     // If the interior is not filled we use the SphereTransition function and
@@ -280,8 +305,9 @@ TimeDependentMapOptions::grid_to_inertial_map(
     // direction, so we have to use the block number here to get the correct
     // shape map.
     return std::make_unique<GridToInertialComposition>(
-        gsl::at(shape_maps_,
-                filled_ ? block_number : (is_central_region ? 1 : 0)),
+        gsl::at(shape_maps_, filled_ ? (radial_shell == 0 ? shape_map_index
+                                                          : 6 + shape_map_index)
+                                     : (is_central_region ? 1 : 0)),
         inner_rot_scale_trans_map_);
   } else if (is_outer_shell and transition_rot_scale_trans_) {
     return std::make_unique<GridToInertialSimple>(
@@ -297,3 +323,44 @@ bool TimeDependentMapOptions::using_distorted_frame() const {
   return shape_map_options_.has_value();
 }
 }  // namespace domain::creators::sphere
+
+template <>
+domain::creators::sphere::TimeDependentMapOptions
+Options::create_from_yaml<domain::creators::sphere::TimeDependentMapOptions>::
+    create<void>(const Options::Option& options) {
+  using TimeDependentMapOptions =
+      domain::creators::sphere::TimeDependentMapOptions;
+  using options_without_number_of_radial_shells_with_shape_map =
+      tmpl::list<TimeDependentMapOptions::InitialTime,
+                 TimeDependentMapOptions::ShapeMapOptions,
+                 TimeDependentMapOptions::RotationMapOptions,
+                 TimeDependentMapOptions::ExpansionMapOptions,
+                 TimeDependentMapOptions::TranslationMapOptions,
+                 TimeDependentMapOptions::TransitionRotScaleTrans>;
+
+  if (options.node()["NumberOfRadialShellsWithShapeMap"]) {
+    Options::Parser<TimeDependentMapOptions::options> parser(
+        TimeDependentMapOptions::help);
+    parser.parse(options);
+    return TimeDependentMapOptions{
+        parser.get<TimeDependentMapOptions::InitialTime>(),
+        parser.get<TimeDependentMapOptions::ShapeMapOptions>(),
+        parser.get<TimeDependentMapOptions::RotationMapOptions>(),
+        parser.get<TimeDependentMapOptions::ExpansionMapOptions>(),
+        parser.get<TimeDependentMapOptions::TranslationMapOptions>(),
+        parser.get<TimeDependentMapOptions::TransitionRotScaleTrans>(),
+        parser
+            .get<TimeDependentMapOptions::NumberOfRadialShellsWithShapeMap>()};
+  }
+
+  Options::Parser<options_without_number_of_radial_shells_with_shape_map>
+      parser(TimeDependentMapOptions::help);
+  parser.parse(options);
+  return TimeDependentMapOptions{
+      parser.get<TimeDependentMapOptions::InitialTime>(),
+      parser.get<TimeDependentMapOptions::ShapeMapOptions>(),
+      parser.get<TimeDependentMapOptions::RotationMapOptions>(),
+      parser.get<TimeDependentMapOptions::ExpansionMapOptions>(),
+      parser.get<TimeDependentMapOptions::TranslationMapOptions>(),
+      parser.get<TimeDependentMapOptions::TransitionRotScaleTrans>()};
+}

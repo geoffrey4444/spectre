@@ -69,10 +69,12 @@ namespace domain::creators {
 /// The SphericalShells domain creator also has the option to use some hard
 /// coded time dependent maps that may be useful in certain scenarios. This
 /// method adds the maps in `domain::creators::sphere::TimeDependentMapOptions`
-/// to the domain. Currently, the first (inner-most) shell has maps between
+/// to the domain. By default, the first (inner-most) shell has maps between
 /// `Frame::Grid`, `Frame::Distorted`, and `Frame::Inertial` while all
 /// subsequent shells only have maps between `Frame::Grid` and
-/// `Frame::Inertial`.
+/// `Frame::Inertial`. The `NumberOfRadialShellsWithShapeMap` option can be
+/// used to add distorted-frame maps to more inner shells, but the final radial
+/// shell cannot use the shape map.
 ///
 /// ##### None
 /// To not have any time dependent maps, pass a `std::nullopt` as the

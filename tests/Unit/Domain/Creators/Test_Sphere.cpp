@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <pup.h>
 #include <random>
 #include <string>
@@ -113,7 +114,9 @@ std::string option_string(
     const std::vector<CoordinateMaps::Distribution>& radial_distribution,
     const ShellWedges which_wedges, const bool time_dependent,
     const bool hard_coded_time_dependent_maps,
-    const bool with_boundary_conditions) {
+    const bool with_boundary_conditions,
+    const std::optional<std::string>& number_of_radial_shells_with_shape_map =
+        std::string{"Auto"}) {
   const std::string interior_option =
       [&interior, &with_boundary_conditions]() -> std::string {
     if (std::holds_alternative<creators::Sphere::Excision>(interior)) {
@@ -143,6 +146,11 @@ std::string option_string(
                 "    IndexPolarAxis: " +
                 std::to_string(equatorial_compression->index_polar_axis) + "\n"
           : "  EquatorialCompression: None\n";
+  const std::string number_of_radial_shells_with_shape_map_option =
+      number_of_radial_shells_with_shape_map.has_value()
+          ? "    NumberOfRadialShellsWithShapeMap: " +
+                number_of_radial_shells_with_shape_map.value() + "\n"
+          : "";
   const std::string time_dependent_option =
       time_dependent ? (hard_coded_time_dependent_maps
                             ? "  TimeDependentMaps:\n"
@@ -157,7 +165,8 @@ std::string option_string(
                               "    TranslationMap:\n"
                               "      InitialValues: [[0.0, 0.0, 0.0],"
                               " [0.001, -0.003, 0.005], [0.0, 0.0, 0.0]]\n"
-                              "    TransitionRotScaleTrans: False\n"
+                              "    TransitionRotScaleTrans: False\n" +
+                                  number_of_radial_shells_with_shape_map_option
                             : "  TimeDependentMaps:\n"
                               "    UniformTranslation:\n"
                               "      InitialTime: 1.0\n"
@@ -424,6 +433,11 @@ void test_parse_errors() {
   const std::vector<domain::CoordinateMaps::Distribution> radial_distribution{
       domain::CoordinateMaps::Distribution::Linear};
   const std::vector<domain::CoordinateMaps::Distribution>
+      radial_distribution_three_shells{
+          domain::CoordinateMaps::Distribution::Linear,
+          domain::CoordinateMaps::Distribution::Linear,
+          domain::CoordinateMaps::Distribution::Linear};
+  const std::vector<domain::CoordinateMaps::Distribution>
       radial_distribution_too_many{
           domain::CoordinateMaps::Distribution::Linear,
           domain::CoordinateMaps::Distribution::Logarithmic};
@@ -504,6 +518,34 @@ void test_parse_errors() {
       Catch::Matchers::ContainsSubstring(
           "None boundary condition is not supported. If you would like "
           "an outflow-type boundary condition, you must use that."));
+
+  CHECK_THROWS_WITH(
+      creators::Sphere(
+          inner_radius, outer_radius, creators::Sphere::Excision{}, refinement,
+          initial_extents, use_equiangular_map, equatorial_compression,
+          radial_partitioning, radial_distribution, which_wedges,
+          creators::sphere::TimeDependentMapOptions{
+              1.0,
+              creators::time_dependent_options::ShapeMapOptions<
+                  false, domain::ObjectLabel::None>{8, std::nullopt},
+              std::nullopt, std::nullopt, std::nullopt, false},
+          nullptr, Options::Context{false, {}, 1, 1}),
+      Catch::Matchers::ContainsSubstring(
+          "must be smaller than the total number of radial shells"));
+
+  CHECK_THROWS_WITH(
+      creators::Sphere(
+          inner_radius, outer_radius, creators::Sphere::Excision{}, refinement,
+          initial_extents, use_equiangular_map, equatorial_compression,
+          std::vector{1.3, 1.6}, radial_distribution_three_shells, which_wedges,
+          creators::sphere::TimeDependentMapOptions{
+              1.0,
+              creators::time_dependent_options::ShapeMapOptions<
+                  false, domain::ObjectLabel::None>{8, std::nullopt},
+              std::nullopt, std::nullopt, std::nullopt, false, 3},
+          nullptr, Options::Context{false, {}, 1, 1}),
+      Catch::Matchers::ContainsSubstring(
+          "must be smaller than the total number of radial shells"));
 }
 
 template <typename Generator>
@@ -570,12 +612,12 @@ void test_sphere(const gsl::not_null<Generator*> gen) {
     }
     CAPTURE(use_hard_coded_time_dep_options);
 
-    // If we are using hard coded maps, we need at least two shells (or one
-    // radial partition) for the translation map.
-    auto array_index = (use_hard_coded_time_dep_options and
-                                gsl::at(radial_partitioning, index).empty()
-                            ? index + 1
-                            : index);
+    // If we are using hard coded maps, the final radial shell cannot have the
+    // shape map. Filled spheres also need two inner shells with the shape map.
+    const auto array_index =
+        use_hard_coded_time_dep_options
+            ? (fill_interior ? std::max(index, 2_st) : std::max(index, 1_st))
+            : index;
     CAPTURE(gsl::at(radial_partitioning, array_index));
     CAPTURE(gsl::at(radial_distribution, array_index));
 
@@ -646,6 +688,73 @@ void test_sphere(const gsl::not_null<Generator*> gen) {
   }
 }
 
+void test_number_of_radial_shells_with_shape_map() {
+  const Interior interior{creators::Sphere::Excision{}};
+  const creators::Sphere sphere{
+      1.0,
+      5.0,
+      creators::Sphere::Excision{},
+      0_st,
+      std::array{5_st, 6_st, 7_st},
+      true,
+      std::nullopt,
+      std::vector{2.0, 3.0, 4.0},
+      domain::CoordinateMaps::Distribution::Linear,
+      ShellWedges::All,
+      creators::sphere::TimeDependentMapOptions{
+          1.0,
+          domain::creators::time_dependent_options::ShapeMapOptions<
+              false, domain::ObjectLabel::None>{10, std::nullopt},
+          std::nullopt, std::nullopt,
+          domain::creators::time_dependent_options::TranslationMapOptions<3>{
+              std::array{std::array<double, 3>{0.0, 0.0, 0.0},
+                         std::array<double, 3>{0.001, -0.003, 0.005},
+                         std::array<double, 3>{0.0, 0.0, 0.0}}},
+          false, 2}};
+
+  const auto domain = sphere.create_domain();
+  const auto& blocks = domain.blocks();
+  REQUIRE(blocks.size() == 24);
+  for (size_t block_id = 0; block_id < blocks.size(); ++block_id) {
+    CAPTURE(block_id);
+    CHECK(blocks[block_id].has_distorted_frame() == (block_id / 6 < 2));
+  }
+  TestHelpers::domain::creators::test_creation(
+      option_string(1.0, 5.0, interior, 0_st, std::array{5_st, 6_st, 7_st},
+                    true, std::nullopt, std::vector{2.0, 3.0, 4.0},
+                    std::vector{domain::CoordinateMaps::Distribution::Linear},
+                    ShellWedges::All, true, true, false, "2"),
+      sphere, false);
+
+  const creators::Sphere auto_sphere{
+      1.0,
+      5.0,
+      creators::Sphere::Excision{},
+      0_st,
+      std::array{5_st, 6_st, 7_st},
+      true,
+      std::nullopt,
+      std::vector{2.0, 3.0, 4.0},
+      domain::CoordinateMaps::Distribution::Linear,
+      ShellWedges::All,
+      creators::sphere::TimeDependentMapOptions{
+          1.0,
+          domain::creators::time_dependent_options::ShapeMapOptions<
+              false, domain::ObjectLabel::None>{10, std::nullopt},
+          std::nullopt, std::nullopt,
+          domain::creators::time_dependent_options::TranslationMapOptions<3>{
+              std::array{std::array<double, 3>{0.0, 0.0, 0.0},
+                         std::array<double, 3>{0.001, -0.003, 0.005},
+                         std::array<double, 3>{0.0, 0.0, 0.0}}},
+          false}};
+  TestHelpers::domain::creators::test_creation(
+      option_string(1.0, 5.0, interior, 0_st, std::array{5_st, 6_st, 7_st},
+                    true, std::nullopt, std::vector{2.0, 3.0, 4.0},
+                    std::vector{domain::CoordinateMaps::Distribution::Linear},
+                    ShellWedges::All, true, true, false, std::nullopt),
+      auto_sphere, false);
+}
+
 void test_shape_distortion_general(
     const double time,
     domain::creators::Sphere::TimeDepOptionType time_dependent_options,
@@ -661,7 +770,7 @@ void test_shape_distortion_general(
       6_st,
       true,
       std::nullopt,
-      {fill_interior ? deformed_radius : 4.},
+      fill_interior ? std::vector{deformed_radius, 4.} : std::vector{4.},
       domain::CoordinateMaps::Distribution::Linear,
       ShellWedges::All,
       std::move(time_dependent_options)};
@@ -789,6 +898,7 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.Sphere", "[Domain][Unit]") {
   domain::creators::time_dependence::register_derived_with_charm();
   test_parse_errors();
   test_sphere(make_not_null(&gen));
+  test_number_of_radial_shells_with_shape_map();
   test_shape_distortion();
 }
 }  // namespace domain

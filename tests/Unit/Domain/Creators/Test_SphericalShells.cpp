@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -63,7 +64,14 @@ std::string option_string(
     const std::vector<domain::CoordinateMaps::Distribution>&
         radial_distribution,
     const bool time_dependent, const bool hard_coded_time_dependent_maps,
-    const bool with_boundary_conditions) {
+    const bool with_boundary_conditions,
+    const std::optional<std::string>& number_of_radial_shells_with_shape_map =
+        std::string{"Auto"}) {
+  const std::string number_of_radial_shells_with_shape_map_option =
+      number_of_radial_shells_with_shape_map.has_value()
+          ? "    NumberOfRadialShellsWithShapeMap: " +
+                number_of_radial_shells_with_shape_map.value() + "\n"
+          : "";
   const std::string time_dependent_option =
       time_dependent ? (hard_coded_time_dependent_maps
                             ? "  TimeDependentMaps:\n"
@@ -78,7 +86,8 @@ std::string option_string(
                               "    TranslationMap:\n"
                               "      InitialValues: [[0.0, 0.0, 0.0],"
                               " [0.001, -0.003, 0.005], [0.0, 0.0, 0.0]]\n"
-                              "    TransitionRotScaleTrans: False\n"
+                              "    TransitionRotScaleTrans: False\n" +
+                                  number_of_radial_shells_with_shape_map_option
                             : "  TimeDependentMaps:\n"
                               "    UniformTranslation:\n"
                               "      InitialTime: 1.0\n"
@@ -135,6 +144,11 @@ void test_parse_errors() {
       {2.1 * outer_radius, 2.2 * outer_radius}};
   const std::vector<domain::CoordinateMaps::Distribution> radial_distribution{
       domain::CoordinateMaps::Distribution::Linear};
+  const std::vector<domain::CoordinateMaps::Distribution>
+      radial_distribution_three_shells{
+          domain::CoordinateMaps::Distribution::Linear,
+          domain::CoordinateMaps::Distribution::Linear,
+          domain::CoordinateMaps::Distribution::Linear};
   const std::vector<domain::CoordinateMaps::Distribution>
       radial_distribution_too_many{
           domain::CoordinateMaps::Distribution::Linear,
@@ -230,6 +244,32 @@ void test_parse_errors() {
       Catch::Matchers::ContainsSubstring(
           "None boundary condition is not supported. If you would like "
           "an outflow-type boundary condition, you must use that."));
+
+  CHECK_THROWS_WITH(
+      domain::creators::SphericalShells(
+          inner_radius, outer_radius, radial_refinement, radial_extents, l,
+          radial_partitioning, radial_distribution,
+          domain::creators::sphere::TimeDependentMapOptions{
+              1.0,
+              domain::creators::time_dependent_options::ShapeMapOptions<
+                  false, domain::ObjectLabel::None>{8, std::nullopt},
+              std::nullopt, std::nullopt, std::nullopt, false},
+          nullptr, nullptr, Options::Context{false, {}, 1, 1}),
+      Catch::Matchers::ContainsSubstring(
+          "must be smaller than the total number of radial shells"));
+
+  CHECK_THROWS_WITH(
+      domain::creators::SphericalShells(
+          inner_radius, outer_radius, radial_refinement, radial_extents, l,
+          std::vector{1.3, 1.6}, radial_distribution_three_shells,
+          domain::creators::sphere::TimeDependentMapOptions{
+              1.0,
+              domain::creators::time_dependent_options::ShapeMapOptions<
+                  false, domain::ObjectLabel::None>{8, std::nullopt},
+              std::nullopt, std::nullopt, std::nullopt, false, 3},
+          nullptr, nullptr, Options::Context{false, {}, 1, 1}),
+      Catch::Matchers::ContainsSubstring(
+          "must be smaller than the total number of radial shells"));
 }
 
 template <typename Generator>
@@ -462,6 +502,96 @@ void test_sphere(const gsl::not_null<Generator*> gen) {
   }
 }
 
+void test_number_of_radial_shells_with_shape_map() {
+  const auto make_time_dependent_options = [](const size_t number_of_shells) {
+    return domain::creators::sphere::TimeDependentMapOptions{
+        1.0,
+        domain::creators::time_dependent_options::ShapeMapOptions<
+            false, domain::ObjectLabel::None>{10, std::nullopt},
+        std::nullopt,
+        std::nullopt,
+        domain::creators::time_dependent_options::TranslationMapOptions<3>{
+            std::array{std::array<double, 3>{0.0, 0.0, 0.0},
+                       std::array<double, 3>{0.001, -0.003, 0.005},
+                       std::array<double, 3>{0.0, 0.0, 0.0}}},
+        false,
+        number_of_shells};
+  };
+  const auto check_distorted_frames =
+      [](const domain::creators::SphericalShells& domain_creator,
+         const size_t number_of_shells_with_shape_map) {
+        const auto domain = domain_creator.create_domain();
+        const auto& blocks = domain.blocks();
+        for (size_t shell = 0; shell < blocks.size(); ++shell) {
+          CAPTURE(shell);
+          CHECK(blocks[shell].has_distorted_frame() ==
+                (shell < number_of_shells_with_shape_map));
+        }
+      };
+
+  {
+    INFO("Two radial shells with shape map");
+    const domain::creators::SphericalShells domain_creator{
+        1.0,
+        5.0,
+        0_st,
+        5_st,
+        6_st,
+        {2.0, 3.0, 4.0},
+        domain::CoordinateMaps::Distribution::Linear,
+        make_time_dependent_options(2)};
+    check_distorted_frames(domain_creator, 2);
+    TestHelpers::domain::creators::test_creation(
+        option_string(1.0, 5.0, 0_st, 5_st, 6_st, {2.0, 3.0, 4.0},
+                      std::vector{domain::CoordinateMaps::Distribution::Linear},
+                      true, true, false, "2"),
+        domain_creator, false);
+    const domain::creators::SphericalShells auto_domain_creator{
+        1.0,
+        5.0,
+        0_st,
+        5_st,
+        6_st,
+        {2.0, 3.0, 4.0},
+        domain::CoordinateMaps::Distribution::Linear,
+        domain::creators::sphere::TimeDependentMapOptions{
+            1.0,
+            domain::creators::time_dependent_options::ShapeMapOptions<
+                false, domain::ObjectLabel::None>{10, std::nullopt},
+            std::nullopt, std::nullopt,
+            domain::creators::time_dependent_options::TranslationMapOptions<3>{
+                std::array{std::array<double, 3>{0.0, 0.0, 0.0},
+                           std::array<double, 3>{0.001, -0.003, 0.005},
+                           std::array<double, 3>{0.0, 0.0, 0.0}}},
+            false}};
+    TestHelpers::domain::creators::test_creation(
+        option_string(1.0, 5.0, 0_st, 5_st, 6_st, {2.0, 3.0, 4.0},
+                      std::vector{domain::CoordinateMaps::Distribution::Linear},
+                      true, true, false, std::nullopt),
+        auto_domain_creator, false);
+  }
+
+  {
+    INFO("Five of eight radial shells with shape maps");
+    const domain::creators::SphericalShells domain_creator{
+        1.0,
+        9.0,
+        0_st,
+        5_st,
+        6_st,
+        {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0},
+        domain::CoordinateMaps::Distribution::Linear,
+        make_time_dependent_options(5)};
+    check_distorted_frames(domain_creator, 5);
+    TestHelpers::domain::creators::test_creation(
+        option_string(1.0, 9.0, 0_st, 5_st, 6_st,
+                      {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0},
+                      std::vector{domain::CoordinateMaps::Distribution::Linear},
+                      true, true, false, "5"),
+        domain_creator, false);
+  }
+}
+
 void test_shape_distortion_general(
     const double time,
     domain::creators::SphericalShells::TimeDepOptionType time_dependent_options,
@@ -594,5 +724,6 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.SphericalShells", "[Domain][Unit]") {
   domain::creators::time_dependence::register_derived_with_charm();
   test_parse_errors();
   test_sphere(make_not_null(&gen));
+  test_number_of_radial_shells_with_shape_map();
   test_shape_distortion();
 }

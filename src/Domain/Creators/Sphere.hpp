@@ -157,9 +157,12 @@ namespace domain::creators {
  * The Sphere domain creator also has the option to use some hard coded time
  * dependent maps that may be useful in certain scenarios. This method adds the
  * maps in `domain::creators::sphere::TimeDependentMapOptions` to the domain.
- * Currently, the first (inner-most) shell has maps between `Frame::Grid`,
- * `Frame::Distorted`, and `Frame::Inertial` while all subsequent shells only
- * have maps between `Frame::Grid` and `Frame::Inertial`.
+ * By default, the first (inner-most) shell in an excised sphere has maps
+ * between `Frame::Grid`, `Frame::Distorted`, and `Frame::Inertial`, while all
+ * subsequent shells only have maps between `Frame::Grid` and `Frame::Inertial`.
+ * Filled spheres default to using the shape map on the two innermost radial
+ * shells. The `NumberOfRadialShellsWithShapeMap` option can be used to choose
+ * more inner shells, but the final radial shell cannot use the shape map.
  *
  * \note You can only use hard-coded time dependent maps if you have an excision
  * surface. You cannot have a inner cube.
