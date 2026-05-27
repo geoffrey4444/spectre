@@ -47,11 +47,11 @@ namespace ylm::TensorYlm {
  * For performance, the function does not allocate large buffers and does not
  * build the cartesian-to-spherical matrices. The caller supplies
  * `temp_storage` and precomputed matrices. `temp_storage` has the same type as
- * the output so the implementation can reuse one contiguous buffer as
- * grid-frame nodal spatial pieces and as one non-owning spectral tensor view at
- * a time. It must have enough storage for the physical GH spatial variables and
- * for the largest spectral GH spatial tensor. The `spherepack` must have
- * `m_max == l_max`, matching the cartesian-to-spherical matrices.
+ * the output so the implementation can reuse one contiguous buffer as inertial
+ * spatial pieces at the collocation points and as spectral coefficients. It
+ * must have at least `radial_extents * spherepack.spectral_size()` grid points.
+ * The `spherepack` must have `m_max == l_max`, matching the
+ * cartesian-to-spherical matrices.
  *
  * \param gh_spatial_tensor_ylm_coefficients Output coefficients for the GH
  *   variables broken into spatial pieces. The output is overwritten and must

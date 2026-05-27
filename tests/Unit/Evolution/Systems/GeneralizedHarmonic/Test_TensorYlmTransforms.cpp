@@ -80,16 +80,21 @@ InverseJacobian<DataVector, 3, Frame::Inertial, Frame::Grid> identity_jacobian(
   return jacobian;
 }
 
+// Scalars need no correction, but tensors must be transformed to the
+// TensorYlm basis. This function transforms the input tensor coefficients
+// to the TensorYlm basis.
 template <typename TensorType>
 void apply_tensor_ylm_basis_matrix_to_coefficients(
     const gsl::not_null<TensorType*> result, const TensorType& coefficients,
     const SimpleSparseMatrix& matrix, const size_t spectral_size,
     const size_t radial_extents) {
   if constexpr (TensorType::rank() == 0) {
-    *result = coefficients;
+    *result = coefficients;  // just copy the scalars
   } else {
     DataVector source{coefficients.size() * spectral_size};
     DataVector destination{result->size() * spectral_size};
+    // Pack input tensor coefficients into a contiguous DataVector.
+    // The transformation sparse matrices will act on the contiguous DataVector.
     for (size_t offset = 0; offset < radial_extents; ++offset) {
       for (size_t component = 0; component < coefficients.size(); ++component) {
         for (size_t coefficient_index = 0; coefficient_index < spectral_size;
@@ -99,12 +104,17 @@ void apply_tensor_ylm_basis_matrix_to_coefficients(
                           [coefficient_index * radial_extents + offset];
         }
       }
+
+      // Zero destination before calling increment_multiply_on_right, which
+      // does dest += matrix * source.
       destination = 0.0;
       const gsl::span<double> source_span{source.data(), source.size()};
       gsl::span<double> destination_span{destination.data(),
                                          destination.size()};
       matrix.increment_multiply_on_right(make_not_null(&destination_span), 0, 1,
                                          source_span, 0, 1);
+
+      // Set result tensor components from the contiguous DataVector.
       for (size_t component = 0; component < result->size(); ++component) {
         for (size_t coefficient_index = 0; coefficient_index < spectral_size;
              ++coefficient_index) {
@@ -116,6 +126,7 @@ void apply_tensor_ylm_basis_matrix_to_coefficients(
   }
 }
 
+// Wrapper to transform a tag in a Variables to the TensorYlm basis.
 template <typename Tag>
 void apply_tensor_ylm_basis_matrix_to_tag(
     const gsl::not_null<
@@ -130,6 +141,7 @@ void apply_tensor_ylm_basis_matrix_to_tag(
   get<Tag>(*coefficients) = transformed;
 }
 
+// Helper function to transform GH spatial variables to the TensorYlm basis.
 void apply_tensor_ylm_basis_matrices(
     const gsl::not_null<
         Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>*>
@@ -160,6 +172,10 @@ void apply_tensor_ylm_basis_matrices(
   });
 }
 
+// Wrapper for calling the function under test,
+// gh_variables_to_tensor_ylm_coefficients(). This wrapper creates temporary
+// storage, calls the function, then
+// returns the transformed result.
 Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> transform_gh_vars(
     const Variables<filter_detail::gh_spacetime_vars_list>& gh_vars,
     const Spherepack& spherepack, const size_t radial_extents,
@@ -167,7 +183,7 @@ Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> transform_gh_vars(
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> result{
       spherepack.spectral_size() * radial_extents};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp_storage{
-      spherepack.physical_size() * radial_extents};
+      spherepack.spectral_size() * radial_extents};
   gh_variables_to_tensor_ylm_coefficients(
       make_not_null(&result), make_not_null(&temp_storage), gh_vars,
       identity_jacobian(spherepack.physical_size() * radial_extents),
@@ -176,6 +192,11 @@ Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> transform_gh_vars(
   return result;
 }
 
+// Test 1: Transform random GH variables two different ways:
+// a. Call gh_variables_to_tensor_ylm_coefficients(), the function under test.
+// b. Do the transformation in a different way, step by step. The alternate
+// path is less efficient (e.g. many more allocations).
+// The test checks that both paths give the same result.
 void test_against_alt_transform_path(
     const gsl::not_null<std::mt19937*> generator) {
   constexpr size_t ell_max = 4;
@@ -186,21 +207,24 @@ void test_against_alt_transform_path(
   const size_t spectral_size = spherepack.spectral_size() * radial_extents;
   const auto jacobian = identity_jacobian(physical_size);
 
+  // Generate random GH variables
   Variables<filter_detail::gh_spacetime_vars_list> gh_vars{physical_size};
   std::uniform_real_distribution<> dist{-1.0, 1.0};
   for (size_t i = 0; i < gh_vars.size(); ++i) {
     gh_vars.data()[i] = dist(*generator);
   }
 
+  // Do transformation method a.
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> result{
       spectral_size};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp_storage{
-      physical_size};
+      spectral_size};
   gh_variables_to_tensor_ylm_coefficients(
       make_not_null(&result), make_not_null(&temp_storage), gh_vars, jacobian,
       matrices.i, matrices.ii, matrices.ij, matrices.ijj, spherepack,
       radial_extents);
 
+  // Do transformation method b.
   Variables<filter_detail::gh_spatial_vars_list<Frame::Inertial>>
       inertial_spatial_vars{physical_size};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> grid_spatial_vars{
@@ -219,11 +243,14 @@ void test_against_alt_transform_path(
   CHECK_VARIABLES_APPROX(result, expected);
 }
 
+// Test 2: test that Minkowski spacetime has only l=0 modes.
 void test_minkowski_has_only_constant_metric_modes() {
   constexpr size_t ell_max = 5;
   constexpr size_t radial_extents = 2;
   const Spherepack spherepack{ell_max, ell_max};
   const auto matrices = make_cart_to_sphere_matrices(ell_max);
+
+  // Set up Minkowski GH variables
   Variables<filter_detail::gh_spacetime_vars_list> gh_vars{
       spherepack.physical_size() * radial_extents, 0.0};
   auto& metric =
@@ -233,6 +260,7 @@ void test_minkowski_has_only_constant_metric_modes() {
     metric.get(i + 1, i + 1) = 1.0;
   }
 
+  // Check that all l>0 modes vanish in all tensor components.
   const auto result =
       transform_gh_vars(gh_vars, spherepack, radial_extents, matrices);
   const SpherepackIterator iterator{ell_max, ell_max, 1, false};
@@ -251,6 +279,8 @@ void test_minkowski_has_only_constant_metric_modes() {
         }
       });
 
+  // Pi and Phi are zero in Minkowski space, so also check that the spatial
+  // pieces of Pi and Phi returned by transform_gh_vars vanish.
   tmpl::for_each<
       tmpl::list<filter_detail::Tags::Pi00<DataVector>,
                  filter_detail::Tags::Pik0<DataVector, 3, Frame::Grid>,
@@ -267,12 +297,17 @@ void test_minkowski_has_only_constant_metric_modes() {
       });
 }
 
+// Test 3: check that a radial unit vector has vanishing m and mbar components
+// and a radial component of 1.
 void test_radial_vector_basis_component() {
   constexpr size_t ell_max = 5;
   constexpr size_t radial_extents = 1;
   const Spherepack spherepack{ell_max, ell_max};
   const auto matrices = make_cart_to_sphere_matrices(ell_max);
   const size_t physical_size = spherepack.physical_size() * radial_extents;
+
+  // Set Pi and Phi, and SpacetimeMetric to zero, except set g_{ti} to
+  // a radial unit vector.
   Variables<filter_detail::gh_spacetime_vars_list> gh_vars{physical_size, 0.0};
   auto& metric =
       get<::gr::Tags::SpacetimeMetric<DataVector, 3, Frame::Inertial>>(gh_vars);
@@ -287,16 +322,29 @@ void test_radial_vector_basis_component() {
 
   const auto result =
       transform_gh_vars(gh_vars, spherepack, radial_extents, matrices);
+
+  // Check that component 0 (l, or radial component), is 1, as it should be
+  // since at each point, the unit vector has a radial component of 1 and
+  // angular components vanishing.
   const auto& vector =
       get<filter_detail::Tags::Metrick0<DataVector, 3, Frame::Grid>>(result);
   const DataVector expected_radial = spherepack.phys_to_spec_all_offsets(
       DataVector{physical_size, 1.0}, radial_extents);
   CHECK_ITERABLE_CUSTOM_APPROX(vector.get(0), expected_radial, approx);
+
+  // Check that components 1 and 2 (m and mbar, or angular components) vanish.
   const DataVector expected_zero{vector.get(1).size(), 0.0};
   CHECK_ITERABLE_CUSTOM_APPROX(vector.get(1), expected_zero, approx);
   CHECK_ITERABLE_CUSTOM_APPROX(vector.get(2), expected_zero, approx);
 }
 
+// Test 4: Start with modes, compute the original GH vars from them,
+// then make sure that transform_gh_vars() gets back the original modes.
+// Also explicitly verify that, when original modes are zero except for
+// l=2, m=1, that the computed modes only have nonzero power in l=2; this is
+// redundant in terms of checking for correctness but could help narrow down
+// the issue if the round trip ever fails (wrong l=2, m=1 values vs.
+// nonzero l!=2 modes).
 void test_controlled_mode_roundtrip_and_power_selection() {
   constexpr size_t ell_max = 5;
   constexpr size_t radial_extents = 2;
@@ -306,6 +354,7 @@ void test_controlled_mode_roundtrip_and_power_selection() {
   const size_t spectral_size = spherepack.spectral_size() * radial_extents;
   const size_t physical_size = spherepack.physical_size() * radial_extents;
 
+  // Choose one component of the metric to have some nonzero modes.
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>>
       tensor_ylm_coefficients{spectral_size, 0.0};
   auto& metric_modes =
@@ -321,26 +370,34 @@ void test_controlled_mode_roundtrip_and_power_selection() {
   metric_modes.get(1, 2)[b21 * radial_extents] = 0.2;
   metric_modes.get(1, 2)[b21 * radial_extents + 1] = 0.5;
 
+  // Transform back from the TensorYlm basis to the Cartesian basis.
   auto cartesian_modal_coefficients = tensor_ylm_coefficients;
   apply_tensor_ylm_basis_matrices(make_not_null(&cartesian_modal_coefficients),
                                   sphere_to_cart, spherepack.spectral_size(),
                                   radial_extents);
 
+  // Transform modal coefficients back to nodal coefficients.
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> grid_nodal_vars{
       physical_size};
   filter_detail::modal_to_nodal_ylm(make_not_null(&grid_nodal_vars),
                                     cartesian_modal_coefficients, spherepack,
                                     radial_extents);
+  // Turn nodal spatial pieces in the Cartesian basis into spacetime GH
+  // variables.
   Variables<filter_detail::gh_spacetime_vars_list> gh_vars{physical_size, 0.0};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Inertial>>
       inertial_nodal_vars{grid_nodal_vars.data(), grid_nodal_vars.size()};
   filter_detail::assemble_spacetime_vars_from_spatial_pieces(
       make_not_null(&gh_vars), inertial_nodal_vars);
 
+  // Do the transform and check that the modes returned match the modes
+  // this test started with.
   const auto result =
       transform_gh_vars(gh_vars, spherepack, radial_extents, cart_to_sphere);
   CHECK_VARIABLES_APPROX(result, tensor_ylm_coefficients);
 
+  // Explicitly verify that power in the l == 2 mode is nonzero and power in
+  // the other modes vanishes.
   DataVector power_by_l{ell_max + 1, 0.0};
   tmpl::for_each<filter_detail::gh_spatial_vars_list<Frame::Grid>>(
       [&result, &power_by_l,
@@ -364,6 +421,7 @@ void test_controlled_mode_roundtrip_and_power_selection() {
   }
 }
 
+// In debug builds, check all the asserts in TensorYlmTransforms.cpp.
 #ifdef SPECTRE_DEBUG
 void test_asserts() {
   constexpr size_t ell_max = 3;
@@ -375,7 +433,7 @@ void test_asserts() {
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> result{
       spherepack.spectral_size() * radial_extents};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp{
-      spherepack.physical_size() * radial_extents};
+      spherepack.spectral_size() * radial_extents};
   CHECK_THROWS_WITH(
       gh_variables_to_tensor_ylm_coefficients(
           make_not_null(&result), make_not_null(&result), gh_vars,
@@ -401,7 +459,7 @@ void test_asserts() {
       result_truncated_m{spherepack_with_truncated_m.spectral_size() *
                          radial_extents};
   Variables<filter_detail::gh_spatial_vars_list<Frame::Grid>> temp_truncated_m{
-      spherepack_with_truncated_m.physical_size() * radial_extents};
+      spherepack_with_truncated_m.spectral_size() * radial_extents};
   CHECK_THROWS_WITH(
       gh_variables_to_tensor_ylm_coefficients(
           make_not_null(&result_truncated_m), make_not_null(&temp_truncated_m),
