@@ -32,6 +32,22 @@ struct Inertial;
 /// \endcond
 
 namespace elliptic::Actions {
+namespace detail {
+
+template <typename Solution, size_t Dim, typename TagsList, typename = void>
+struct has_mesh_variables : std::false_type {};
+
+template <typename Solution, size_t Dim, typename TagsList>
+struct has_mesh_variables<
+    Solution, Dim, TagsList,
+    std::void_t<decltype(std::declval<const Solution&>().variables(
+        std::declval<const tnsr::I<DataVector, Dim, Frame::Inertial>&>(),
+        std::declval<const Mesh<Dim>&>(),
+        std::declval<const InverseJacobian<
+            DataVector, Dim, Frame::ElementLogical, Frame::Inertial>&>(),
+        std::declval<TagsList>()))>> : std::true_type {};
+
+}  // namespace detail
 
 /// @{
 /*!
@@ -45,7 +61,10 @@ namespace elliptic::Actions {
  * Uses:
  * - DataBox:
  *   - `AnalyticSolutionTag` or `BackgroundTag`
+ *   - `domain::Tags::Mesh<Dim>`
  *   - `Tags::Coordinates<Dim, Frame::Inertial>`
+ *   - `domain::Tags::InverseJacobian<Dim, Frame::ElementLogical,
+ *     Frame::Inertial>`
  *
  * DataBox:
  * - Adds:
@@ -79,16 +98,20 @@ struct InitializeOptionalAnalyticSolution
   using return_tags = tmpl::list<analytic_fields_tag>;
   using argument_tags =
       tmpl::list<domain::Tags::Mesh<Dim>,
-                 domain::Tags::Coordinates<Dim, Frame::Inertial>, BackgroundTag,
-                 Parallel::Tags::Metavariables>;
+                 domain::Tags::Coordinates<Dim, Frame::Inertial>,
+                 domain::Tags::InverseJacobian<Dim, Frame::ElementLogical,
+                                               Frame::Inertial>,
+                 BackgroundTag, Parallel::Tags::Metavariables>;
 
   template <typename Background, typename Metavariables, typename... AmrData>
-  static void apply(const gsl::not_null<typename analytic_fields_tag::type*>
-                        analytic_solution_fields,
-                    const Mesh<Dim>& mesh,
-                    const tnsr::I<DataVector, Dim> inertial_coords,
-                    const Background& background, const Metavariables& /*meta*/,
-                    const AmrData&... amr_data) {
+  static void apply(
+      const gsl::not_null<typename analytic_fields_tag::type*>
+          analytic_solution_fields,
+      const Mesh<Dim>& mesh, const tnsr::I<DataVector, Dim> inertial_coords,
+      const InverseJacobian<DataVector, Dim, Frame::ElementLogical,
+                            Frame::Inertial>& inv_jacobian,
+      const Background& background, const Metavariables& /*meta*/,
+      const AmrData&... amr_data) {
     if constexpr (sizeof...(AmrData) == 1) {
       if constexpr (std::is_same_v<AmrData...,
                                    std::pair<Mesh<Dim>, Element<Dim>>>) {
@@ -107,9 +130,18 @@ struct InitializeOptionalAnalyticSolution
       *analytic_solution_fields = call_with_dynamic_type<
           Variables<AnalyticSolutionFields>,
           tmpl::at<factory_classes, AnalyticSolutionType>>(
-          analytic_solution, [&inertial_coords](const auto* const derived) {
-            return variables_from_tagged_tuple(
-                derived->variables(inertial_coords, AnalyticSolutionFields{}));
+          analytic_solution,
+          [&inertial_coords, &mesh, &inv_jacobian](const auto* const derived) {
+            using Derived = std::decay_t<decltype(*derived)>;
+            if constexpr (detail::has_mesh_variables<
+                              Derived, Dim, AnalyticSolutionFields>::value) {
+              return variables_from_tagged_tuple(
+                  derived->variables(inertial_coords, mesh, inv_jacobian,
+                                     AnalyticSolutionFields{}));
+            } else {
+              return variables_from_tagged_tuple(derived->variables(
+                  inertial_coords, AnalyticSolutionFields{}));
+            }
           });
     } else {
       *analytic_solution_fields = std::nullopt;
