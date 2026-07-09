@@ -62,7 +62,10 @@ struct AnalyticSolution : elliptic::analytic_data::AnalyticSolution {
   }
 
   static tuples::TaggedTuple<ScalarFieldTag> variables(
-      const tnsr::I<DataVector, 1>& x, tmpl::list<ScalarFieldTag> /*meta*/) {
+      const tnsr::I<DataVector, 1>& x, const Mesh<1>& /*mesh*/,
+      const InverseJacobian<DataVector, 1, Frame::ElementLogical,
+                            Frame::Inertial>& /*inv_jacobian*/,
+      tmpl::list<ScalarFieldTag> /*meta*/) {
     Scalar<DataVector> solution{2. * get<0>(x)};
     return {std::move(solution)};
   }
@@ -70,28 +73,6 @@ struct AnalyticSolution : elliptic::analytic_data::AnalyticSolution {
 
 PUP::able::PUP_ID AnalyticSolution::my_PUP_ID = 0;  // NOLINT
 
-struct MeshAwareAnalyticSolution : elliptic::analytic_data::AnalyticSolution {
-  MeshAwareAnalyticSolution() = default;
-  explicit MeshAwareAnalyticSolution(CkMigrateMessage* m)
-      : elliptic::analytic_data::AnalyticSolution(m) {}
-  WRAPPED_PUPable_decl_template(MeshAwareAnalyticSolution);
-  std::unique_ptr<elliptic::analytic_data::AnalyticSolution> get_clone()
-      const override {
-    return std::make_unique<MeshAwareAnalyticSolution>(*this);
-  }
-
-  static tuples::TaggedTuple<ScalarFieldTag> variables(
-      const tnsr::I<DataVector, 1>& /*x*/, const Mesh<1>& mesh,
-      const InverseJacobian<DataVector, 1, Frame::ElementLogical,
-                            Frame::Inertial>& inv_jacobian,
-      tmpl::list<ScalarFieldTag> /*meta*/) {
-    Scalar<DataVector> solution{get<0, 0>(inv_jacobian)};
-    get(solution) += mesh.number_of_grid_points();
-    return {std::move(solution)};
-  }
-};
-
-PUP::able::PUP_ID MeshAwareAnalyticSolution::my_PUP_ID = 0;  // NOLINT
 #pragma GCC diagnostic pop
 
 template <typename Metavariables>
@@ -124,12 +105,11 @@ struct Metavariables {
   using component_list = tmpl::list<element_array>;
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
-    using factory_classes = tmpl::map<
-        tmpl::pair<elliptic::analytic_data::Background,
-                   tmpl::list<AnalyticSolution, MeshAwareAnalyticSolution,
-                              NoAnalyticSolution>>,
-        tmpl::pair<elliptic::analytic_data::AnalyticSolution,
-                   tmpl::list<AnalyticSolution, MeshAwareAnalyticSolution>>>;
+    using factory_classes =
+        tmpl::map<tmpl::pair<elliptic::analytic_data::Background,
+                             tmpl::list<AnalyticSolution, NoAnalyticSolution>>,
+                  tmpl::pair<elliptic::analytic_data::AnalyticSolution,
+                             tmpl::list<AnalyticSolution>>>;
   };
 };
 
@@ -172,15 +152,6 @@ void test_initialize_analytic_solution(
     CHECK_ITERABLE_APPROX(get(get<::Tags::detail::AnalyticImpl<ScalarFieldTag>>(
                               *analytic_solutions)),
                           get(expected_solution));
-  }
-  {
-    INFO("Mesh-aware analytic solution is available");
-    const auto analytic_solutions = initialize_analytic_solution(
-        std::make_unique<MeshAwareAnalyticSolution>());
-    REQUIRE(analytic_solutions.has_value());
-    CHECK_ITERABLE_APPROX(get(get<::Tags::detail::AnalyticImpl<ScalarFieldTag>>(
-                              *analytic_solutions)),
-                          (DataVector{4, 7.}));
   }
   {
     INFO("No analytic solution is available");

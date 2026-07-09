@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -34,6 +33,7 @@
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
 #include "Options/Protocols/FactoryCreation.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
+#include "PointwiseFunctions/InitialDataUtilities/InitialGuess.hpp"
 #include "Utilities/Literals.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
 #include "Utilities/Serialization/RegisterDerivedClassesWithCharm.hpp"
@@ -67,9 +67,9 @@ using test_tags = tmpl::list<ScalarFieldTag<1>, ScalarFieldTag<2>,
                              FluxTag<Dim, 1>, FluxTag<Dim, 2>>;
 
 template <size_t Dim>
-struct TestSolution : elliptic::analytic_data::AnalyticSolution {
+struct TestSolution : elliptic::analytic_data::InitialGuess {
   using options = tmpl::list<>;
-  static constexpr Options::String help{"A solution."};
+  static constexpr Options::String help{"Initial data."};
   TestSolution() = default;
   TestSolution(const TestSolution&) = default;
   TestSolution& operator=(const TestSolution&) = default;
@@ -77,75 +77,23 @@ struct TestSolution : elliptic::analytic_data::AnalyticSolution {
   TestSolution& operator=(TestSolution&&) = default;
   ~TestSolution() override = default;
   explicit TestSolution(CkMigrateMessage* m)
-      : elliptic::analytic_data::AnalyticSolution(m) {}
+      : elliptic::analytic_data::InitialGuess(m) {}
   using PUP::able::register_constructor;
   WRAPPED_PUPable_decl_template(TestSolution);  // NOLINT
 
-  std::unique_ptr<elliptic::analytic_data::AnalyticSolution> get_clone()
-      const override {
-    return std::make_unique<TestSolution>(*this);
-  }
-
-  tuples::tagged_tuple_from_typelist<test_tags<Dim>> variables(
-      const tnsr::I<DataVector, Dim>& x, test_tags<Dim> /*meta*/) const {
+  template <typename... RequestedTags>
+  tuples::TaggedTuple<RequestedTags...> variables(
+      const tnsr::I<DataVector, Dim>& x,
+      tmpl::list<RequestedTags...> /*meta*/) const {
     // Create arbitrary analytic solution data
     Variables<test_tags<Dim>> result{x.begin()->size()};
     std::iota(result.data(), result.data() + result.size(), 1.);
-    return {get<ScalarFieldTag<1>>(result), get<ScalarFieldTag<2>>(result),
-            get<FluxTag<Dim, 1>>(result), get<FluxTag<Dim, 2>>(result)};
+    return {get<RequestedTags>(result)...};
   }
 };
 
 template <size_t Dim>
 PUP::able::PUP_ID TestSolution<Dim>::my_PUP_ID = 0;  // NOLINT
-
-template <size_t Dim>
-struct SingleTagTestSolution : elliptic::analytic_data::AnalyticSolution {
-  using options = tmpl::list<>;
-  static constexpr Options::String help{"A single-tag solution."};
-  SingleTagTestSolution() = default;
-  SingleTagTestSolution(const SingleTagTestSolution&) = default;
-  SingleTagTestSolution& operator=(const SingleTagTestSolution&) = default;
-  SingleTagTestSolution(SingleTagTestSolution&&) = default;
-  SingleTagTestSolution& operator=(SingleTagTestSolution&&) = default;
-  ~SingleTagTestSolution() override = default;
-  explicit SingleTagTestSolution(CkMigrateMessage* m)
-      : elliptic::analytic_data::AnalyticSolution(m) {}
-  using PUP::able::register_constructor;
-  WRAPPED_PUPable_decl_template(SingleTagTestSolution);  // NOLINT
-
-  std::unique_ptr<elliptic::analytic_data::AnalyticSolution> get_clone()
-      const override {
-    return std::make_unique<SingleTagTestSolution>(*this);
-  }
-
-  template <typename RequestedTag>
-  tuples::TaggedTuple<RequestedTag> variables(
-      const tnsr::I<DataVector, Dim>& x,
-      tmpl::list<RequestedTag> /*meta*/) const {
-    const size_t num_points = x.begin()->size();
-    typename RequestedTag::type result{num_points};
-    if constexpr (std::is_same_v<RequestedTag, ScalarFieldTag<1>>) {
-      std::iota(get(result).begin(), get(result).end(), 11.);
-    } else if constexpr (std::is_same_v<RequestedTag, ScalarFieldTag<2>>) {
-      std::iota(get(result).begin(), get(result).end(), 21.);
-    } else if constexpr (std::is_same_v<RequestedTag, FluxTag<Dim, 1>>) {
-      for (size_t d = 0; d < Dim; ++d) {
-        std::iota(result.get(d).begin(), result.get(d).end(),
-                  31. + static_cast<double>(d * num_points));
-      }
-    } else if constexpr (std::is_same_v<RequestedTag, FluxTag<Dim, 2>>) {
-      for (size_t d = 0; d < Dim; ++d) {
-        std::iota(result.get(d).begin(), result.get(d).end(),
-                  41. + static_cast<double>(d * num_points));
-      }
-    }
-    return {std::move(result)};
-  }
-};
-
-template <size_t Dim>
-PUP::able::PUP_ID SingleTagTestSolution<Dim>::my_PUP_ID = 0;  // NOLINT
 
 template <size_t Dim>
 struct Metavariables {
@@ -155,8 +103,8 @@ struct Metavariables {
         tmpl::pair<elliptic::BoundaryConditions::BoundaryCondition<Dim>,
                    tmpl::list<elliptic::BoundaryConditions::AnalyticSolution<
                        System<Dim>>>>,
-        tmpl::pair<elliptic::analytic_data::AnalyticSolution,
-                   tmpl::list<TestSolution<Dim>, SingleTagTestSolution<Dim>>>>;
+        tmpl::pair<elliptic::analytic_data::InitialGuess,
+                   tmpl::list<TestSolution<Dim>>>>;
   };
 };
 
@@ -274,69 +222,6 @@ void test_analytic_solution() {
     CHECK_ITERABLE_APPROX(
         get(get<::Tags::NormalDotFlux<ScalarFieldTag<2>>>(vars)),
         SINGLE_ARG(DataVector{face_num_points, 0.}));
-  }
-  {
-    INFO("Test applying boundary conditions from single-tag variables");
-    const Mesh<Dim> volume_mesh{3, Spectral::Basis::Legendre,
-                                Spectral::Quadrature::GaussLobatto};
-    const auto direction = Direction<Dim>::lower_xi();
-    const auto face_mesh = volume_mesh.slice_away(direction.dimension());
-    const size_t face_num_points = face_mesh.number_of_grid_points();
-    tnsr::I<DataVector, Dim> face_inertial_coords{face_num_points, 0.};
-    tnsr::i<DataVector, Dim> face_normal{face_num_points, 0.};
-    get<0>(face_normal) = -2.;
-    const auto box = db::create<db::AddSimpleTags<
-        Parallel::Tags::MetavariablesImpl<Metavariables<Dim>>,
-        domain::Tags::Faces<Dim,
-                            domain::Tags::Coordinates<Dim, Frame::Inertial>>,
-        domain::Tags::Faces<Dim, domain::Tags::FaceNormal<Dim>>>>(
-        Metavariables<Dim>{},
-        DirectionMap<Dim, tnsr::I<DataVector, Dim>>{
-            {direction, face_inertial_coords}},
-        DirectionMap<Dim, tnsr::i<DataVector, Dim>>{{direction, face_normal}});
-    const auto single_tag_created =
-        TestHelpers::test_creation<std::unique_ptr<BoundaryCondition<Dim>>,
-                                   Metavariables<Dim>>(
-            "AnalyticSolution:\n"
-            "  Solution: SingleTagTestSolution\n"
-            "  Field1: Dirichlet\n"
-            "  Field2: Neumann");
-    REQUIRE(dynamic_cast<const AnalyticSolution<System<Dim>>*>(
-                single_tag_created.get()) != nullptr);
-    const auto& single_tag_boundary_condition =
-        dynamic_cast<const AnalyticSolution<System<Dim>>&>(*single_tag_created);
-    Variables<tmpl::list<ScalarFieldTag<1>, ScalarFieldTag<2>,
-                         ::Tags::NormalDotFlux<ScalarFieldTag<1>>,
-                         ::Tags::NormalDotFlux<ScalarFieldTag<2>>>>
-        vars{face_num_points, std::numeric_limits<double>::max()};
-    const tnsr::i<DataVector, Dim> deriv_scalar{
-        face_num_points, std::numeric_limits<double>::signaling_NaN()};
-
-    elliptic::apply_boundary_condition<
-        false, void, tmpl::list<AnalyticSolution<System<Dim>>>>(
-        single_tag_boundary_condition, box, direction,
-        make_not_null(&get<ScalarFieldTag<1>>(vars)),
-        make_not_null(&get<ScalarFieldTag<2>>(vars)),
-        make_not_null(&get<::Tags::NormalDotFlux<ScalarFieldTag<1>>>(vars)),
-        make_not_null(&get<::Tags::NormalDotFlux<ScalarFieldTag<2>>>(vars)),
-        deriv_scalar, deriv_scalar);
-
-    DataVector expected_dirichlet_field{face_num_points};
-    std::iota(expected_dirichlet_field.begin(), expected_dirichlet_field.end(),
-              11.);
-    CHECK_ITERABLE_APPROX(get(get<ScalarFieldTag<1>>(vars)),
-                          expected_dirichlet_field);
-    CHECK_ITERABLE_APPROX(
-        get(get<ScalarFieldTag<2>>(vars)),
-        SINGLE_ARG(
-            DataVector{face_num_points, std::numeric_limits<double>::max()}));
-    DataVector expected_neumann_field{face_num_points};
-    for (size_t i = 0; i < face_num_points; ++i) {
-      expected_neumann_field[i] = -2. * (41. + static_cast<double>(i));
-    }
-    CHECK_ITERABLE_APPROX(
-        get(get<::Tags::NormalDotFlux<ScalarFieldTag<2>>>(vars)),
-        expected_neumann_field);
   }
 }
 

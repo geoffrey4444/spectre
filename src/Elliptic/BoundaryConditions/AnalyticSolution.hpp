@@ -9,6 +9,7 @@
 #include <pup.h>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "DataStructures/DataBox/MetavariablesTag.hpp"
@@ -22,29 +23,31 @@
 #include "NumericalAlgorithms/DiscontinuousGalerkin/NormalDotFlux.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/InitialDataUtilities/AnalyticSolution.hpp"
+#include "PointwiseFunctions/InitialDataUtilities/InitialGuess.hpp"
 #include "Utilities/CallWithDynamicType.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace elliptic::BoundaryConditions {
-
 namespace detail {
-template <typename AnalyticTags, typename Derived, typename Tag, size_t Dim>
-tuples::TaggedTuple<std::decay_t<Tag>> variables_for_boundary_condition(
-    const Derived* const derived,
-    const tnsr::I<DataVector, Dim>& face_inertial_coords, Tag /*tag_v*/) {
-  using tag = std::decay_t<Tag>;
-  if constexpr (requires {
-                  derived->variables(face_inertial_coords, tmpl::list<tag>{});
-                }) {
-    return derived->variables(face_inertial_coords, tmpl::list<tag>{});
-  } else {
-    return tuples::TaggedTuple<tag>{
-        get<tag>(derived->variables(face_inertial_coords, AnalyticTags{}))};
-  }
-}
+
+template <typename Solution, size_t Dim, typename Tag, typename = std::void_t<>>
+struct has_boundary_variables : std::false_type {};
+
+template <typename Solution, size_t Dim, typename Tag>
+struct has_boundary_variables<
+    Solution, Dim, Tag,
+    std::void_t<decltype(std::declval<const Solution&>().variables(
+        std::declval<const tnsr::I<DataVector, Dim, Frame::Inertial>&>(),
+        tmpl::list<Tag>{}))>> : std::true_type {};
+
+template <typename Solution, size_t Dim, typename Tag>
+constexpr bool has_boundary_variables_v =
+    has_boundary_variables<Solution, Dim, Tag>::value;
+
 }  // namespace detail
 
 /// \cond
@@ -72,9 +75,9 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
 
  public:
   struct Solution {
-    using type = std::unique_ptr<elliptic::analytic_data::AnalyticSolution>;
+    using type = std::unique_ptr<elliptic::analytic_data::InitialGuess>;
     static constexpr Options::String help = {
-        "The analytic solution to impose on the boundary"};
+        "The analytic data to impose on the boundary"};
   };
 
   using options =
@@ -87,7 +90,15 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
   AnalyticSolution(const AnalyticSolution& rhs) : Base(rhs) { *this = rhs; }
   AnalyticSolution& operator=(const AnalyticSolution& rhs) {
     if (rhs.solution_ != nullptr) {
-      solution_ = rhs.solution_->get_clone();
+      if (const auto* const analytic_solution =
+              dynamic_cast<const elliptic::analytic_data::AnalyticSolution*>(
+                  rhs.solution_.get())) {
+        solution_ = analytic_solution->get_clone();
+      } else {
+        solution_ = serialize_and_deserialize<
+            std::unique_ptr<elliptic::analytic_data::InitialGuess>>(
+            rhs.solution_);
+      }
     } else {
       solution_ = nullptr;
     }
@@ -106,7 +117,7 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
 
   /// Select which `elliptic::BoundaryConditionType` to apply for each field
   explicit AnalyticSolution(
-      std::unique_ptr<elliptic::analytic_data::AnalyticSolution> solution,
+      std::unique_ptr<elliptic::analytic_data::InitialGuess> solution,
       // This pack expansion repeats the type `elliptic::BoundaryConditionType`
       // for each system field
       const typename elliptic::OptionTags::BoundaryConditionType<
@@ -152,12 +163,10 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
              const Metavariables& /*meta*/,
              const tnsr::I<DataVector, Dim>& face_inertial_coords,
              const tnsr::i<DataVector, Dim>& face_normal) const {
-    using analytic_tags = tmpl::list<FieldTags..., FluxTags...>;
     using factory_classes =
         typename Metavariables::factory_creation::factory_classes;
     call_with_dynamic_type<
-        void,
-        tmpl::at<factory_classes, elliptic::analytic_data::AnalyticSolution>>(
+        void, tmpl::at<factory_classes, elliptic::analytic_data::InitialGuess>>(
         solution_.get(), [this, &face_inertial_coords, &face_normal, &fields...,
                           &n_dot_fluxes...](const auto* const derived) {
           const auto impose_boundary_condition = [this, &face_inertial_coords,
@@ -168,21 +177,34 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
                                                      const auto n_dot_flux) {
             using field_tag = std::decay_t<decltype(field_tag_v)>;
             using flux_tag = std::decay_t<decltype(flux_tag_v)>;
+            using derived_type = std::decay_t<decltype(*derived)>;
             switch (get<elliptic::Tags::BoundaryConditionType<field_tag>>(
                 boundary_condition_types_)) {
               case elliptic::BoundaryConditionType::Dirichlet: {
-                const auto solution_vars =
-                    detail::variables_for_boundary_condition<analytic_tags>(
-                        derived, face_inertial_coords, field_tag_v);
-                *field = get<field_tag>(solution_vars);
+                if constexpr (detail::has_boundary_variables_v<
+                                  derived_type, Dim, field_tag>) {
+                  const auto solution_vars = derived->variables(
+                      face_inertial_coords, tmpl::list<field_tag>{});
+                  *field = get<field_tag>(solution_vars);
+                } else {
+                  ERROR(
+                      "The analytic data does not provide the field required "
+                      "for this Dirichlet boundary condition.");
+                }
                 break;
               }
               case elliptic::BoundaryConditionType::Neumann: {
-                const auto solution_vars =
-                    detail::variables_for_boundary_condition<analytic_tags>(
-                        derived, face_inertial_coords, flux_tag_v);
-                normal_dot_flux(n_dot_flux, face_normal,
-                                get<flux_tag>(solution_vars));
+                if constexpr (detail::has_boundary_variables_v<derived_type,
+                                                               Dim, flux_tag>) {
+                  const auto solution_vars = derived->variables(
+                      face_inertial_coords, tmpl::list<flux_tag>{});
+                  normal_dot_flux(n_dot_flux, face_normal,
+                                  get<flux_tag>(solution_vars));
+                } else {
+                  ERROR(
+                      "The analytic data does not provide the flux required "
+                      "for this Neumann boundary condition.");
+                }
                 break;
               }
               default:
@@ -205,28 +227,27 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
       const TensorMetafunctions::prepend_spatial_index<
           typename FieldTags::type, Dim, UpLo::Lo,
           Frame::Inertial>&... /*deriv_fields*/) const {
-    const auto impose_boundary_condition = [this](auto field_tag_v,
-                                                  const auto field,
-                                                  const auto n_dot_flux) {
-      using field_tag = decltype(field_tag_v);
-      switch (get<elliptic::Tags::BoundaryConditionType<field_tag>>(
-          boundary_condition_types_)) {
-        case elliptic::BoundaryConditionType::Dirichlet:
-          for (auto& field_component : *field) {
-            field_component = 0.;
+    const auto impose_boundary_condition =
+        [this](auto field_tag_v, const auto field, const auto n_dot_flux) {
+          using field_tag = decltype(field_tag_v);
+          switch (get<elliptic::Tags::BoundaryConditionType<field_tag>>(
+              boundary_condition_types_)) {
+            case elliptic::BoundaryConditionType::Dirichlet:
+              for (auto& field_component : *field) {
+                field_component = 0.;
+              }
+              break;
+            case elliptic::BoundaryConditionType::Neumann:
+              for (auto& n_dot_flux_component : *n_dot_flux) {
+                n_dot_flux_component = 0.;
+              }
+              break;
+            default:
+              ERROR("Unsupported boundary condition type: "
+                    << get<elliptic::Tags::BoundaryConditionType<field_tag>>(
+                           boundary_condition_types_));
           }
-          break;
-        case elliptic::BoundaryConditionType::Neumann:
-          for (auto& n_dot_flux_component : *n_dot_flux) {
-            n_dot_flux_component = 0.;
-          }
-          break;
-        default:
-          ERROR("Unsupported boundary condition type: "
-                << get<elliptic::Tags::BoundaryConditionType<field_tag>>(
-                       boundary_condition_types_));
-      }
-    };
+        };
     EXPAND_PACK_LEFT_TO_RIGHT(
         impose_boundary_condition(FieldTags{}, fields, n_dot_fluxes));
   }
@@ -235,7 +256,7 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
   void pup(PUP::er& p) override;
 
  private:
-  std::unique_ptr<elliptic::analytic_data::AnalyticSolution> solution_{nullptr};
+  std::unique_ptr<elliptic::analytic_data::InitialGuess> solution_{nullptr};
   tuples::TaggedTuple<elliptic::Tags::BoundaryConditionType<FieldTags>...>
       boundary_condition_types_{};
 };
