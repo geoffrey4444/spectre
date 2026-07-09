@@ -1,7 +1,7 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 
-#include "PointwiseFunctions/AnalyticSolutions/Xcts/KerrSchildTeukolsky.hpp"
+#include "PointwiseFunctions/AnalyticData/Xcts/KerrSchildTeukolsky.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -15,14 +15,13 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Elliptic/Systems/Xcts/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/Xcts/CommonVariables.tpp"
+#include "PointwiseFunctions/AnalyticData/Xcts/CommonVariables.tpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
-#include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeWithValue.hpp"
 
-namespace Xcts::Solutions::detail {
+namespace Xcts::AnalyticData::detail {
 
 template <typename DataType>
 void KerrSchildTeukolskyVariables<DataType>::operator()(
@@ -54,8 +53,9 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
     ::Tags::deriv<Xcts::Tags::ConformalMetric<DataType, Dim, Frame::Inertial>,
                   tmpl::size_t<Dim>, Frame::Inertial> /*meta*/) const {
   if constexpr (std::is_same_v<DataType, DataVector>) {
-    ASSERT(this->mesh.has_value() and this->inv_jacobian.has_value(),
-           "Need a mesh and a Jacobian for numeric differentiation.");
+    if (not(this->mesh.has_value() and this->inv_jacobian.has_value())) {
+      ERROR("Need a mesh and a Jacobian for numeric differentiation.");
+    }
     const auto& conformal_metric = cache->get_var(
         *this, Xcts::Tags::ConformalMetric<DataType, Dim, Frame::Inertial>{});
     partial_derivative(deriv_conformal_metric, conformal_metric,
@@ -104,24 +104,6 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
 
 template <typename DataType>
 void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::i<DataType, Dim>*> conformal_factor_gradient,
-    const gsl::not_null<Cache*> /*cache*/,
-    ::Tags::deriv<Xcts::Tags::ConformalFactorMinusOne<DataType>,
-                  tmpl::size_t<Dim>, Frame::Inertial> /*meta*/) const {
-  std::fill(conformal_factor_gradient->begin(),
-            conformal_factor_gradient->end(), 0.);
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<Scalar<DataType>*> lapse,
-    const gsl::not_null<Cache*> /*cache*/,
-    gr::Tags::Lapse<DataType> /*meta*/) const {
-  *lapse = get<gr::Tags::Lapse<DataType>>(kerr_schild_vars.get());
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
     const gsl::not_null<Scalar<DataType>*>
         lapse_times_conformal_factor_minus_one,
     const gsl::not_null<Cache*> /*cache*/,
@@ -129,18 +111,6 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
   *lapse_times_conformal_factor_minus_one =
       get<gr::Tags::Lapse<DataType>>(kerr_schild_vars.get());
   get(*lapse_times_conformal_factor_minus_one) -= 1.;
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::i<DataType, Dim>*>
-        lapse_times_conformal_factor_gradient,
-    const gsl::not_null<Cache*> /*cache*/,
-    ::Tags::deriv<Xcts::Tags::LapseTimesConformalFactorMinusOne<DataType>,
-                  tmpl::size_t<Dim>, Frame::Inertial> /*meta*/) const {
-  *lapse_times_conformal_factor_gradient =
-      get<::Tags::deriv<gr::Tags::Lapse<DataType>, tmpl::size_t<Dim>,
-                        Frame::Inertial>>(kerr_schild_vars.get());
 }
 
 template <typename DataType>
@@ -219,26 +189,6 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
 
 template <typename DataType>
 void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::iJ<DataType, Dim>*> deriv_shift_excess,
-    const gsl::not_null<Cache*> /*cache*/,
-    ::Tags::deriv<Xcts::Tags::ShiftExcess<DataType, Dim, Frame::Inertial>,
-                  tmpl::size_t<Dim>, Frame::Inertial> /*meta*/) const {
-  *deriv_shift_excess =
-      get<::Tags::deriv<gr::Tags::Shift<DataType, Dim>, tmpl::size_t<Dim>,
-                        Frame::Inertial>>(kerr_schild_vars.get());
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::ii<DataType, Dim>*> extrinsic_curvature,
-    const gsl::not_null<Cache*> /*cache*/,
-    gr::Tags::ExtrinsicCurvature<DataType, Dim> /*meta*/) const {
-  *extrinsic_curvature =
-      get<gr::Tags::ExtrinsicCurvature<DataType, Dim>>(kerr_schild_vars.get());
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
     const gsl::not_null<Scalar<DataType>*> energy_density,
     const gsl::not_null<Cache*> /*cache*/,
     gr::Tags::Conformal<gr::Tags::EnergyDensity<DataType>, 0> /*meta*/) const {
@@ -262,60 +212,12 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
   std::fill(momentum_density->begin(), momentum_density->end(), 0.);
 }
 
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<Scalar<DataType>*> rest_mass_density,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::RestMassDensity<DataType> /*meta*/) const {
-  get(*rest_mass_density) = 0.;
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<Scalar<DataType>*> specific_enthalpy,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::SpecificEnthalpy<DataType> /*meta*/) const {
-  get(*specific_enthalpy) = 1.;
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<Scalar<DataType>*> pressure,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::Pressure<DataType> /*meta*/) const {
-  get(*pressure) = 0.;
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::I<DataType, Dim>*> spatial_velocity,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::SpatialVelocity<DataType, Dim> /*meta*/) const {
-  std::fill(spatial_velocity->begin(), spatial_velocity->end(), 0.);
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<Scalar<DataType>*> lorentz_factor,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::LorentzFactor<DataType> /*meta*/) const {
-  get(*lorentz_factor) = 1.;
-}
-
-template <typename DataType>
-void KerrSchildTeukolskyVariables<DataType>::operator()(
-    const gsl::not_null<tnsr::I<DataType, Dim>*> magnetic_field,
-    const gsl::not_null<Cache*> /*cache*/,
-    hydro::Tags::MagneticField<DataType, Dim> /*meta*/) const {
-  std::fill(magnetic_field->begin(), magnetic_field->end(), 0.);
-}
-
 template class KerrSchildTeukolskyVariables<double>;
 template class KerrSchildTeukolskyVariables<DataVector>;
 
-}  // namespace Xcts::Solutions::detail
+}  // namespace Xcts::AnalyticData::detail
 
-namespace Xcts::Solutions {
+namespace Xcts::AnalyticData {
 
 KerrSchildTeukolsky::KerrSchildTeukolsky(
     gr::Solutions::KerrSchild kerr_schild,
@@ -327,7 +229,8 @@ KerrSchildTeukolsky::KerrSchildTeukolsky(
                       teukolsky_wave.width(), false) {}
 
 void KerrSchildTeukolsky::pup(PUP::er& p) {
-  elliptic::analytic_data::AnalyticSolution::pup(p);
+  elliptic::analytic_data::Background::pup(p);
+  elliptic::analytic_data::InitialGuess::pup(p);
   p | kerr_schild_;
   p | teukolsky_wave_;
 }
@@ -345,17 +248,11 @@ bool operator!=(const KerrSchildTeukolsky& lhs,
 
 PUP::able::PUP_ID KerrSchildTeukolsky::my_PUP_ID = 0;  // NOLINT
 
-}  // namespace Xcts::Solutions
+}  // namespace Xcts::AnalyticData
 
-template class Xcts::Solutions::CommonVariables<
-    double, typename Xcts::Solutions::detail::KerrSchildTeukolskyVariables<
-                double>::Cache>;
-template class Xcts::Solutions::CommonVariables<
-    DataVector, typename Xcts::Solutions::detail::KerrSchildTeukolskyVariables<
-                    DataVector>::Cache>;
 template class Xcts::AnalyticData::CommonVariables<
-    double, typename Xcts::Solutions::detail::KerrSchildTeukolskyVariables<
+    double, typename Xcts::AnalyticData::detail::KerrSchildTeukolskyVariables<
                 double>::Cache>;
 template class Xcts::AnalyticData::CommonVariables<
-    DataVector, typename Xcts::Solutions::detail::KerrSchildTeukolskyVariables<
-                    DataVector>::Cache>;
+    DataVector, typename Xcts::AnalyticData::detail::
+                    KerrSchildTeukolskyVariables<DataVector>::Cache>;

@@ -10,7 +10,6 @@ spectre_target_sources(
   PRIVATE
   ConstantDensityStar.cpp
   Flatness.cpp
-  KerrSchildTeukolsky.cpp
   Schwarzschild.cpp
   TovStar.cpp
   WrappedGr.cpp
@@ -25,7 +24,6 @@ spectre_target_headers(
   ConstantDensityStar.hpp
   Factory.hpp
   Flatness.hpp
-  KerrSchildTeukolsky.hpp
   Schwarzschild.hpp
   TovStar.hpp
   WrappedGr.hpp

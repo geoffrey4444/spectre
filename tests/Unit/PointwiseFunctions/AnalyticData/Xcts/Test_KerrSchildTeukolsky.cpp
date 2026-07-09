@@ -13,17 +13,17 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Framework/TestCreation.hpp"
 #include "Framework/TestHelpers.hpp"
+#include "PointwiseFunctions/AnalyticData/Xcts/KerrSchildTeukolsky.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/TeukolskyWave.hpp"
-#include "PointwiseFunctions/AnalyticSolutions/Xcts/KerrSchildTeukolsky.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Xcts/WrappedGr.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
-#include "PointwiseFunctions/InitialDataUtilities/AnalyticSolution.hpp"
+#include "PointwiseFunctions/InitialDataUtilities/InitialGuess.hpp"
 #include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
 
-namespace Xcts::Solutions {
+namespace Xcts::AnalyticData {
 namespace {
 
 using zero_amplitude_tags = tmpl::list<
@@ -34,10 +34,6 @@ using zero_amplitude_tags = tmpl::list<
     Tags::ShiftExcess<DataVector, 3, Frame::Inertial>,
     gr::Tags::TraceExtrinsicCurvature<DataVector>,
     ::Tags::dt<gr::Tags::TraceExtrinsicCurvature<DataVector>>,
-    gr::Tags::Lapse<DataVector>, gr::Tags::Shift<DataVector, 3>,
-    gr::Tags::SpatialMetric<DataVector, 3>,
-    gr::Tags::InverseSpatialMetric<DataVector, 3>,
-    gr::Tags::ExtrinsicCurvature<DataVector, 3>,
     gr::Tags::Conformal<gr::Tags::EnergyDensity<DataVector>, 0>,
     gr::Tags::Conformal<gr::Tags::StressTrace<DataVector>, 0>,
     gr::Tags::Conformal<gr::Tags::MomentumDensity<DataVector, 3>, 0>>;
@@ -66,8 +62,9 @@ void test_factory_and_semantics() {
       "    Center: [0.1, -0.2, 0.3]\n"
       "    Radius: 20.\n"
       "    Width: 4.\n";
-  const auto created = TestHelpers::test_factory_creation<
-      elliptic::analytic_data::AnalyticSolution, KerrSchildTeukolsky>(options);
+  const auto created =
+      TestHelpers::test_factory_creation<elliptic::analytic_data::InitialGuess,
+                                         KerrSchildTeukolsky>(options);
   REQUIRE(dynamic_cast<const KerrSchildTeukolsky*>(created.get()) != nullptr);
   const auto& solution = dynamic_cast<const KerrSchildTeukolsky&>(*created);
 
@@ -95,7 +92,8 @@ void test_zero_amplitude_matches_wrapped_kerr_schild() {
       kerr_schild,
       gr::Solutions::TeukolskyWave{
           0., 0, "even", "ingoing", {{0., 0., 0.}}, 20., 4., false}};
-  const WrappedGr<gr::Solutions::KerrSchild> wrapped_kerr{kerr_schild};
+  const Xcts::Solutions::WrappedGr<gr::Solutions::KerrSchild> wrapped_kerr{
+      kerr_schild};
   const auto x = test_coords();
 
   const auto vars = solution.variables(x, zero_amplitude_tags{});
@@ -203,14 +201,31 @@ void test_nonzero_teukolsky_perturbation() {
   }
 }
 
+void test_numeric_derivative_requires_mesh() {
+  const KerrSchildTeukolsky solution{
+      gr::Solutions::KerrSchild{
+          1.0, {{0., 0., 0.999}}, {{0., 0., 0.}}, {{0., 0., 0.}}},
+      gr::Solutions::TeukolskyWave{
+          0.02, -1, "even", "ingoing", {{0., 0., 0.}}, 20., 4., false}};
+  using deriv_conformal_metric_tag =
+      ::Tags::deriv<Tags::ConformalMetric<DataVector, 3, Frame::Inertial>,
+                    tmpl::size_t<3>, Frame::Inertial>;
+  CHECK_THROWS_WITH(
+      solution.variables(test_coords(),
+                         tmpl::list<deriv_conformal_metric_tag>{}),
+      Catch::Matchers::ContainsSubstring(
+          "Need a mesh and a Jacobian for numeric differentiation."));
+}
+
 }  // namespace
 
 SPECTRE_TEST_CASE(
-    "Unit.PointwiseFunctions.AnalyticSolutions.Xcts.KerrSchildTeukolsky",
+    "Unit.PointwiseFunctions.AnalyticData.Xcts.KerrSchildTeukolsky",
     "[PointwiseFunctions][Unit]") {
   test_factory_and_semantics();
   test_zero_amplitude_matches_wrapped_kerr_schild();
   test_nonzero_teukolsky_perturbation();
+  test_numeric_derivative_requires_mesh();
 }
 
-}  // namespace Xcts::Solutions
+}  // namespace Xcts::AnalyticData

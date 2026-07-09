@@ -8,7 +8,6 @@ set(LIBRARY_SOURCES
   Test_Flatness.cpp
   Test_HarmonicSchwarzschild.cpp
   Test_Kerr.cpp
-  Test_KerrSchildTeukolsky.cpp
   Test_RotatingStar.cpp
   Test_Schwarzschild.cpp
   Test_SphericalKerr.cpp
