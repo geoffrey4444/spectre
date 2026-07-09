@@ -441,8 +441,8 @@ struct ModifiedPoissonSolutionLinearized
 };
 
 template <size_t Dim>
-PUP::able::PUP_ID ModifiedPoissonSolutionLinearized<Dim>::my_PUP_ID =
-    0;  // NOLINT
+PUP::able::PUP_ID ModifiedPoissonSolutionLinearized<Dim>::my_PUP_ID =  // NOLINT
+    0;
 
 template <
     typename System, bool Linearized, typename AnalyticSolution,
