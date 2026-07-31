@@ -3,7 +3,9 @@
 
 #include "PointwiseFunctions/GeneralRelativity/Psi4.hpp"
 
+#include <cmath>
 #include <cstddef>
+#include <limits>
 
 #include "DataStructures/Tags/TempTensor.hpp"
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
@@ -26,9 +28,10 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
            const tnsr::ii<DataVector, 3, Frame>& spatial_metric,
            const tnsr::II<DataVector, 3, Frame>& inverse_spatial_metric,
            const tnsr::I<DataVector, 3, Frame>& inertial_coords) {
-  Variables<tmpl::list<::Tags::TempScalar<0>, ::Tags::TempI<0, 3, Frame>,
-                       ::Tags::TempI<1, 3, Frame>, ::Tags::TempI<2, 3, Frame>,
-                       ::Tags::TempI<3, 3, Frame>, ::Tags::Tempi<0, 3, Frame>,
+  Variables<tmpl::list<::Tags::TempScalar<0>, ::Tags::TempScalar<1>,
+                       ::Tags::TempI<0, 3, Frame>, ::Tags::TempI<1, 3, Frame>,
+                       ::Tags::TempI<2, 3, Frame>, ::Tags::TempI<3, 3, Frame>,
+                       ::Tags::TempI<4, 3, Frame>, ::Tags::Tempi<0, 3, Frame>,
                        ::Tags::Tempij<0, 3, Frame>, ::Tags::Tempii<0, 3, Frame>,
                        ::Tags::Tempii<1, 3, Frame>, ::Tags::TempIj<0, 3, Frame>,
                        ::Tags::TempII<0, 3, Frame>>>
@@ -79,12 +82,30 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
                          x_coord(ti::I) - (x_component() * r_hat(ti::I)));
   auto& magnitude_x = get<::Tags::TempScalar<0>>(temp_buffer);
   magnitude(make_not_null(&magnitude_x), x_hat, spatial_metric);
+
+  // Use the y-coordinate direction if the x-coordinate direction is radial.
+  auto& y_coord = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
+  y_coord.get(1) = 1.0;
+  y_coord.get(0) = y_coord.get(2) = 0.0;
+  auto& fallback_component = get<::Tags::TempScalar<1>>(temp_buffer);
+  dot_product(make_not_null(&fallback_component), y_coord, r_hat,
+              spatial_metric);
+  auto& fallback_x_hat = get<::Tags::TempI<3, 3, Frame>>(temp_buffer);
+  tenex::evaluate<ti::I>(
+      make_not_null(&fallback_x_hat),
+      y_coord(ti::I) - (fallback_component() * r_hat(ti::I)));
+  auto& fallback_magnitude = get<::Tags::TempScalar<1>>(temp_buffer);
+  magnitude(make_not_null(&fallback_magnitude), fallback_x_hat, spatial_metric);
+  const double orthogonalization_tolerance =
+      sqrt(std::numeric_limits<double>::epsilon());
   for (size_t j = 0; j < 3; j++) {
     for (size_t i = 0; i < get(magnitude_x).size(); i++) {
-      if (magnitude_x.get()[i] != 0.0) {
+      if (magnitude_x.get()[i] >
+          orthogonalization_tolerance * fallback_magnitude.get()[i]) {
         x_hat.get(j)[i] /= magnitude_x.get()[i];
       } else {
-        x_hat.get(j)[i] = 0.0;
+        x_hat.get(j)[i] =
+            fallback_x_hat.get(j)[i] / fallback_magnitude.get()[i];
       }
     }
   }
@@ -94,9 +115,6 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
       y_hat_buffer{get<0>(inertial_coords).size()};
 
   // Grad-Schmidt y_hat, a unit vector orthogonal to r_hat and x_hat
-  auto& y_coord = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
-  y_coord.get(1) = 1.0;
-  y_coord.get(0) = y_coord.get(2) = 0.0;
   auto& y_component = get<::Tags::TempScalar<0>>(temp_buffer);
   dot_product(make_not_null(&y_component), y_coord, r_hat, spatial_metric);
   auto& y_hat_not_complex = get<::Tags::TempI<3, 3, Frame>>(temp_buffer);
@@ -108,12 +126,32 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
       y_hat_not_complex(ti::I) - (y_component() * x_hat(ti::I)));
   auto& magnitude_y = get<::Tags::TempScalar<0>>(temp_buffer);
   magnitude(make_not_null(&magnitude_y), y_hat_not_complex, spatial_metric);
+
+  // Use the z-coordinate direction if the y-coordinate direction is in the
+  // span of r_hat and x_hat.
+  auto& z_coord = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
+  z_coord.get(2) = 1.0;
+  z_coord.get(0) = z_coord.get(1) = 0.0;
+  auto& z_component = get<::Tags::TempScalar<1>>(temp_buffer);
+  dot_product(make_not_null(&z_component), z_coord, r_hat, spatial_metric);
+  auto& fallback_y_hat = get<::Tags::TempI<4, 3, Frame>>(temp_buffer);
+  tenex::evaluate<ti::I>(make_not_null(&fallback_y_hat),
+                         z_coord(ti::I) - (z_component() * r_hat(ti::I)));
+  dot_product(make_not_null(&z_component), z_coord, x_hat, spatial_metric);
+  tenex::evaluate<ti::I>(
+      make_not_null(&fallback_y_hat),
+      fallback_y_hat(ti::I) - (z_component() * x_hat(ti::I)));
+  auto& fallback_y_magnitude = get<::Tags::TempScalar<1>>(temp_buffer);
+  magnitude(make_not_null(&fallback_y_magnitude), fallback_y_hat,
+            spatial_metric);
   for (size_t j = 0; j < 3; j++) {
     for (size_t i = 0; i < get(magnitude_y).size(); i++) {
-      if (magnitude_y.get()[i] != 0.0) {
+      if (magnitude_y.get()[i] >
+          orthogonalization_tolerance * fallback_y_magnitude.get()[i]) {
         y_hat_not_complex.get(j)[i] /= magnitude_y.get()[i];
       } else {
-        y_hat_not_complex.get(j)[i] = 0.0;
+        y_hat_not_complex.get(j)[i] =
+            fallback_y_hat.get(j)[i] / fallback_y_magnitude.get()[i];
       }
     }
   }

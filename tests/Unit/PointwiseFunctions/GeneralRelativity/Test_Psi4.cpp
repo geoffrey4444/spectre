@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <complex>
 #include <cstddef>
 #include <random>
 
@@ -21,6 +22,7 @@
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/TagsDeclarations.hpp"
 #include "PointwiseFunctions/GeneralRelativity/WeylPropagating.hpp"
+#include "Utilities/MakeWithValue.hpp"
 
 namespace {
 template <typename RealDataType>
@@ -106,6 +108,45 @@ void test_psi_4(const RealDataType& used_for_size_real,
   Approx local_approx = Approx::custom().epsilon(1e-13).scale(1.0);
   CHECK_ITERABLE_CUSTOM_APPROX(expected, python_psi_4, local_approx);
 }
+
+void test_psi_4_on_x_axis() {
+  constexpr size_t size = 3;
+  tnsr::I<DataVector, 3, Frame::Inertial> inertial_coords{size};
+  get<0>(inertial_coords) = DataVector{1.0, -1.0, 1.0};
+  get<1>(inertial_coords) = get<2>(inertial_coords) = 0.0;
+
+  auto spatial_ricci =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(inertial_coords,
+                                                                0.0);
+  get<1, 1>(spatial_ricci) = 1.0;
+  get<1, 2>(spatial_ricci) = 0.5;
+  get<2, 2>(spatial_ricci) = -1.0;
+  const auto extrinsic_curvature =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(inertial_coords,
+                                                                0.0);
+  const auto cov_deriv_extrinsic_curvature =
+      make_with_value<tnsr::ijj<DataVector, 3, Frame::Inertial>>(
+          inertial_coords, 0.0);
+  auto spatial_metric =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(inertial_coords,
+                                                                0.0);
+  auto inverse_spatial_metric =
+      make_with_value<tnsr::II<DataVector, 3, Frame::Inertial>>(inertial_coords,
+                                                                0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    spatial_metric.get(i, i) = 1.0;
+    inverse_spatial_metric.get(i, i) = 1.0;
+  }
+  // Exercise roundoff in the projection of the x-coordinate direction.
+  get<0, 0>(spatial_metric)[2] = 0.100137;
+  get<0, 0>(inverse_spatial_metric)[2] = 1.0 / 0.100137;
+
+  CHECK_ITERABLE_APPROX(
+      get(gr::psi_4(spatial_ricci, extrinsic_curvature,
+                    cov_deriv_extrinsic_curvature, spatial_metric,
+                    inverse_spatial_metric, inertial_coords)),
+      ComplexDataVector(size, std::complex<double>{-1.0, 0.5}));
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.PointwiseFunctions.GeneralRelativity.Psi4",
@@ -118,5 +159,6 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.GeneralRelativity.Psi4",
   const ComplexDataVector used_for_size_complex_dv =
       ComplexDataVector(size, std::numeric_limits<double>::signaling_NaN());
   test_psi_4(used_for_size_real_dv, used_for_size_complex_dv);
+  test_psi_4_on_x_axis();
   test_compute_item_in_databox(used_for_size_real_dv);
 }
