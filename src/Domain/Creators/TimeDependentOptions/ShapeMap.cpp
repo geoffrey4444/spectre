@@ -394,8 +394,11 @@ FunctionsOfTimeMap get_shape_and_size(
           -1.0 * file_strahlkorper.ylm_spherepack().prolong_or_restrict(
                      file_strahlkorper.coefficients(),
                      this_strahlkorper.ylm_spherepack());
-      // Transform from SPHEREPACK to actual Ylm for size func
-      size_funcs[0][0] = shape_funcs[0][0] * sqrt(0.5 * M_PI);
+      // Transform from SPHEREPACK to actual Ylm for size func. Account for the
+      // size of the original sphere because the shape/size coefficients are
+      // deformations from that sphere. The factor 2 sqrt(pi) is 1/Y_00.
+      size_funcs[0][0] = shape_funcs[0][0] * sqrt(0.5 * M_PI) +
+                         deformed_radius * 2.0 * sqrt(M_PI);
       // Set l=0 for shape map to 0 because size control will adjust l=0
       shape_funcs[0][0] = 0.0;
       if (set_l1_coefs_to_zero) {

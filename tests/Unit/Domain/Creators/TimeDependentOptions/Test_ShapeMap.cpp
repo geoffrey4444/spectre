@@ -375,6 +375,7 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
     ylm::Strahlkorper<Frame> strahlkorper{};
     std::vector<std::string> legend{};
     std::vector<double> data{};
+    std::vector<double> spherical_data{};
 
     // Scoped to close dat file
     {
@@ -392,6 +393,12 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
       ylm::fill_ylm_legend_and_data(make_not_null(&legend),
                                     make_not_null(&(data)), strahlkorper, time,
                                     file_l_max);
+      const ylm::Strahlkorper<Frame> sphere{file_l_max, inner_radius,
+                                            std::array{0.0, 0.0, 0.0}};
+      std::vector<std::string> spherical_legend{};
+      ylm::fill_ylm_legend_and_data(make_not_null(&spherical_legend),
+                                    make_not_null(&spherical_data), sphere,
+                                    time + 2.0, file_l_max);
 
       test_file << "# This is a random comment\n";
       // These columns won't be exactly what is in the SpEC dat file, but they
@@ -408,17 +415,44 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
       }
       test_file << "# Another random comment to show\n";
 
-      // Write three rows of same data
+      // Write two rows of random data and one spherical surface.
       for (size_t i = 0; i < 3; i++) {
         // Time and center
         test_file << time + static_cast<double>(i) << " " << 0.0 << " " << 0.0
                   << " " << 0.0;
         // Skip writing time, center, and Lmax
-        for (size_t j = 5; j < data.size(); j++) {
-          test_file << " " << data[j];
+        const auto& row_data = i == 2 ? spherical_data : data;
+        for (size_t j = 5; j < row_data.size(); j++) {
+          test_file << " " << row_data[j];
         }
         test_file << "\n";
       }
+    }
+
+    {
+      const auto shape_map_options = TestHelpers::test_option_tag<
+          domain::creators::time_dependent_options::ShapeMapOptions<
+              false, domain::ObjectLabel::None>>(
+          "LMax: 8\n"
+          "CoefficientTruncationLimit: 0.0\n"
+          "InitialValues:\n"
+          "  DatFilename: PartialEclipseOfTheHeart.dat\n"
+          "  MatchTime: 3.7\n"
+          "  MatchTimeEpsilon: Auto\n"
+          "  SetL1CoefsToZero: True\n"
+          "SizeInitialValues: Auto");
+
+      REQUIRE(shape_map_options.has_value());
+      const FunctionsOfTimeMap shape_and_size = get_shape_and_size(
+          shape_map_options.value(), 0.2, 1.1, 1.2, inner_radius);
+      const size_t expected_size = ylm::Spherepack::spectral_size(l_max, l_max);
+      CHECK_ITERABLE_APPROX(shape_and_size.at("Shape")->func_and_2_derivs(0.2),
+                            (std::array{DataVector(expected_size, 0.0),
+                                        DataVector(expected_size, 0.0),
+                                        DataVector(expected_size, 0.0)}));
+      CHECK_ITERABLE_APPROX(
+          shape_and_size.at("Size")->func_and_2_derivs(0.2),
+          (std::array{DataVector{0.0}, DataVector{0.0}, DataVector{0.0}}));
     }
 
     {
@@ -472,10 +506,13 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
           }
         }
       }
-      CHECK(size_funcs ==
-            std::array{DataVector{-1.0 * strahlkorper.coefficients()[0] *
-                                  sqrt(0.5 * M_PI)},
-                       DataVector{0.0}, DataVector{0.0}});
+      CHECK_ITERABLE_APPROX(
+          size_funcs,
+          (std::array{
+              DataVector{(inner_radius - ylm::Spherepack::average(
+                                             strahlkorper.coefficients())) *
+                         2.0 * sqrt(M_PI)},
+              DataVector{0.0}, DataVector{0.0}}));
     }
 
     {
