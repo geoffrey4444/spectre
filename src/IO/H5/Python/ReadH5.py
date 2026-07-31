@@ -111,7 +111,9 @@ def select_observation(
         in segments like 'Segment*/VolumeData*.h5' and exists to avoid opening
         all volfiles from all segments. See 'step' and 'time' below for details.
       step: Select the observation with this step number, counting unique
-        observation IDs from the start of the first volfile.
+        observation IDs from the start of the first volfile. Negative values
+        count from the end and therefore consume the entire 'volfiles'
+        iterable.
         Mutually exclusive with 'time'.
       time: Select the observation closest to this time. The search is stopped
         once a volfile's closest time is further away than the previous.
@@ -129,20 +131,37 @@ def select_observation(
     if step is not None:
         # Select the specified step
         all_obs_ids = set()
+        observations = []
         for volfile in volfiles:
             obs_ids = volfile.list_observation_ids()
-            idx = step - len(all_obs_ids)
-            if idx < len(obs_ids):
-                obs_id = obs_ids[idx]
-                obs_value = volfile.get_observation_value(obs_id)
-                logger.info(
-                    f"Selected observation step {step} at t = {obs_value:g}."
+            new_obs_ids = [
+                obs_id for obs_id in obs_ids if obs_id not in all_obs_ids
+            ]
+            if step >= 0:
+                idx = step - len(all_obs_ids)
+                if idx < len(new_obs_ids):
+                    obs_id = new_obs_ids[idx]
+                    obs_value = volfile.get_observation_value(obs_id)
+                    logger.info(
+                        f"Selected observation step {step} at t ="
+                        f" {obs_value:g}."
+                    )
+                    return obs_id, obs_value
+            else:
+                observations.extend(
+                    (obs_id, volfile.get_observation_value(obs_id))
+                    for obs_id in new_obs_ids
                 )
-                return obs_id, obs_value
             all_obs_ids.update(obs_ids)
+        if step < 0 and -step <= len(observations):
+            obs_id, obs_value = observations[step]
+            logger.info(
+                f"Selected observation step {step} at t = {obs_value:g}."
+            )
+            return obs_id, obs_value
         raise ValueError(
-            f"Number of observations ({len(all_obs_ids)}) is smaller than"
-            f" specified 'step' ({step})."
+            f"Number of observations ({len(all_obs_ids)}): specified 'step'"
+            f" ({step}) is out of range."
         )
     else:
         # Find closest observation to the specified time

@@ -111,6 +111,23 @@ class TestReadH5(unittest.TestCase):
                 (expected_obs_id, expected_time),
             )
 
+        class MockVolFile:
+            def __init__(self, observation_ids):
+                self.observation_ids = observation_ids
+
+            def list_observation_ids(self):
+                return self.observation_ids
+
+            def get_observation_value(self, observation_id):
+                return float(observation_id)
+
+        volfiles = [MockVolFile([0, 1, 2]), MockVolFile([2, 3, 4])]
+        self.assertEqual(select_observation(volfiles, step=3), (3, 3.0))
+        self.assertEqual(
+            select_observation((volfile for volfile in volfiles), step=-1),
+            (4, 4.0),
+        )
+
     def test_open_volfiles_missing_subfile(self):
         volfiles = list(
             open_volfiles([self.vol_file, self.dat_file], "/element_data")
