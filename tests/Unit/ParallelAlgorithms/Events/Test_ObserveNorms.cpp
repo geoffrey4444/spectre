@@ -823,9 +823,7 @@ SPECTRE_TEST_CASE("Unit.Evolution.ObserveNorms", "[Unit][Evolution]") {
              Spectral::Basis::FiniteDifference,
              Spectral::Quadrature::CellCentered, std::nullopt);
 
-  // Test that L1Norm and L1IntegralNorm correctly take absolute values by using
-  // a tensor with all-negative components. If abs() were dropped entirely, the
-  // computed values would be negative rather than positive.
+  // Test reductions of all-negative values.
   {
     INFO("Negative values test");
     using metavariables = Metavariables<3, void>;
@@ -840,9 +838,12 @@ SPECTRE_TEST_CASE("Unit.Evolution.ObserveNorms", "[Unit][Evolution]") {
     Variables<tmpl::list<Var0, Var1>> vars(num_points);
     // Fill Var0 with all -1.0; abs should give 1.0 for every point
     get(get<Var0>(vars)) = DataVector(num_points, -1.0);
-    get<0>(get<Var1>(vars)) = DataVector(num_points, 0.0);
-    get<1>(get<Var1>(vars)) = DataVector(num_points, 0.0);
-    get<2>(get<Var1>(vars)) = DataVector(num_points, 0.0);
+    get<0>(get<Var1>(vars)) =
+        DataVector(num_points, -std::numeric_limits<double>::infinity());
+    get<1>(get<Var1>(vars)) =
+        DataVector(num_points, -std::numeric_limits<double>::infinity());
+    get<2>(get<Var1>(vars)) =
+        DataVector(num_points, -std::numeric_limits<double>::infinity());
 
     ActionTesting::MockRuntimeSystem<metavariables> runner{{}};
     ActionTesting::emplace_component<element_component>(make_not_null(&runner),
@@ -862,7 +863,9 @@ SPECTRE_TEST_CASE("Unit.Evolution.ObserveNorms", "[Unit][Evolution]") {
     const auto observe = std::make_unique<ObserveNormsEvent<void>>(
         ObserveNormsEvent<void>{"reduction0",
                                 {{"Var0", "L1Norm", "Individual"},
-                                 {"Var0", "L1IntegralNorm", "Individual"}}});
+                                 {"Var0", "L1IntegralNorm", "Individual"},
+                                 {"Var0", "Max", "Sum"},
+                                 {"Var1", "Max", "Sum"}}});
 
     auto obs_box = make_observation_box<tmpl::filter<
         typename ObserveNormsEvent<void>::compute_tags_for_observation_box,
@@ -881,6 +884,8 @@ SPECTRE_TEST_CASE("Unit.Evolution.ObserveNorms", "[Unit][Evolution]") {
     // and V=1). Both should be 1.0, not -1.0, proving abs() is applied.
     CHECK(results.l1_norm_values[0] == approx(1.0));
     CHECK(results.l1_integral_norm_values[0] == approx(1.0));
+    CHECK(results.max_values[0] == -1.0);
+    CHECK(results.max_values[1] == -std::numeric_limits<double>::infinity());
   }
 
   // varrying `Spherical` to test both spherical and axial symmetry, as well
