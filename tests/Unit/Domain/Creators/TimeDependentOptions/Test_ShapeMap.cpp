@@ -140,7 +140,8 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
     if (file_system::check_if_file_exists(test_filename)) {
       file_system::rm(test_filename, true);
     }
-    const std::vector<std::string> subfile_names{"Ylm_coefs", "dt_Ylm_coefs"};
+    const std::vector<std::string> subfile_names{"Ylm_coefs", "dt_Ylm_coefs",
+                                                 "dt2_Ylm_coefs"};
     const std::string volume_subfile_name{"VolumeData"};
     const double time = 1.7;
     // Purposefully larger than the LMax in the options so that the
@@ -162,14 +163,8 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
             generator, distribution,
             DataVector(ylm::Spherepack::physical_size(file_l_max, file_l_max),
                        std::numeric_limits<double>::signaling_NaN()));
-        if (i < 2) {
-          gsl::at(strahlkorpers, i) = ylm::Strahlkorper<Frame>(
-              file_l_max, file_l_max, radius, std::array{0.0, 0.0, 0.0});
-        } else {
-          gsl::at(strahlkorpers, i) = ylm::Strahlkorper<Frame>(
-              file_l_max, inner_radius, std::array{0.0, 0.0, 0.0});
-          continue;
-        }
+        gsl::at(strahlkorpers, i) = ylm::Strahlkorper<Frame>(
+            file_l_max, file_l_max, radius, std::array{0.0, 0.0, 0.0});
 
         ylm::fill_ylm_legend_and_data(
             make_not_null(&legend), make_not_null(&(data)),
@@ -199,6 +194,7 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
           "  SubfileNames:\n"
           "    - Ylm_coefs\n"
           "    - dt_Ylm_coefs\n"
+          "    - dt2_Ylm_coefs\n"
           "  MatchTime: 1.7\n"
           "  MatchTimeEpsilon: Auto\n"
           "  SetL1CoefsToZero: True\n"
@@ -271,6 +267,7 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
           "  SubfileNames:\n"
           "    - Ylm_coefs\n"
           "    - dt_Ylm_coefs\n"
+          "    - dt2_Ylm_coefs\n"
           "  MatchTime: 1.7\n"
           "  MatchTimeEpsilon: Auto\n"
           "  SetL1CoefsToZero: True\n"
@@ -292,10 +289,12 @@ void test_funcs(const gsl::not_null<Generator*> generator) {
               DataVector{(inner_radius - ylm::Spherepack::average(
                                              strahlkorpers[0].coefficients())) *
                          2.0 * sqrt(M_PI)},
-              DataVector{(inner_radius - ylm::Spherepack::average(
-                                             strahlkorpers[1].coefficients())) *
-                         2.0 * sqrt(M_PI)},
-              DataVector{0.0}}));
+              DataVector{
+                  -ylm::Spherepack::average(strahlkorpers[1].coefficients()) *
+                  2.0 * sqrt(M_PI)},
+              DataVector{
+                  -ylm::Spherepack::average(strahlkorpers[2].coefficients()) *
+                  2.0 * sqrt(M_PI)}}));
     }
 
     {

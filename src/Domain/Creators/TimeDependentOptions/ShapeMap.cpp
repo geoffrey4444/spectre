@@ -289,8 +289,9 @@ FunctionsOfTimeMap get_shape_and_size(
             gsl::at(shape_funcs, i)[0] * sqrt(0.5 * M_PI) +
             // Account for the size of the original sphere, since the shape/size
             // coefficients are deformations from the original sphere.
-            // The factor 2 sqrt(pi) is 1/Y_00.
-            deformed_radius * 2.0 * sqrt(M_PI);
+            // The factor 2 sqrt(pi) is 1/Y_00. The original sphere has a
+            // constant radius, so it contributes only at derivative order 0.
+            (i == 0 ? deformed_radius * 2.0 * sqrt(M_PI) : 0.0);
         // Set l=0 for shape map to 0 because size control will adjust l=0
         gsl::at(shape_funcs, i)[0] = 0.0;
         if (set_l1_coefs_to_zero) {
