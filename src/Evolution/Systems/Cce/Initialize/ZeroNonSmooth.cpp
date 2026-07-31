@@ -26,8 +26,7 @@ ZeroNonSmooth::ZeroNonSmooth(const double angular_coordinate_tolerance,
       require_convergence_{require_convergence} {}
 
 std::unique_ptr<InitializeJ<false>> ZeroNonSmooth::get_clone() const {
-  return std::make_unique<ZeroNonSmooth>(angular_coordinate_tolerance_,
-                                         max_iterations_);
+  return std::make_unique<ZeroNonSmooth>(*this);
 }
 
 void ZeroNonSmooth::operator()(
@@ -125,6 +124,7 @@ void ZeroNonSmooth::operator()(
 void ZeroNonSmooth::pup(PUP::er& p) {
   p | angular_coordinate_tolerance_;
   p | max_iterations_;
+  p | require_convergence_;
 }
 
 PUP::able::PUP_ID ZeroNonSmooth::my_PUP_ID = 0;

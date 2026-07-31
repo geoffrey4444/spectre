@@ -190,14 +190,13 @@ void test_initialize_j_zero_nonsmooth(
 }
 
 template <typename DbTags>
-void test_zero_non_smooth_error(
+void apply_zero_non_smooth_that_must_converge(
     const gsl::not_null<db::DataBox<DbTags>*> box_to_initialize,
-    const size_t /*l_max*/, const size_t /*number_of_radial_points*/) {
+    const InitializeJ::ZeroNonSmooth& initializer) {
   auto node_lock = Parallel::NodeLock{};
   db::mutate_apply<InitializeJ::InitializeJ<false>::mutate_tags,
                    InitializeJ::InitializeJ<false>::argument_tags>(
-      InitializeJ::ZeroNonSmooth{1.0e-12, 1, true}, box_to_initialize,
-      make_not_null(&node_lock));
+      initializer, box_to_initialize, make_not_null(&node_lock));
 }
 
 template <typename DbTags>
@@ -763,11 +762,26 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.Cce.InitializeJ", "[Unit][Cce]") {
     test_initialize_j_zero_nonsmooth(make_not_null(&box_to_initialize), l_max,
                                      number_of_radial_points);
   }
+  const InitializeJ::ZeroNonSmooth initializer_that_must_converge{1.0e-12, 1,
+                                                                  true};
+  const auto cloned_initializer = initializer_that_must_converge.get_clone();
+  const auto serialized_initializer =
+      serialize_and_deserialize(initializer_that_must_converge);
+  const auto convergence_error = Catch::Matchers::ContainsSubstring(
+      "Initial data iterative angular solve");
   CHECK_THROWS_WITH(
-      (test_zero_non_smooth_error(make_not_null(&box_to_initialize), l_max,
-                                  number_of_radial_points)),
-      Catch::Matchers::ContainsSubstring(
-          "Initial data iterative angular solve"));
+      (apply_zero_non_smooth_that_must_converge(
+          make_not_null(&box_to_initialize), initializer_that_must_converge)),
+      convergence_error);
+  CHECK_THROWS_WITH((apply_zero_non_smooth_that_must_converge(
+                        make_not_null(&box_to_initialize),
+                        dynamic_cast<const InitializeJ::ZeroNonSmooth&>(
+                            *cloned_initializer))),
+                    convergence_error);
+  CHECK_THROWS_WITH(
+      (apply_zero_non_smooth_that_must_converge(
+          make_not_null(&box_to_initialize), serialized_initializer)),
+      convergence_error);
   {
     INFO("Check no incoming radiation initial data generator");
     test_initialize_j_no_radiation(make_not_null(&box_to_initialize), l_max,
