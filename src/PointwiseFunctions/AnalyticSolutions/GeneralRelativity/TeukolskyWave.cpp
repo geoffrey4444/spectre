@@ -465,6 +465,13 @@ void TeukolskyWave::pup(PUP::er& p) {
   p | include_minkowski_background_;
 }
 
+TeukolskyWave TeukolskyWave::with_minkowski_background(
+    const bool include_background) const {
+  auto result = *this;
+  result.include_minkowski_background_ = include_background;
+  return result;
+}
+
 template <typename DataType>
 auto TeukolskyWave::variables(
     const tnsr::I<DataType, volume_dim, Frame::Inertial>& x, const double /*t*/,

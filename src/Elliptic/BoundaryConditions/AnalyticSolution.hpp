@@ -26,12 +26,13 @@
 #include "Utilities/CallWithDynamicType.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/PrettyType.hpp"
 #include "Utilities/Serialization/CharmPupable.hpp"
 #include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace elliptic::BoundaryConditions {
-namespace detail {
+namespace AnalyticSolution_detail {
 
 template <typename Solution, size_t Dim, typename Tag, typename = std::void_t<>>
 struct has_boundary_variables : std::false_type {};
@@ -47,7 +48,7 @@ template <typename Solution, size_t Dim, typename Tag>
 constexpr bool has_boundary_variables_v =
     has_boundary_variables<Solution, Dim, Tag>::value;
 
-}  // namespace detail
+}  // namespace AnalyticSolution_detail
 
 /// \cond
 template <typename System, size_t Dim = System::volume_dim,
@@ -174,29 +175,33 @@ class AnalyticSolution<System, Dim, tmpl::list<FieldTags...>,
             switch (get<elliptic::Tags::BoundaryConditionType<field_tag>>(
                 boundary_condition_types_)) {
               case elliptic::BoundaryConditionType::Dirichlet: {
-                if constexpr (detail::has_boundary_variables_v<
+                if constexpr (AnalyticSolution_detail::has_boundary_variables_v<
                                   derived_type, Dim, field_tag>) {
                   const auto solution_vars = derived->variables(
                       face_inertial_coords, tmpl::list<field_tag>{});
                   *field = get<field_tag>(solution_vars);
                 } else {
-                  ERROR(
-                      "The analytic data does not provide the field required "
-                      "for this Dirichlet boundary condition.");
+                  ERROR("The analytic data '"
+                        << pretty_type::name<derived_type>()
+                        << "' does not provide the field '"
+                        << pretty_type::name<field_tag>()
+                        << "' required for this Dirichlet boundary condition.");
                 }
                 break;
               }
               case elliptic::BoundaryConditionType::Neumann: {
-                if constexpr (detail::has_boundary_variables_v<derived_type,
-                                                               Dim, flux_tag>) {
+                if constexpr (AnalyticSolution_detail::has_boundary_variables_v<
+                                  derived_type, Dim, flux_tag>) {
                   const auto solution_vars = derived->variables(
                       face_inertial_coords, tmpl::list<flux_tag>{});
                   normal_dot_flux(n_dot_flux, face_normal,
                                   get<flux_tag>(solution_vars));
                 } else {
-                  ERROR(
-                      "The analytic data does not provide the flux required "
-                      "for this Neumann boundary condition.");
+                  ERROR("The analytic data '"
+                        << pretty_type::name<derived_type>()
+                        << "' does not provide the flux '"
+                        << pretty_type::name<flux_tag>()
+                        << "' required for this Neumann boundary condition.");
                 }
                 break;
               }

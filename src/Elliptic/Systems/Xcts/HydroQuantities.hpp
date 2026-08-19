@@ -21,7 +21,7 @@
 #include "Utilities/TMPL.hpp"
 
 namespace Xcts::Tags {
-namespace detail {
+namespace HydroQuantities_detail {
 
 template <typename Background, typename HydroTags, typename = std::void_t<>>
 struct has_hydro_variables : std::false_type {};
@@ -33,7 +33,7 @@ struct has_hydro_variables<
         std::declval<const tnsr::I<DataVector, 3, Frame::Inertial>&>(),
         HydroTags{}))>> : std::true_type {};
 
-}  // namespace detail
+}  // namespace HydroQuantities_detail
 
 /*!
  * \brief MHD quantities retrieved from the background solution/data
@@ -63,8 +63,8 @@ struct HydroQuantitiesCompute : ::Tags::Variables<HydroTags>, db::ComputeTag {
     *result = call_with_dynamic_type<Variables<HydroTags>, background_classes>(
         &background, [&inertial_coords](const auto* const derived) {
           using derived_type = std::decay_t<decltype(*derived)>;
-          if constexpr (detail::has_hydro_variables<derived_type,
-                                                    HydroTags>::value) {
+          if constexpr (HydroQuantities_detail::has_hydro_variables<
+                            derived_type, HydroTags>::value) {
             return variables_from_tagged_tuple(
                 derived->variables(inertial_coords, HydroTags{}));
           } else {

@@ -21,6 +21,7 @@
 #include "PointwiseFunctions/InitialDataUtilities/InitialGuess.hpp"
 #include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/Literals.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace Xcts::AnalyticData {
@@ -83,6 +84,29 @@ void test_factory_and_semantics() {
   test_copy_semantics(solution);
   auto move_solution = solution;
   test_move_semantics(std::move(move_solution), solution);
+}
+
+void test_rejects_boosted_kerr_schild() {
+  const std::string options =
+      "KerrSchildTeukolsky:\n"
+      "  KerrSchild:\n"
+      "    Mass: 1.0\n"
+      "    Spin: [0., 0., 0.]\n"
+      "    Center: [0., 0., 0.]\n"
+      "    Velocity: [0.1, 0., 0.]\n"
+      "  TeukolskyWave:\n"
+      "    Amplitude: 0.02\n"
+      "    Mode: 2\n"
+      "    Parity: even\n"
+      "    Direction: ingoing\n"
+      "    Center: [0., 0., 0.]\n"
+      "    Radius: 20.\n"
+      "    Width: 4.\n";
+  CHECK_THROWS_WITH(
+      (TestHelpers::test_factory_creation<elliptic::analytic_data::InitialGuess,
+                                          KerrSchildTeukolsky>(options)),
+      Catch::Matchers::ContainsSubstring(
+          "requires a stationary Kerr-Schild background"));
 }
 
 void test_zero_amplitude_matches_wrapped_kerr_schild() {
@@ -223,6 +247,7 @@ SPECTRE_TEST_CASE(
     "Unit.PointwiseFunctions.AnalyticData.Xcts.KerrSchildTeukolsky",
     "[PointwiseFunctions][Unit]") {
   test_factory_and_semantics();
+  test_rejects_boosted_kerr_schild();
   test_zero_amplitude_matches_wrapped_kerr_schild();
   test_nonzero_teukolsky_perturbation();
   test_numeric_derivative_requires_mesh();

@@ -12,15 +12,17 @@
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/EagerMath/Trace.hpp"
+#include "DataStructures/Tensor/Expressions/TensorExpression.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Elliptic/Systems/Xcts/Tags.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "Options/ParseError.hpp"
 #include "PointwiseFunctions/AnalyticData/Xcts/CommonVariables.tpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 
-namespace Xcts::AnalyticData::detail {
+namespace Xcts::AnalyticData::KerrSchildTeukolsky_detail {
 
 template <typename DataType>
 void KerrSchildTeukolskyVariables<DataType>::operator()(
@@ -28,16 +30,14 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
     const gsl::not_null<Cache*> /*cache*/,
     Xcts::Tags::ConformalMetric<DataType, Dim, Frame::Inertial> /*meta*/)
     const {
-  *conformal_metric =
+  const auto& kerr_schild_spatial_metric =
       get<gr::Tags::SpatialMetric<DataType, Dim>>(kerr_schild_vars.get());
   const auto& teukolsky_spatial_metric =
       get<gr::Tags::SpatialMetric<DataType, Dim, Frame::Inertial>>(
           teukolsky_vars.get());
-  for (size_t i = 0; i < Dim; ++i) {
-    for (size_t j = 0; j <= i; ++j) {
-      conformal_metric->get(i, j) += teukolsky_spatial_metric.get(i, j);
-    }
-  }
+  tenex::evaluate<ti::i, ti::j>(conformal_metric,
+                                kerr_schild_spatial_metric(ti::i, ti::j) +
+                                    teukolsky_spatial_metric(ti::i, ti::j));
 }
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -148,28 +148,11 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
 
   const auto trace_dt_metric = trace(dt_teukolsky_metric, inv_conformal_metric);
 
-  tnsr::ii<DataType, Dim, Frame::Inertial> trace_free_dt_metric{
-      get_size(*x.get().begin())};
-  for (size_t i = 0; i < Dim; ++i) {
-    for (size_t j = 0; j <= i; ++j) {
-      trace_free_dt_metric.get(i, j) =
-          dt_teukolsky_metric.get(i, j) -
-          conformal_metric.get(i, j) * get(trace_dt_metric) / 3.;
-    }
-  }
-
-  for (size_t i = 0; i < Dim; ++i) {
-    for (size_t j = 0; j <= i; ++j) {
-      longitudinal_shift_background_minus_dt_conformal_metric->get(i, j) = 0.;
-      for (size_t k = 0; k < Dim; ++k) {
-        for (size_t l = 0; l < Dim; ++l) {
-          longitudinal_shift_background_minus_dt_conformal_metric->get(i, j) -=
-              inv_conformal_metric.get(i, k) * inv_conformal_metric.get(j, l) *
-              trace_free_dt_metric.get(k, l);
-        }
-      }
-    }
-  }
+  tenex::evaluate<ti::I, ti::J>(
+      longitudinal_shift_background_minus_dt_conformal_metric,
+      -inv_conformal_metric(ti::I, ti::K) * inv_conformal_metric(ti::J, ti::L) *
+          (dt_teukolsky_metric(ti::k, ti::l) -
+           conformal_metric(ti::k, ti::l) * trace_dt_metric() / 3.));
 }
 
 template <typename DataType>
@@ -208,18 +191,25 @@ void KerrSchildTeukolskyVariables<DataType>::operator()(
 template class KerrSchildTeukolskyVariables<double>;
 template class KerrSchildTeukolskyVariables<DataVector>;
 
-}  // namespace Xcts::AnalyticData::detail
+}  // namespace Xcts::AnalyticData::KerrSchildTeukolsky_detail
 
 namespace Xcts::AnalyticData {
 
 KerrSchildTeukolsky::KerrSchildTeukolsky(
     gr::Solutions::KerrSchild kerr_schild,
-    const gr::Solutions::TeukolskyWave& teukolsky_wave)
+    const gr::Solutions::TeukolskyWave& teukolsky_wave,
+    const Options::Context& context)
     : kerr_schild_(std::move(kerr_schild)),
-      teukolsky_wave_(teukolsky_wave.amplitude(), teukolsky_wave.mode(),
-                      teukolsky_wave.parity(), teukolsky_wave.direction(),
-                      teukolsky_wave.center(), teukolsky_wave.radius(),
-                      teukolsky_wave.width(), false) {}
+      teukolsky_wave_(teukolsky_wave.with_minkowski_background(false)) {
+  if (not kerr_schild_.zero_velocity()) {
+    const auto& velocity = kerr_schild_.boost_velocity();
+    PARSE_ERROR(context,
+                "KerrSchildTeukolsky requires a stationary Kerr-Schild "
+                "background, but the velocity is ["
+                    << velocity[0] << ", " << velocity[1] << ", " << velocity[2]
+                    << "].");
+  }
+}
 
 void KerrSchildTeukolsky::pup(PUP::er& p) {
   elliptic::analytic_data::Background::pup(p);
@@ -244,8 +234,8 @@ PUP::able::PUP_ID KerrSchildTeukolsky::my_PUP_ID = 0;  // NOLINT
 }  // namespace Xcts::AnalyticData
 
 template class Xcts::AnalyticData::CommonVariables<
-    double, typename Xcts::AnalyticData::detail::KerrSchildTeukolskyVariables<
-                double>::Cache>;
+    double, typename Xcts::AnalyticData::KerrSchildTeukolsky_detail::
+                KerrSchildTeukolskyVariables<double>::Cache>;
 template class Xcts::AnalyticData::CommonVariables<
-    DataVector, typename Xcts::AnalyticData::detail::
+    DataVector, typename Xcts::AnalyticData::KerrSchildTeukolsky_detail::
                     KerrSchildTeukolskyVariables<DataVector>::Cache>;
