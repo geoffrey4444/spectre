@@ -62,7 +62,11 @@ void test_factory_and_semantics() {
       "    Direction: outgoing\n"
       "    Center: [0.1, -0.2, 0.3]\n"
       "    Radius: 20.\n"
-      "    Width: 4.\n";
+      "    Width: 4.\n"
+      "    AzimuthalSense:\n"
+      "      NegativeM:\n"
+      "        Frequency: 0.4\n"
+      "        Phase: 0.7\n";
   const auto created =
       TestHelpers::test_factory_creation<elliptic::analytic_data::InitialGuess,
                                          KerrSchildTeukolsky>(options);
@@ -79,6 +83,10 @@ void test_factory_and_semantics() {
   CHECK(solution.teukolsky_wave().center() ==
         std::array<double, 3>{{0.1, -0.2, 0.3}});
   CHECK_FALSE(solution.teukolsky_wave().include_minkowski_background());
+  CHECK(solution.teukolsky_wave().azimuthal_sense() ==
+        gr::Solutions::AzimuthalSense::NegativeM);
+  CHECK(solution.teukolsky_wave().frequency() == 0.4);
+  CHECK(solution.teukolsky_wave().phase() == 0.7);
 
   test_serialization(solution);
   test_copy_semantics(solution);
@@ -101,7 +109,8 @@ void test_rejects_boosted_kerr_schild() {
       "    Direction: ingoing\n"
       "    Center: [0., 0., 0.]\n"
       "    Radius: 20.\n"
-      "    Width: 4.\n";
+      "    Width: 4.\n"
+      "    AzimuthalSense: None\n";
   CHECK_THROWS_WITH(
       (TestHelpers::test_factory_creation<elliptic::analytic_data::InitialGuess,
                                           KerrSchildTeukolsky>(options)),

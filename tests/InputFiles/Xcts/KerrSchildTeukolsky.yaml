@@ -30,6 +30,7 @@ Background: &solution
       Center: [0.1, -0.2, 0.3]
       Radius: 20.
       Width: 4.
+      AzimuthalSense: None
 
 InitialGuess: *solution
 
