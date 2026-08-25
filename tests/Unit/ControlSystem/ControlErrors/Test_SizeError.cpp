@@ -121,6 +121,118 @@ void test_size_error_copy() {
   CHECK(original == serialize_and_deserialize(original));
 }
 
+void test_suggested_timescale_survives_averager_update() {
+  using SizeError =
+      control_system::ControlErrors::Size<2, domain::ObjectLabel::A>;
+  constexpr size_t l_max = 2;
+  const std::array<double, 3> center{};
+  const ylm::Strahlkorper<Frame::Distorted> excision_surface{l_max, 1.0,
+                                                            center};
+  const size_t number_of_points =
+      excision_surface.ylm_spherepack().physical_size();
+
+  const Scalar<DataVector> lapse{DataVector(number_of_points, 1.0)};
+  const tnsr::I<DataVector, 3, Frame::Distorted> shift{number_of_points, 0.0};
+  tnsr::ii<DataVector, 3, Frame::Distorted> spatial_metric{number_of_points,
+                                                           0.0};
+  tnsr::II<DataVector, 3, Frame::Distorted> inverse_spatial_metric{
+      number_of_points, 0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    spatial_metric.get(i, i) = DataVector(number_of_points, 1.0);
+    inverse_spatial_metric.get(i, i) = DataVector(number_of_points, 1.0);
+  }
+  const tnsr::Ijj<DataVector, 3, Frame::Distorted> spatial_christoffel{
+      number_of_points, 0.0};
+  const tnsr::i<DataVector, 3, Frame::Distorted> deriv_lapse{number_of_points,
+                                                            0.0};
+  const tnsr::iJ<DataVector, 3, Frame::Distorted> deriv_shift{number_of_points,
+                                                              0.0};
+  InverseJacobian<DataVector, 3, Frame::Grid, Frame::Distorted>
+      inverse_jacobian{number_of_points, 0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    inverse_jacobian.get(i, i) = DataVector(number_of_points, 1.0);
+  }
+
+  auto size_error = TestHelpers::test_creation<SizeError, Metavars>(
+      "MaxNumTimesForZeroCrossingPredictor: 3\n"
+      "SmoothAvgTimescaleFraction: 0.25\n"
+      "DeltaRDriftOutwardOptions: None\n"
+      "DeltaRDriftInwardOptions: None\n"
+      "InitialState: Initial\n"
+      "SmootherTuner:\n"
+      "  InitialTimescales: 0.2\n"
+      "  MinTimescale: 1.0e-4\n"
+      "  MaxTimescale: 20.0\n"
+      "  IncreaseThreshold: 2.5e-4\n"
+      "  DecreaseThreshold: 1.0e-3\n"
+      "  IncreaseFactor: 1.01\n"
+      "  DecreaseFactor: 0.98\n");
+  TimescaleTuner<false> tuner{std::vector<double>{0.1}, 1.0, 0.01, 1.0e-4,
+                              1.01};
+
+  std::unordered_map<std::string,
+                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+      functions_of_time{};
+  functions_of_time["Size"] =
+      std::make_unique<domain::FunctionsOfTime::PiecewisePolynomial<3>>(
+          0.0,
+          std::array<DataVector, 4>{DataVector{1, 0.0}, DataVector{1, 0.0},
+                                    DataVector{1, 0.0}, DataVector{1, 0.0}},
+          std::numeric_limits<double>::infinity());
+  Domain<3> domain{
+      std::vector<Block<3>>{},
+      {{"ExcisionSphereA",
+        ExcisionSphere<3>{
+            1.0,
+            tnsr::I<double, 3, Frame::Grid>{std::array{0.0, 0.0, 0.0}},
+            {}}}}};
+  Parallel::GlobalCache<Metavars> cache{
+      {std::move(functions_of_time), std::move(domain), false,
+       ::Verbosity::Silent, "", "", std::vector<std::string>{}}};
+
+  using ExcisionQuantities =
+      control_system::QueueTags::SizeExcisionQuantities<Frame::Distorted>;
+  using HorizonQuantities =
+      control_system::QueueTags::SizeHorizonQuantities<Frame::Distorted>;
+  tuples::TaggedTuple<ExcisionQuantities, HorizonQuantities> measurements{
+      ExcisionQuantities::type{
+          excision_surface, lapse, shift, spatial_metric,
+          inverse_spatial_metric, spatial_christoffel, deriv_lapse, deriv_shift,
+          inverse_jacobian},
+      HorizonQuantities::type{
+          ylm::Strahlkorper<Frame::Distorted>{l_max, 1.25, center},
+          ylm::Strahlkorper<Frame::Distorted>{l_max, 0.0, center}}};
+
+  auto& horizon_quantities =
+      tuples::get<HorizonQuantities>(measurements);
+  const std::array horizon_radii{1.25, 1.15, 1.05};
+  for (size_t step = 0; step < horizon_radii.size(); ++step) {
+    tuples::get<ylm::Tags::Strahlkorper<Frame::Distorted>>(
+        horizon_quantities) = ylm::Strahlkorper<Frame::Distorted>{
+        l_max, horizon_radii[step], center};
+    static_cast<void>(size_error(tuner, cache, 0.1 * static_cast<double>(step),
+                                 "Size"s, measurements));
+  }
+
+  REQUIRE(size_error.discontinuous_change_has_occurred());
+  REQUIRE(size_error.get_suggested_timescale().has_value());
+  CHECK(size_error.get_suggested_timescale().value() == approx(0.05));
+
+  Averager<1> averager{0.25, true};
+  control_system::size::update_averager(
+      make_not_null(&averager), make_not_null(&size_error), cache, 0.2,
+      tuner.current_timescale(), "Size"s, 1);
+  CHECK_FALSE(size_error.discontinuous_change_has_occurred());
+  REQUIRE(size_error.get_suggested_timescale().has_value());
+  CHECK(size_error.get_suggested_timescale().value() == approx(0.05));
+
+  control_system::update_timescale_tuner(
+      make_not_null(&tuner), make_not_null(&size_error), ::Verbosity::Silent,
+      0.2, "Size"s);
+  CHECK(tuner.current_timescale()[0] == approx(0.05));
+  CHECK_FALSE(size_error.get_suggested_timescale().has_value());
+}
+
 void test_size_error_horizon_higher_res_than_excision() {
   control_system::size::Info info{
       std::make_unique<control_system::size::States::Initial>(),
@@ -600,6 +712,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
   test_control_error_delta_r();
   test_size_error_copy();
+  test_suggested_timescale_survives_averager_update();
   test_size_error_horizon_higher_res_than_excision();
   // Should go to DeltaR state with error of zero, since ComovingMinCharSpeed
   // will be positive.

@@ -130,6 +130,11 @@ bool Size<DerivOrder, Horizon>::discontinuous_change_has_occurred() const {
 }
 
 template <size_t DerivOrder, ::domain::ObjectLabel Horizon>
+void Size<DerivOrder, Horizon>::acknowledge_discontinuous_change() {
+  info_.acknowledge_discontinuous_change();
+}
+
+template <size_t DerivOrder, ::domain::ObjectLabel Horizon>
 void Size<DerivOrder, Horizon>::reset() {
   info_.reset();
 }
