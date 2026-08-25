@@ -11,6 +11,8 @@
 #include "DataStructures/Tensor/IndexType.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "Options/Context.hpp"
+#include "Options/Options.hpp"
+#include "Options/ParseOptions.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Serialization/PupStlCpp17.hpp"
 
@@ -20,13 +22,15 @@ HorizonOptions<Fr>::HorizonOptions(
     std::vector<std::unique_ptr<ah::Criterion>> criteria_in,
     ylm::Strahlkorper<Fr> initial_guess_in, ::FastFlow fast_flow_in,
     ::Verbosity verbosity_in, const size_t max_compute_coords_retries_in,
-    std::optional<std::vector<std::string>> blocks_for_horizon_find_in)
+    std::optional<std::vector<std::string>> blocks_for_horizon_find_in,
+    const ah::ElementSendPolicy element_send_policy_in)
     : criteria(std::move(criteria_in)),
       initial_guess(std::move(initial_guess_in)),
       fast_flow(std::move(fast_flow_in)),  // NOLINT
       verbosity(std::move(verbosity_in)),  // NOLINT
       max_compute_coords_retries(max_compute_coords_retries_in),
-      blocks_for_horizon_find(std::move(blocks_for_horizon_find_in)) {}
+      blocks_for_horizon_find(std::move(blocks_for_horizon_find_in)),
+      element_send_policy(element_send_policy_in) {}
 
 template <typename Fr>
 void HorizonOptions<Fr>::pup(PUP::er& p) {
@@ -36,6 +40,7 @@ void HorizonOptions<Fr>::pup(PUP::er& p) {
   p | verbosity;
   p | max_compute_coords_retries;
   p | blocks_for_horizon_find;
+  p | element_send_policy;
 }
 
 template <typename Fr>
@@ -51,7 +56,8 @@ bool operator==(const HorizonOptions<Fr>& lhs, const HorizonOptions<Fr>& rhs) {
   return lhs.initial_guess == rhs.initial_guess and
          lhs.fast_flow == rhs.fast_flow and lhs.verbosity == rhs.verbosity and
          lhs.max_compute_coords_retries == rhs.max_compute_coords_retries and
-         lhs.blocks_for_horizon_find == rhs.blocks_for_horizon_find;
+         lhs.blocks_for_horizon_find == rhs.blocks_for_horizon_find and
+         lhs.element_send_policy == rhs.element_send_policy;
 }
 
 template <typename Fr>
@@ -74,3 +80,18 @@ GENERATE_INSTANTIATIONS(INSTANTIATE,
 #undef FRAME
 #undef INSTANTIATE
 }  // namespace ah
+
+template <>
+ah::ElementSendPolicy
+Options::create_from_yaml<ah::ElementSendPolicy>::create<void>(
+    const Options::Option& options) {
+  const auto policy = options.parse_as<std::string>();
+  if (policy == "All") {
+    return ah::ElementSendPolicy::All;
+  }
+  if (policy == "PreviousSurfaceNeighbors") {
+    return ah::ElementSendPolicy::PreviousSurfaceNeighbors;
+  }
+  PARSE_ERROR(options.context(),
+              "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors'");
+}

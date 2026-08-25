@@ -36,6 +36,7 @@
 #include "PointwiseFunctions/GeneralRelativity/KerrHorizon.hpp"
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace {
@@ -79,6 +80,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
                   "[ApparentHorizonFinder][Unit]") {
   (void)MockHorizonMetavars::destination;
   domain::creators::register_derived_with_charm();
+  PUPable_reg(ah::Criteria::Residual);
 
   // Constants used in this test.
   const size_t l_max = 12;
@@ -92,36 +94,55 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
   ah::HorizonOptions<::Frame::Grid> apparent_horizon_opts(
       std::move(criteria),
       ylm::Strahlkorper<Frame::Grid>{l_max, radius, center}, FastFlow{},
-      Verbosity::Verbose, 3_st, std::nullopt);
+      Verbosity::Verbose, 3_st, std::nullopt, ah::ElementSendPolicy::All);
+
+  CHECK(TestHelpers::test_creation<ah::ElementSendPolicy>("All") ==
+        ah::ElementSendPolicy::All);
+  CHECK(TestHelpers::test_creation<ah::ElementSendPolicy>(
+            "PreviousSurfaceNeighbors") ==
+        ah::ElementSendPolicy::PreviousSurfaceNeighbors);
+  CHECK_THROWS_WITH(
+      TestHelpers::test_creation<ah::ElementSendPolicy>("Invalid"),
+      Catch::Matchers::ContainsSubstring(
+          "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors'"));
 
   // Test creation of options
+  const std::string options_without_element_send_policy =
+      "Criteria:\n"
+      "  - Residual:\n"
+      "      MinResidual: 1.e-12\n"
+      "      MaxResidual: 1.e-2\n"
+      "      MinResolutionL: 2\n"
+      "FastFlow:\n"
+      "  Flow: Fast\n"
+      "  Alpha: 1.0\n"
+      "  Beta: 0.5\n"
+      "  AbsTol: 1e-12\n"
+      "  TruncationTol: 1e-2\n"
+      "  DivergenceTol: 1.2\n"
+      "  DivergenceIter: 5\n"
+      "  MaxIts: 100\n"
+      "Verbosity: Verbose\n"
+      "InitialGuess:\n"
+      "  InitialL: 12\n"
+      "  InitialShape:\n"
+      "    Sphere:\n"
+      "      Center: [0.05, 0.06, 0.07]\n"
+      "      Radius: 2.0\n"
+      "MaxComputeCoordsRetries: 3\n"
+      "BlocksForHorizonFind: All";
+  CHECK_THROWS_WITH((TestHelpers::test_creation<ah::HorizonOptions<Frame::Grid>,
+                                                TestCreationMetavariables>(
+                        options_without_element_send_policy)),
+                    Catch::Matchers::ContainsSubstring(
+                        "You did not specify the option (ElementSendPolicy)"));
   const auto created_opts =
       TestHelpers::test_creation<ah::HorizonOptions<Frame::Grid>,
                                  TestCreationMetavariables>(
-          "Criteria:\n"
-          "  - Residual:\n"
-          "      MinResidual: 1.e-12\n"
-          "      MaxResidual: 1.e-2\n"
-          "      MinResolutionL: 2\n"
-          "FastFlow:\n"
-          "  Flow: Fast\n"
-          "  Alpha: 1.0\n"
-          "  Beta: 0.5\n"
-          "  AbsTol: 1e-12\n"
-          "  TruncationTol: 1e-2\n"
-          "  DivergenceTol: 1.2\n"
-          "  DivergenceIter: 5\n"
-          "  MaxIts: 100\n"
-          "Verbosity: Verbose\n"
-          "InitialGuess:\n"
-          "  InitialL: 12\n"
-          "  InitialShape:\n"
-          "    Sphere:\n"
-          "      Center: [0.05, 0.06, 0.07]\n"
-          "      Radius: 2.0\n"
-          "MaxComputeCoordsRetries: 3\n"
-          "BlocksForHorizonFind: All");
+          options_without_element_send_policy + "\nElementSendPolicy: All");
   CHECK(created_opts == apparent_horizon_opts);
+  CHECK(created_opts.element_send_policy == ah::ElementSendPolicy::All);
+  CHECK(serialize_and_deserialize(created_opts) == created_opts);
 
   const auto domain_creator = domain::creators::Sphere(
       1.8, 2.2, domain::creators::Sphere::Excision{}, 1_st, 5_st, false);
@@ -182,6 +203,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
             "      Mass: 0.5\n"
             "      Spin: [0.0, 0.0, 0.7]\n"
             "MaxComputeCoordsRetries: 3\n"
+            "ElementSendPolicy: PreviousSurfaceNeighbors\n"
             "BlocksForHorizonFind: All");
 
     CHECK(kerr_schild_created_opts.initial_guess.l_max() == kerr_schild_l_max);
@@ -189,6 +211,8 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
           kerr_schild_center);
     CHECK_ITERABLE_APPROX(kerr_schild_created_opts.initial_guess.coefficients(),
                           expected_kerr_schild_horizon.coefficients());
+    CHECK(kerr_schild_created_opts.element_send_policy ==
+          ah::ElementSendPolicy::PreviousSurfaceNeighbors);
   }
   {
     const auto new_created_opts =
@@ -212,6 +236,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
             "      Center: [0.05, 0.06, 0.07]\n"
             "      Radius: 2.0\n"
             "MaxComputeCoordsRetries: 3\n"
+            "ElementSendPolicy: PreviousSurfaceNeighbors\n"
             "BlocksForHorizonFind: [Shell0]");
     const auto blocks_for_horizon_find =
         ah::Tags::BlocksForHorizonFind::create_from_options<MockMetavariables>(

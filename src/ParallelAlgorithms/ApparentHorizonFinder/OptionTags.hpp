@@ -18,7 +18,18 @@
 #include "Utilities/PrettyType.hpp"
 #include "Utilities/TMPL.hpp"
 
+/// \cond
+namespace Options {
+class Option;
+template <typename T>
+struct create_from_yaml;
+}  // namespace Options
+/// \endcond
+
 namespace ah {
+/// Selects which elements in the eligible blocks send data to a horizon find.
+enum class ElementSendPolicy { Uninitialized, All, PreviousSurfaceNeighbors };
+
 /// Options for finding an apparent horizon.
 template <typename Fr>
 struct HorizonOptions {
@@ -55,12 +66,22 @@ struct HorizonOptions {
   };
   struct BlocksForHorizonFind {
     static constexpr Options::String help = {
-        "Volume data will be sent to the horizon finder from these block group "
-        "names. Set to 'All' to send volume data from the entire domain."};
+        "Block group names eligible to send volume data to the horizon finder. "
+        "Set to 'All' to make every block eligible."};
     using type = Options::Auto<std::vector<std::string>, All>;
   };
+  struct ElementSendPolicy {
+    static constexpr Options::String help = {
+        "'All' sends volume data from every element in the eligible blocks. "
+        "'PreviousSurfaceNeighbors' sends only from elements intersecting or "
+        "neighboring the previous surface. Use 'All' to avoid a deadlock if "
+        "the surface moves beyond the filtered elements or the cached previous "
+        "surface is stale."};
+    using type = ah::ElementSendPolicy;
+  };
   using options = tmpl::list<Criteria, InitialGuess, FastFlow, Verbosity,
-                             MaxComputeCoordsRetries, BlocksForHorizonFind>;
+                             MaxComputeCoordsRetries, BlocksForHorizonFind,
+                             ElementSendPolicy>;
   static constexpr Options::String help = {
       "Provide an initial guess for the apparent horizon surface\n"
       "(Strahlkorper) and apparent-horizon-finding-algorithm (FastFlow)\n"
@@ -70,7 +91,8 @@ struct HorizonOptions {
       std::vector<std::unique_ptr<ah::Criterion>> criteria_in,
       ylm::Strahlkorper<Fr> initial_guess_in, ::FastFlow fast_flow_in,
       ::Verbosity verbosity_in, size_t max_compute_coords_retries_in,
-      std::optional<std::vector<std::string>> blocks_for_horizon_find_in);
+      std::optional<std::vector<std::string>> blocks_for_horizon_find_in,
+      ah::ElementSendPolicy element_send_policy_in);
 
   HorizonOptions() = default;
   HorizonOptions(const HorizonOptions& /*rhs*/) = delete;
@@ -88,6 +110,8 @@ struct HorizonOptions {
   ::Verbosity verbosity{::Verbosity::Quiet};
   size_t max_compute_coords_retries{};
   std::optional<std::vector<std::string>> blocks_for_horizon_find;
+  ah::ElementSendPolicy element_send_policy{
+      ah::ElementSendPolicy::Uninitialized};
 };
 
 template <typename Fr>
@@ -122,3 +146,16 @@ struct LMax {
 };
 }  // namespace OptionTags
 }  // namespace ah
+
+template <>
+struct Options::create_from_yaml<ah::ElementSendPolicy> {
+  template <typename Metavariables>
+  static ah::ElementSendPolicy create(const Options::Option& options) {
+    return create<void>(options);
+  }
+};
+
+template <>
+ah::ElementSendPolicy
+Options::create_from_yaml<ah::ElementSendPolicy>::create<void>(
+    const Options::Option& options);
