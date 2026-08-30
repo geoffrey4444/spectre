@@ -24,6 +24,8 @@
 
 namespace {
 
+constexpr double y00 = 0.25 * M_2_SQRTPI;
+
 // Params passed into each test.
 struct TestParams {
   // These are reasonable values for quantities that won't change in
@@ -36,7 +38,7 @@ struct TestParams {
   // Recall that horizon_00 is a Spherepack coefficient and not a raw
   // spherical harmonic coefficient.
   double horizon_00{4.02 * sqrt(2.0)};
-  double avg_distorted_normal_dot_unit_coord_vector{1.0};
+  double avg_distorted_normal_dot_unit_coord_vector{-1.0};
   // Defaults are values for quantities that we will vary so that the
   // logic makes different decisions.
   double damping_time{0.1};
@@ -224,9 +226,10 @@ void test_transition_to_delta_r_inward(
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   do_test<InitialState, control_system::size::States::DeltaRDriftInward>(
       test_params, true, suggested_time_scale,
-      std::min(test_params.inward_drift_velocity.value(),
-               0.5 * test_params.min_char_speed /
-                   test_params.avg_distorted_normal_dot_unit_coord_vector));
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
   // Now 4 above is false, even though 1,2,3,5 are true. So stay in State
   // DeltaR.
@@ -247,9 +250,10 @@ void test_transition_to_delta_r_inward(
   test_params.inward_drift_velocity = 0.1;
   do_test<InitialState, control_system::size::States::DeltaRDriftInward>(
       test_params, true, suggested_time_scale,
-      std::min(test_params.inward_drift_velocity.value(),
-               0.5 * test_params.min_char_speed /
-                   test_params.avg_distorted_normal_dot_unit_coord_vector));
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 }
 
 void test_size_control_update() {
@@ -391,9 +395,10 @@ void test_size_control_update() {
   do_test<control_system::size::States::DeltaR,
           control_system::size::States::DeltaRDriftInward>(
       test_params, true, std::nullopt,
-      std::min(test_params.inward_drift_velocity.value(),
-               0.5 * test_params.min_char_speed /
-                   test_params.avg_distorted_normal_dot_unit_coord_vector));
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
   // Should stay in state DeltaR if either CharSpeed or DeltaR
   // are above the min limits.
@@ -876,9 +881,10 @@ void test_size_control_update() {
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, 0.99 * test_params.damping_time,
-      std::min(test_params.inward_drift_velocity.value(),
-               0.5 * test_params.min_char_speed /
-                   test_params.avg_distorted_normal_dot_unit_coord_vector));
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
   test_params.damping_time = 0.1;
 
   // Now do DeltaRInDanger. Should stay in State DeltaRDriftInward but with
@@ -1079,6 +1085,27 @@ void test_size_control_error() {
             info, args) == 0.04);
 }
 
+void test_target_speed_for_inward_drift() {
+  constexpr double min_char_speed = 0.01;
+
+  // The excision-boundary normal points into the hole, opposite to the radial
+  // coordinate vector, so their projection is negative in production.
+  constexpr double normal_projection = -0.8;
+  const double characteristic_speed_limited_target =
+      control_system::size::States::target_speed_for_inward_drift(
+          normal_projection, min_char_speed, 1.0);
+  CHECK(characteristic_speed_limited_target > 0.0);
+  CHECK(characteristic_speed_limited_target ==
+        approx(0.5 * min_char_speed / (y00 * -normal_projection)));
+  CHECK(characteristic_speed_limited_target * y00 * -normal_projection ==
+        approx(0.5 * min_char_speed));
+
+  constexpr double configured_target = 0.005;
+  CHECK(control_system::size::States::target_speed_for_inward_drift(
+            -1.0, min_char_speed, configured_target) ==
+        approx(configured_target));
+}
+
 template <typename State>
 void test_clone_and_serialization() {
   std::unique_ptr<control_system::size::State> state =
@@ -1125,6 +1152,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeControlStates", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
   test_size_control_update();
   test_size_control_error();
+  test_target_speed_for_inward_drift();
   test_clone_and_serialization<control_system::size::States::Initial>();
   test_clone_and_serialization<control_system::size::States::AhSpeed>();
   test_clone_and_serialization<control_system::size::States::DeltaR>();

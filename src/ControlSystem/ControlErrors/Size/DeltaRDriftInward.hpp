@@ -41,7 +41,7 @@ class DeltaRDriftInward : public State {
 // The following are helper functions that are used in many
 // of the states, for transitions to/from DeltaRDriftInward.
 
-/// Value of target_char_speed when state DeltaRDriftInward is in effect.
+/// Positive target added to the DeltaR control error in DeltaRDriftInward.
 double target_speed_for_inward_drift(
     double avg_distorted_normal_dot_unit_coord_vector, double min_char_speed,
     double inward_drift_velocity);

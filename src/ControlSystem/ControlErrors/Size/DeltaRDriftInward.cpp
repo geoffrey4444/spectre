@@ -14,6 +14,7 @@
 #include "ControlSystem/ControlErrors/Size/DeltaR.hpp"
 #include "ControlSystem/ControlErrors/Size/DeltaRDriftOutward.hpp"
 #include "ControlSystem/ControlErrors/Size/DeltaRNoDrift.hpp"
+#include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/StdHelpers.hpp"
 
 namespace control_system::size::States {
@@ -151,9 +152,7 @@ std::string DeltaRDriftInward::update(
 
 double DeltaRDriftInward::control_error(
     const Info& info, const ControlErrorArgs& control_error_args) const {
-  // We increase the control error by the target speed, so as to make
-  // control_error_delta_r more negative, which gives a negative velocity
-  // to delta_r (i.e. a positive velocity to the excision boundary).
+  // Add the positive inward-drift target to the ordinary DeltaR control error.
   return control_error_args.control_error_delta_r + info.target_char_speed;
 }
 
@@ -163,23 +162,28 @@ PUP::able::PUP_ID DeltaRDriftInward::my_PUP_ID = 0;  // NOLINT
 double target_speed_for_inward_drift(
     const double avg_distorted_normal_dot_unit_coord_vector,
     const double min_char_speed, const double inward_drift_velocity) {
-  // TargetSpeed should be > 0 (we want DeltaR to increase).  And
-  // TargetSpeed must be <
-  // min_char_speed/avg_distorted_normal_dot_unit_coord_vector, because
-  // going into DriftInward will make min_char_speed decrease by
-  // TargetSpeed*avg_distorted_normal_dot_unit_coord_vector. The time
-  // it takes v to cross zero (assuming v decreases linearly, only a
-  // rough approximation) is
-  // Tau*min_char_speed/avg_distorted_normal_dot_unit_coord_vector*TargetSpeed,
-  // where Tau is the damping timescale.  Therefore choosing
-  // TargetSpeed < fudge *
-  // min_char_speed/avg_distorted_normal_dot_unit_coord_vector should make
-  // v decrease only by a factor of fudge, and it should make the
-  // crossing time fudge*Tau.
-  constexpr double fudge = 0.5;
-  return std::min(
-      inward_drift_velocity,
-      fudge * min_char_speed / avg_distorted_normal_dot_unit_coord_vector);
+  ASSERT(avg_distorted_normal_dot_unit_coord_vector < 0.0,
+         "The excision normal must point into the hole, so its average "
+         "projection onto the outward radial vector must be negative, but "
+         "got "
+             << avg_distorted_normal_dot_unit_coord_vector << ".");
+  ASSERT(min_char_speed >= 0.0,
+         "The minimum characteristic speed must be nonnegative when "
+         "constructing an inward-drift target, but got "
+             << min_char_speed << ".");
+  ASSERT(inward_drift_velocity > 0.0,
+         "The configured inward drift velocity must be positive, but got "
+             << inward_drift_velocity << ".");
+
+  // Adding the target to the DeltaR control error changes the characteristic
+  // speed by target * Y00 * normal_projection. Since the normal projection is
+  // negative, cap the positive target so this change consumes at most half of
+  // the current characteristic-speed margin under the linear estimate.
+  constexpr double y00 = 0.25 * M_2_SQRTPI;
+  constexpr double maximum_consumed_char_speed_fraction = 0.5;
+  return std::min(inward_drift_velocity,
+                  maximum_consumed_char_speed_fraction * min_char_speed /
+                      (y00 * -avg_distorted_normal_dot_unit_coord_vector));
 }
 
 bool should_transition_from_state_delta_r_to_inward_drift(
