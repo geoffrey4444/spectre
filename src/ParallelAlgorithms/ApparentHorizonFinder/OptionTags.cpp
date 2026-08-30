@@ -93,5 +93,7 @@ Options::create_from_yaml<ah::ElementSendPolicy>::create<void>(
     return ah::ElementSendPolicy::PreviousSurfaceNeighbors;
   }
   PARSE_ERROR(options.context(),
-              "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors'");
+              "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors', "
+              "but got '"
+                  << policy << "'.");
 }

@@ -104,7 +104,8 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
   CHECK_THROWS_WITH(
       TestHelpers::test_creation<ah::ElementSendPolicy>("Invalid"),
       Catch::Matchers::ContainsSubstring(
-          "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors'"));
+          "ElementSendPolicy must be 'All' or 'PreviousSurfaceNeighbors', but "
+          "got 'Invalid'."));
 
   // Test creation of options
   const std::string options_without_element_send_policy =

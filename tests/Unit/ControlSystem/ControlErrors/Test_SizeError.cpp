@@ -251,21 +251,19 @@ void test_suggested_timescale_survives_averager_update() {
   using HorizonQuantities =
       control_system::QueueTags::SizeHorizonQuantities<Frame::Distorted>;
   tuples::TaggedTuple<ExcisionQuantities, HorizonQuantities> measurements{
-      ExcisionQuantities::type{
-          excision_surface, lapse, shift, spatial_metric,
-          inverse_spatial_metric, spatial_christoffel, deriv_lapse, deriv_shift,
-          inverse_jacobian},
+      ExcisionQuantities::type{excision_surface, lapse, shift, spatial_metric,
+                               inverse_spatial_metric, spatial_christoffel,
+                               deriv_lapse, deriv_shift, inverse_jacobian},
       HorizonQuantities::type{
           ylm::Strahlkorper<Frame::Distorted>{l_max, 1.25, center},
           ylm::Strahlkorper<Frame::Distorted>{l_max, 0.0, center}}};
 
-  auto& horizon_quantities =
-      tuples::get<HorizonQuantities>(measurements);
+  auto& horizon_quantities = tuples::get<HorizonQuantities>(measurements);
   const std::array horizon_radii{1.25, 1.15, 1.05};
   for (size_t step = 0; step < horizon_radii.size(); ++step) {
-    tuples::get<ylm::Tags::Strahlkorper<Frame::Distorted>>(
-        horizon_quantities) = ylm::Strahlkorper<Frame::Distorted>{
-        l_max, horizon_radii[step], center};
+    tuples::get<ylm::Tags::Strahlkorper<Frame::Distorted>>(horizon_quantities) =
+        ylm::Strahlkorper<Frame::Distorted>{l_max, gsl::at(horizon_radii, step),
+                                            center};
     static_cast<void>(size_error(tuner, cache, 0.1 * static_cast<double>(step),
                                  "Size"s, measurements));
   }
