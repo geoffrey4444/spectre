@@ -43,7 +43,7 @@ class DeltaRDriftInward : public State {
 
 /// Positive target added to the DeltaR control error in DeltaRDriftInward.
 double target_speed_for_inward_drift(
-    double avg_distorted_normal_dot_unit_coord_vector, double min_char_speed,
+    double min_distorted_normal_dot_unit_coord_vector, double min_char_speed,
     double inward_drift_velocity);
 
 /// Returs true if we should transition from state DeltaR to state

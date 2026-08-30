@@ -157,6 +157,8 @@ ErrorDiagnostics control_error(
           excision_boundary) /
       gr::surfaces::surface_integral_of_scalar(area_element, unity,
                                                excision_boundary);
+  const double min_distorted_normal_dot_unit_coord_vector =
+      min(get(distorted_normal_dot_unit_coord_vector));
 
   // Compute char speed on excision boundary, Eq. 87 in ArXiv:1211.6079
   //
@@ -270,6 +272,7 @@ ErrorDiagnostics control_error(
                       control_error_delta_r, average_radial_distance,
                       minimum_radial_distance, max_allowed_radial_distance,
                       avg_distorted_normal_dot_unit_coord_vector,
+                      min_distorted_normal_dot_unit_coord_vector,
                       inward_drift_velocity, min_allowed_radial_distance,
                       min_allowed_char_speed,
                       comoving_char_speed_increasing_inward},

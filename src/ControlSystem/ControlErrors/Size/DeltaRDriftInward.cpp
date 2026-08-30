@@ -128,7 +128,7 @@ std::string DeltaRDriftInward::update(
     info->suggested_time_scale =
         info->damping_time * delta_r_drift_inward_decrease_factor;
     info->target_char_speed = target_speed_for_inward_drift(
-        update_args.avg_distorted_normal_dot_unit_coord_vector,
+        update_args.min_distorted_normal_dot_unit_coord_vector,
         update_args.min_char_speed, update_args.inward_drift_velocity.value());
     ss << " Target char speed = " << info->target_char_speed << "\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
@@ -159,13 +159,13 @@ double DeltaRDriftInward::control_error(
 PUP::able::PUP_ID DeltaRDriftInward::my_PUP_ID = 0;  // NOLINT
 
 double target_speed_for_inward_drift(
-    const double avg_distorted_normal_dot_unit_coord_vector,
+    const double min_distorted_normal_dot_unit_coord_vector,
     const double min_char_speed, const double inward_drift_velocity) {
-  ASSERT(avg_distorted_normal_dot_unit_coord_vector < 0.0,
-         "The excision normal must point into the hole, so its average "
-         "projection onto the outward radial vector must be negative, but "
-         "got "
-             << avg_distorted_normal_dot_unit_coord_vector << ".");
+  ASSERT(min_distorted_normal_dot_unit_coord_vector < 0.0,
+         "The excision normal must point into the hole, so its projection "
+         "onto the outward radial vector must be negative, but the most "
+         "negative projection is "
+             << min_distorted_normal_dot_unit_coord_vector << ".");
   ASSERT(min_char_speed >= 0.0,
          "The minimum characteristic speed must be nonnegative when "
          "constructing an inward-drift target, but got "
@@ -174,15 +174,15 @@ double target_speed_for_inward_drift(
          "The configured inward drift velocity must be positive, but got "
              << inward_drift_velocity << ".");
 
-  // Adding the target to the DeltaR control error changes the characteristic
-  // speed by target * Y00 * normal_projection. Since the normal projection is
-  // negative, cap the positive target so this change consumes at most half of
-  // the current characteristic-speed margin under the linear estimate.
+  // Adding the target to the DeltaR control error changes each characteristic
+  // speed by target * Y00 * normal_projection. Use the minimum speed and most
+  // negative normal projection so the positive target consumes at most half
+  // of the margin at every point under the linear estimate.
   constexpr double y00 = 0.25 * M_2_SQRTPI;
   constexpr double maximum_consumed_char_speed_fraction = 0.5;
   return std::min(inward_drift_velocity,
                   maximum_consumed_char_speed_fraction * min_char_speed /
-                      (y00 * -avg_distorted_normal_dot_unit_coord_vector));
+                      (y00 * -min_distorted_normal_dot_unit_coord_vector));
 }
 
 bool should_transition_from_state_delta_r_to_inward_drift(

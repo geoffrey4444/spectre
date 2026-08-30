@@ -40,6 +40,7 @@ struct TestParams {
   // spherical harmonic coefficient.
   double horizon_00{4.02 * sqrt(2.0)};
   double avg_distorted_normal_dot_unit_coord_vector{-1.0};
+  double min_distorted_normal_dot_unit_coord_vector{-1.0};
   // Defaults are values for quantities that we will vary so that the
   // logic makes different decisions.
   double damping_time{0.1};
@@ -76,6 +77,7 @@ void do_test(const TestParams& test_params,
   CAPTURE(test_params.control_err_delta_r);
   CAPTURE(test_params.max_allowed_radial_distance);
   CAPTURE(test_params.minimum_radial_distance);
+  CAPTURE(test_params.min_distorted_normal_dot_unit_coord_vector);
   CAPTURE(test_params.min_allowed_radial_distance);
   CAPTURE(test_params.min_allowed_char_speed);
   CAPTURE(test_params.inward_drift_velocity);
@@ -104,6 +106,7 @@ void do_test(const TestParams& test_params,
       test_params.minimum_radial_distance,
       test_params.max_allowed_radial_distance,
       test_params.avg_distorted_normal_dot_unit_coord_vector,
+      test_params.min_distorted_normal_dot_unit_coord_vector,
       test_params.inward_drift_velocity,
       test_params.min_allowed_radial_distance,
       test_params.min_allowed_char_speed,
@@ -214,7 +217,7 @@ void test_transition_to_delta_r_inward(
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 
   // Make both triggers dangerous.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
@@ -223,7 +226,7 @@ void test_transition_to_delta_r_inward(
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 
   // Inward motion is no longer feasible, so stay in DeltaR.
   test_params.comoving_char_speed_increasing_inward = false;
@@ -244,7 +247,7 @@ void test_transition_to_delta_r_inward(
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 }
 
 void test_size_control_update() {
@@ -381,7 +384,7 @@ void test_size_control_update() {
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 
   // Exactly the same but now all the crossing times are null,
   // so it should go to state DeltaRDriftInward with no change in timescale,
@@ -394,7 +397,7 @@ void test_size_control_update() {
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 
   // Radial-distance danger alone should activate inward drift.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
@@ -878,7 +881,7 @@ void test_size_control_update() {
       std::min(
           test_params.inward_drift_velocity.value(),
           0.5 * test_params.min_char_speed /
-              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
+              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
   test_params.damping_time = 0.1;
 
   // Now do DeltaRInDanger. Should stay in State DeltaRDriftInward but with

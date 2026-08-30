@@ -55,6 +55,10 @@ struct StateUpdateArgs {
   /// avg_distorted_normal_dot_unit_coord_vector is the same quantity as
   /// ControlErrorArgs::avg_distorted_normal_dot_unit_coord_vector.
   double avg_distorted_normal_dot_unit_coord_vector;
+  /// min_distorted_normal_dot_unit_coord_vector is the most negative value of
+  /// the inward normal's projection onto the outward radial vector. It sets a
+  /// conservative pointwise characteristic-speed cap for inward drift.
+  double min_distorted_normal_dot_unit_coord_vector;
   /// inward_drift_velocity is a positive quantity that represents how
   /// fast the horizon and the excision boundary move apart in state
   /// DeltaRDriftInward.  If std::nullopt, then DeltaRDriftInward will

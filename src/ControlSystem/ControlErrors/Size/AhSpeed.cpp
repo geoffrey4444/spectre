@@ -133,7 +133,7 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
       info->state = std::make_unique<States::DeltaRDriftInward>();
       info->suggested_time_scale = crossing_time_info.t_delta_radius;
       info->target_char_speed = target_speed_for_inward_drift(
-          update_args.avg_distorted_normal_dot_unit_coord_vector,
+          update_args.min_distorted_normal_dot_unit_coord_vector,
           update_args.min_char_speed,
           update_args.inward_drift_velocity.value());
       ss << " Switching to DeltaRDriftInward.\n";
@@ -160,7 +160,7 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
     if (drift_inward) {
       info->state = std::make_unique<States::DeltaRDriftInward>();
       info->target_char_speed = target_speed_for_inward_drift(
-          update_args.avg_distorted_normal_dot_unit_coord_vector,
+          update_args.min_distorted_normal_dot_unit_coord_vector,
           update_args.min_char_speed,
           update_args.inward_drift_velocity.value());
     } else {

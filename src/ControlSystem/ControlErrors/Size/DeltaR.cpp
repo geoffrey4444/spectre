@@ -107,7 +107,7 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
     info->discontinuous_change_has_occurred = true;
     info->state = std::make_unique<States::DeltaRDriftInward>();
     info->target_char_speed = target_speed_for_inward_drift(
-        update_args.avg_distorted_normal_dot_unit_coord_vector,
+        update_args.min_distorted_normal_dot_unit_coord_vector,
         update_args.min_char_speed, update_args.inward_drift_velocity.value());
     ss << "Current state DeltaR. "
           "Horizon too close to excision boundary. Switching to "
