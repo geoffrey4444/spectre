@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "ControlSystem/Averager.hpp"
@@ -119,6 +120,61 @@ void test_size_error_copy() {
   CHECK(original == copy_constructed);
   CHECK(original == copy_assigned);
   CHECK(original == serialize_and_deserialize(original));
+}
+
+void test_inward_drift_option_schema() {
+  using SizeError =
+      control_system::ControlErrors::Size<2, domain::ObjectLabel::A>;
+  const auto create_size_error = [](const std::string& radial_limit,
+                                    const std::string& char_speed_limit,
+                                    const std::string& drift_velocity) {
+    return TestHelpers::test_creation<SizeError, Metavars>(
+        std::string{"MaxNumTimesForZeroCrossingPredictor: 4\n"
+                    "SmoothAvgTimescaleFraction: 0.25\n"
+                    "DeltaRDriftOutwardOptions: None\n"
+                    "DeltaRDriftInwardOptions:\n"
+                    "  MinAllowedRadialDistance: "} +
+        radial_limit + "\n  MinAllowedCharSpeed: " + char_speed_limit +
+        "\n  InwardDriftVelocity: " + drift_velocity +
+        "\nInitialState: Initial\n"
+        "SmootherTuner:\n"
+        "  InitialTimescales: 0.2\n"
+        "  MinTimescale: 1.0e-4\n"
+        "  MaxTimescale: 20.0\n"
+        "  IncreaseThreshold: 2.5e-4\n"
+        "  DecreaseThreshold: 1.0e-3\n"
+        "  IncreaseFactor: 1.01\n"
+        "  DecreaseFactor: 0.98\n");
+  };
+
+  const auto radial_only = create_size_error("0.1", "None", "0.3");
+  CHECK(radial_only == serialize_and_deserialize(radial_only));
+  const auto char_speed_only = create_size_error("None", "0.2", "0.3");
+  CHECK(char_speed_only == serialize_and_deserialize(char_speed_only));
+
+  CHECK_THROWS_WITH(
+      create_size_error("None", "None", "0.3"),
+      Catch::Matchers::ContainsSubstring(
+          "At least one inward-drift safety threshold must be specified"));
+  CHECK_THROWS_WITH(create_size_error("-0.1", "0.2", "0.3"),
+                    Catch::Matchers::ContainsSubstring(
+                        "Minimum allowed radial distance must be nonnegative"));
+  CHECK_THROWS_WITH(
+      create_size_error("0.1", "-0.2", "0.3"),
+      Catch::Matchers::ContainsSubstring(
+          "Minimum allowed characteristic speed must be nonnegative"));
+  CHECK_THROWS_WITH(create_size_error("0.1", "0.2", "0.0"),
+                    Catch::Matchers::ContainsSubstring(
+                        "Inward drift velocity must be positive"));
+  CHECK_THROWS_WITH(create_size_error(".nan", "0.2", "0.3"),
+                    Catch::Matchers::ContainsSubstring(
+                        "Minimum allowed radial distance must be finite"));
+  CHECK_THROWS_WITH(create_size_error("0.1", ".inf", "0.3"),
+                    Catch::Matchers::ContainsSubstring(
+                        "Minimum allowed characteristic speed must be finite"));
+  CHECK_THROWS_WITH(create_size_error("0.1", "0.2", ".nan"),
+                    Catch::Matchers::ContainsSubstring(
+                        "Inward drift velocity must be finite"));
 }
 
 void test_suggested_timescale_survives_averager_update() {
@@ -712,6 +768,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
   test_control_error_delta_r();
   test_size_error_copy();
+  test_inward_drift_option_schema();
   test_suggested_timescale_survives_averager_update();
   test_size_error_horizon_higher_res_than_excision();
   // Should go to DeltaR state with error of zero, since ComovingMinCharSpeed

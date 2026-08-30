@@ -80,7 +80,7 @@ struct ErrorDiagnostics {
  * \param inward_drift_velocity a velocity that determines how fast the
  *        excision boundary drifts inward in state DeltaRDriftInward. If
  *        std::nullopt, then DeltaRDriftInward will not be used.
- * \param min_allowed_radial_distance the minimum average radial distance
+ * \param min_allowed_radial_distance the minimum local radial distance
  *        between the horizon and the excision boundary that is allowed without
  *        triggering the DeltaRDriftInward state.  If std::nullopt, then
  *        DeltaRDriftInward will not be used.

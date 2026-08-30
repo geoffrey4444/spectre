@@ -42,6 +42,11 @@ struct StateUpdateArgs {
   /// the excision boundary. Used only for state DeltaRDriftOutward.
   /// If std::nullopt, then DeltaRDriftOutward will not be used.
   std::optional<double> average_radial_distance;
+  /// minimum_radial_distance is the minimum distance between the horizon and
+  /// the excision boundary. Used only for state DeltaRDriftInward. If
+  /// std::nullopt, then the radial-distance trigger for DeltaRDriftInward will
+  /// not be used.
+  std::optional<double> minimum_radial_distance;
   /// max_allowed_radial_distance is the minimum distance between the horizon
   /// and the excision boundary that will trigger state
   /// Label::DeltaRDriftOutward.  If std::nullopt, then DeltaRDriftOutward

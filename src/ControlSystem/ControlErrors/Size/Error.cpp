@@ -237,6 +237,11 @@ ErrorDiagnostics control_error(
                 time)
           : std::nullopt;
 
+  const std::optional<double> minimum_radial_distance =
+      min_allowed_radial_distance.has_value()
+          ? std::optional<double>(min(get(radial_distance)))
+          : std::nullopt;
+
   // Compute average radial distance for state DeltaRDriftOutward.
   // NOTE: This choice corresponds to SpEC's "DeltaRPolicy=Absolute"
   // and SpEC's "FunctionVsTimeMinDeltaRNoLam00=<NONE>".
@@ -250,8 +255,7 @@ ErrorDiagnostics control_error(
   // changes remains unchanged.
   // Such a change is possible to make, but we do not (yet) make it here.
   const std::optional<double> average_radial_distance =
-      (max_allowed_radial_distance.has_value() or
-       min_allowed_radial_distance.has_value())
+      max_allowed_radial_distance.has_value()
           ? std::optional<double>(
                 gr::surfaces::surface_integral_of_scalar(
                     area_element, radial_distance, excision_boundary) /
@@ -264,7 +268,7 @@ ErrorDiagnostics control_error(
       info,
       StateUpdateArgs{min_char_speed, min_comoving_char_speed, horizon_00,
                       control_error_delta_r, average_radial_distance,
-                      max_allowed_radial_distance,
+                      minimum_radial_distance, max_allowed_radial_distance,
                       avg_distorted_normal_dot_unit_coord_vector,
                       inward_drift_velocity, min_allowed_radial_distance,
                       min_allowed_char_speed,

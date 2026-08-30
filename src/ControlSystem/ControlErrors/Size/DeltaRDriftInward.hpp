@@ -49,13 +49,13 @@ double target_speed_for_inward_drift(
 /// Returs true if we should transition from state DeltaR to state
 /// DeltaRDriftInward.
 bool should_transition_from_state_delta_r_to_inward_drift(
-    const std::optional<double>& crossing_time_drift_limit, double damping_time,
+    const CrossingTimeInfo& crossing_time_info, double damping_time,
     const StateUpdateArgs& update_args);
 
 /// Returns true if we should transition from state DeltaRDriftInward
 /// to state DeltaRNoDrift.
 bool should_transition_from_state_inward_drift_to_delta_r_no_drift(
-    const std::optional<double>& crossing_time_drift_limit, double damping_time,
+    const CrossingTimeInfo& crossing_time_info, double damping_time,
     const StateUpdateArgs& update_args);
 
 /// Returns true if we should transition to DeltaRDriftInward rather than

@@ -33,6 +33,7 @@ struct TestParams {
   const double original_target_char_speed{0.011};
   const std::optional<double> average_radial_distance{
       0.01};  // This is what SpEC calls DeltaR.
+  std::optional<double> minimum_radial_distance{0.01};
   // The following means that the excision boundary radius in the grid frame
   // is 2.01.
   // Recall that horizon_00 is a Spherepack coefficient and not a raw
@@ -74,6 +75,7 @@ void do_test(const TestParams& test_params,
   CAPTURE(test_params.min_comoving_char_speed);
   CAPTURE(test_params.control_err_delta_r);
   CAPTURE(test_params.max_allowed_radial_distance);
+  CAPTURE(test_params.minimum_radial_distance);
   CAPTURE(test_params.min_allowed_radial_distance);
   CAPTURE(test_params.min_allowed_char_speed);
   CAPTURE(test_params.inward_drift_velocity);
@@ -84,6 +86,7 @@ void do_test(const TestParams& test_params,
   CAPTURE(test_params.crossing_time_info.t_comoving_char_speed);
   CAPTURE(test_params.crossing_time_info.t_delta_radius);
   CAPTURE(test_params.crossing_time_info.t_drift_limit_delta_radius);
+  CAPTURE(test_params.crossing_time_info.t_drift_limit_char_speed);
   CAPTURE(test_params.crossing_time_info.t_drift_limit);
   CAPTURE(test_params.comoving_char_speed_increasing_inward);
   // Set reasonable values for quantities that won't change in the various
@@ -98,6 +101,7 @@ void do_test(const TestParams& test_params,
       test_params.horizon_00,
       test_params.control_err_delta_r,
       test_params.average_radial_distance,
+      test_params.minimum_radial_distance,
       test_params.max_allowed_radial_distance,
       test_params.avg_distorted_normal_dot_unit_coord_vector,
       test_params.inward_drift_velocity,
@@ -173,15 +177,9 @@ template <typename InitialState>
 void test_transition_to_delta_r_inward(
     TestParams test_params, const std::optional<double> suggested_time_scale,
     const double target_char_speed) {
-  // Should_activate_inward_drift is true iff all of the following are true:
-  //  1. inward_drift_velocity has a value.
-  //  2. min_char_speed <= 0.9*min_allowed_char_speed or
-  //     min_allowed_char_speed has no value
-  //  3. avg_radial_distance <= 0.9*min_allowed_radial_distance or
-  //     min_allowed_radial_distance has no value
-  //  4. comoving_char_speed_increasing_inward is true
-  //  5. min_allowed_char_speed has a value or
-  //     min_allowed_radial_distance has a value
+  // should_activate_inward_drift requires a configured velocity, feasible
+  // inward motion, and at least one configured quantity below its buffered
+  // safety threshold.
   //
   // should_transition_from_state_delta_r_to_inward_drift is true iff
   // all of the following are true:
@@ -191,38 +189,34 @@ void test_transition_to_delta_r_inward(
   // should_transition_from_state_inward_drift_to_delta_r_no_drift is
   // true iff should_transition_from_state_delta_r_to_inward_drift is false.
 
-  // On entry to this function, 1, 2, and 3 above are true, but 4 and 5
-  // above are false.
-  // Also, on entry to this function, t_drift_limit has no value so B.
-  // is satisfied.
-
-  // Here we make 4 true, but 5 is still false.
-  // So 1,2,3,4 are true and 5 is false so we stay in state DeltaR.
+  // Inward motion is feasible, but neither trigger is configured.
   test_params.comoving_char_speed_increasing_inward = true;
   do_test<InitialState, control_system::size::States::DeltaR>(
       test_params, true, suggested_time_scale, target_char_speed);
 
-  // Here we make 4 and 5 true, but 2 is now false (because limit is 0.9).
-  // So 1,3,4,5 are true and 2 is false so we stay in state DeltaR.
+  // Configure a characteristic-speed trigger that is currently safe.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
   do_test<InitialState, control_system::size::States::DeltaR>(
       test_params, true, suggested_time_scale, target_char_speed);
 
-  // Here we make 4 and 5 true, but 2 is now false (because limit is 0.9)
-  // and 3 is now false.
-  // So 1,4,5 are true and 2,3 false so we stay in state DeltaR.
+  // Configure a radial-distance trigger that is also currently safe.
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.91;
+      test_params.minimum_radial_distance.value() / 0.91;
   do_test<InitialState, control_system::size::States::DeltaR>(
       test_params, true, suggested_time_scale, target_char_speed);
 
-  // Here 1,2,4,5 are true and 3 false so we stay in state DeltaR.
+  // Here the radial-distance trigger is dangerous, so enter inward drift even
+  // though the characteristic-speed trigger is safe.
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.89;
-  do_test<InitialState, control_system::size::States::DeltaR>(
-      test_params, true, suggested_time_scale, target_char_speed);
+      test_params.minimum_radial_distance.value() / 0.89;
+  do_test<InitialState, control_system::size::States::DeltaRDriftInward>(
+      test_params, true, suggested_time_scale,
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
-  // Now all 1,2,3,4,5 are true.
+  // Make both triggers dangerous.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   do_test<InitialState, control_system::size::States::DeltaRDriftInward>(
       test_params, true, suggested_time_scale,
@@ -231,22 +225,19 @@ void test_transition_to_delta_r_inward(
           0.5 * test_params.min_char_speed /
               (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
-  // Now 4 above is false, even though 1,2,3,5 are true. So stay in State
-  // DeltaR.
+  // Inward motion is no longer feasible, so stay in DeltaR.
   test_params.comoving_char_speed_increasing_inward = false;
   do_test<InitialState, control_system::size::States::DeltaR>(
       test_params, true, suggested_time_scale, target_char_speed);
   test_params.comoving_char_speed_increasing_inward = true;
 
-  // Now 1 above is false, even though 2,3,4,5 are true. So stay in State
-  // DeltaR.
+  // The drift velocity is disabled, so stay in DeltaR.
   test_params.inward_drift_velocity = std::nullopt;
   do_test<InitialState, control_system::size::States::DeltaR>(
       test_params, true, suggested_time_scale, target_char_speed);
 
-  // 1,2,3,4,5 are true, so go to state DeltaRDriftInward.  This is
-  // the same as the test above, but now the std::min in the last
-  // argument takes a different value.
+  // Reenable a larger velocity so the characteristic-speed cap sets the
+  // target.
   test_params.inward_drift_velocity = 0.1;
   do_test<InitialState, control_system::size::States::DeltaRDriftInward>(
       test_params, true, suggested_time_scale,
@@ -368,24 +359,29 @@ void test_size_control_update() {
       0.95 * test_params.damping_time);
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.98;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.98;
+      test_params.minimum_radial_distance.value() / 0.98;
   do_test<control_system::size::States::DeltaR,
           control_system::size::States::DeltaR>(
       test_params, false, 0.95 * test_params.damping_time,
       test_params.original_target_char_speed);
 
-  // Should stay in DeltaR because
-  // t_drift_limit is less than damping time.
+  // A predicted recovery of the characteristic-speed trigger must not veto
+  // inward drift while the independently configured radial trigger remains
+  // dangerous with no predicted recovery.
   test_params.comoving_char_speed_increasing_inward = true;
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
       std::nullopt, std::nullopt, std::nullopt, 0.95 * test_params.damping_time,
       std::nullopt);
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.89;
+      test_params.minimum_radial_distance.value() / 0.89;
   do_test<control_system::size::States::DeltaR,
-          control_system::size::States::DeltaR>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, true, std::nullopt,
+      std::min(
+          test_params.inward_drift_velocity.value(),
+          0.5 * test_params.min_char_speed /
+              (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
   // Exactly the same but now all the crossing times are null,
   // so it should go to state DeltaRDriftInward with no change in timescale,
@@ -400,21 +396,44 @@ void test_size_control_update() {
           0.5 * test_params.min_char_speed /
               (y00 * -test_params.avg_distorted_normal_dot_unit_coord_vector)));
 
-  // Should stay in state DeltaR if either CharSpeed or DeltaR
-  // are above the min limits.
-  // So test both cases and then put back the previous values of the limits.
+  // Radial-distance danger alone should activate inward drift.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
   do_test<control_system::size::States::DeltaR,
-          control_system::size::States::DeltaR>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, true, std::nullopt,
+      test_params.inward_drift_velocity.value());
+
+  // Safety-state entry takes priority over generic control-error timescale
+  // tuning when the comoving characteristic speed is positive.
+  test_params.min_comoving_char_speed = 0.02;
+  do_test<control_system::size::States::DeltaR,
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, true, std::nullopt,
+      test_params.inward_drift_velocity.value());
+  test_params.min_comoving_char_speed = -0.02;
+
+  // Characteristic-speed danger alone should also activate inward drift.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.91;
+      test_params.minimum_radial_distance.value() / 0.91;
   do_test<control_system::size::States::DeltaR,
-          control_system::size::States::DeltaR>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, true, std::nullopt,
+      test_params.inward_drift_velocity.value());
+
+  // A localized small gap should activate inward drift even when the average
+  // gap remains above the radial-distance threshold.
+  test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
+  test_params.min_allowed_radial_distance = 0.005;
+  test_params.minimum_radial_distance = 0.004;
+  do_test<control_system::size::States::DeltaR,
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, true, std::nullopt,
+      test_params.inward_drift_velocity.value());
+  test_params.minimum_radial_distance = 0.01;
+  test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.89;
+      test_params.minimum_radial_distance.value() / 0.89;
 
   // Should stay in DeltaR if comoving_char_speed_increasing_inward is false.
   test_params.comoving_char_speed_increasing_inward = false;
@@ -756,23 +775,8 @@ void test_size_control_update() {
   // Tests for state DeltaRDriftInward.
   // If CharSpeed not in danger and DeltaR not in danger, then we
   // look at a few things.
-  // First we check if we should transition to state DeltaRNoDrift.  To
-  // transition to State DeltaRNoDrift, EITHER all of the following are true:
-  //  1. t_drift_limit < tdamp
-  //  2. t_drift_limit is valid
-  //  3. inward_drift_velocity is nonzero
-  // OR at least one of the following are true:
-  //  4. inward_drift_velocity is nullopt
-  //  5. min_char_speed > 0.9*min_allowed_char_speed and
-  //     min_allowed_char_speed is valid
-  //  6. avg_radial_distance > 0.9*min_allowed_radial_distance and
-  //     min_allowed_radial_distance is valid
-  //  7. comoving_char_speed_increasing_inward is false
-  //  8. min_allowed_char_speed is invalid and
-  //     min_allowed_radial_distance is invalid
-
-  // Here t_drift_limit is invalid, so 1+2+3 is false.
-  // But 8. above is true, so change to DeltaRNoDrift.
+  // First check the transition to DeltaRNoDrift. With neither trigger
+  // configured, inward drift is disabled.
   test_params.comoving_char_speed_increasing_inward = true;
   test_params.min_allowed_radial_distance = std::nullopt;
   test_params.min_allowed_char_speed = std::nullopt;
@@ -780,26 +784,21 @@ void test_size_control_update() {
           control_system::size::States::DeltaRNoDrift>(
       test_params, true, std::nullopt, test_params.original_target_char_speed);
 
-  // No transition because 8 above is no longer true.
-  // (also 5 above is not true)
+  // A dangerous characteristic-speed trigger keeps inward drift active.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // No transition because 8 above is no longer true.
-  // (also 6 above is not true)
+  // A dangerous radial-distance trigger also keeps inward drift active.
   test_params.min_allowed_char_speed = std::nullopt;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.89;
+      test_params.minimum_radial_distance.value() / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // Change to state DeltaRNoDrift with a timescale for t_drift_limit,
-  // because t_drift_limit is now less than damping time.
-  // Happens because 1,2,3 above are all true.
-  // Note that 8 and 6 above are still false, i.e. all of 4 thru 8 are false.
+  // A predicted drift-limit crossing inside the damping time takes priority.
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
       std::nullopt, std::nullopt, std::nullopt, std::nullopt,
       0.95 * test_params.damping_time);
@@ -808,51 +807,46 @@ void test_size_control_update() {
       test_params, true, test_params.crossing_time_info.t_drift_limit,
       test_params.original_target_char_speed);
 
-  // Still change to State DeltaRNoDrift if CharSpeed is above the limit.
-  // Note that 1. above is false.  Now 5 is true.
+  // CharSpeed has recovered, but DeltaR remains below its limit, so continue
+  // drifting inward.
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
       std::nullopt, std::nullopt, std::nullopt, std::nullopt,
       1.2 * test_params.damping_time);
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
   do_test<control_system::size::States::DeltaRDriftInward,
-          control_system::size::States::DeltaRNoDrift>(
-      test_params, true, test_params.crossing_time_info.t_drift_limit,
-      test_params.original_target_char_speed);
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // Still change to State DeltaRNoDrift if DeltaR is above the limit.
-  // Note that 1. above is false.  Now 5 and 6 are true.
+  // Both configured quantities have recovered, so stop drifting inward.
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.91;
+      test_params.minimum_radial_distance.value() / 0.91;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRNoDrift>(
       test_params, true, test_params.crossing_time_info.t_drift_limit,
       test_params.original_target_char_speed);
 
-  // Now put DeltaR below the limit. Still goes to state DeltaRNoDrift.
-  // Note that 1. above is false.  Now 6 is true, but the rest of 4-8 are false.
+  // DeltaR has recovered, but CharSpeed remains below its limit, so continue
+  // drifting inward.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
-  do_test<control_system::size::States::DeltaRDriftInward,
-          control_system::size::States::DeltaRNoDrift>(
-      test_params, true, test_params.crossing_time_info.t_drift_limit,
-      test_params.original_target_char_speed);
-
-  // Now put DeltaR below the limit.
-  // Now it doesn't transition because all of 4-8 are false,
-  // and 1 is still false.
-  test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // Goes to DeltaRNoDrift because 4 above is true.
+  // Put DeltaR below its limit too, so both triggers remain dangerous.
+  test_params.min_allowed_radial_distance =
+      test_params.minimum_radial_distance.value() / 0.89;
+  do_test<control_system::size::States::DeltaRDriftInward,
+          control_system::size::States::DeltaRDriftInward>(
+      test_params, false, std::nullopt, test_params.original_target_char_speed);
+
+  // Disabling the configured velocity stops inward drift.
   test_params.inward_drift_velocity = std::nullopt;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRNoDrift>(
       test_params, true, test_params.crossing_time_info.t_drift_limit,
       test_params.original_target_char_speed);
 
-  // Goes to DeltaRNoDrift because 7 above is true.
+  // Infeasible inward motion also stops inward drift.
   test_params.inward_drift_velocity = 0.005;
   test_params.comoving_char_speed_increasing_inward = false;
   do_test<control_system::size::States::DeltaRDriftInward,
@@ -963,8 +957,8 @@ void test_size_control_update() {
       test_params, false, test_params.crossing_time_info.t_delta_radius,
       test_params.original_target_char_speed);
 
-  // To transition from DeltaRNoDrift to DeltaR, we require
-  // at least one of the following to be true:
+  // To transition from DeltaRNoDrift to DeltaR, we require either A or both B
+  // and C (where absent configured limits count as already safe):
   // A. t_drift_limit = std::nullopt
   // B. delta_r > 0.99 min_allowed_radial_distance
   // C. char_speed > 0.99 min_allowed_char_speed
@@ -985,24 +979,30 @@ void test_size_control_update() {
       std::nullopt);
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.98;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.98;
+      test_params.minimum_radial_distance.value() / 0.98;
   do_test<control_system::size::States::DeltaRNoDrift,
           control_system::size::States::DeltaRNoDrift>(
       test_params, false, test_params.crossing_time_info.t_drift_limit,
       test_params.original_target_char_speed);
 
-  // A, B are false, C. is true. (D. and E. are true but do not matter here).
-  // We exit DeltaRNoDrift.
+  // CharSpeed is safe, but DeltaR is not, so stay in DeltaRNoDrift.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.991;
   do_test<control_system::size::States::DeltaRNoDrift,
-          control_system::size::States::DeltaR>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+          control_system::size::States::DeltaRNoDrift>(
+      test_params, false, test_params.crossing_time_info.t_drift_limit,
+      test_params.original_target_char_speed);
 
-  // A, C are false, B. is true. (D. and E. are true but do not matter here).
-  // We exit DeltaRNoDrift.
+  // DeltaR is safe, but CharSpeed is not, so stay in DeltaRNoDrift.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.98;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.991;
+      test_params.minimum_radial_distance.value() / 0.991;
+  do_test<control_system::size::States::DeltaRNoDrift,
+          control_system::size::States::DeltaRNoDrift>(
+      test_params, false, test_params.crossing_time_info.t_drift_limit,
+      test_params.original_target_char_speed);
+
+  // Both configured quantities are safe, so exit DeltaRNoDrift.
+  test_params.min_allowed_char_speed = test_params.min_char_speed / 0.991;
   do_test<control_system::size::States::DeltaRNoDrift,
           control_system::size::States::DeltaR>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
@@ -1012,34 +1012,34 @@ void test_size_control_update() {
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
       std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.98;
+      test_params.minimum_radial_distance.value() / 0.98;
   do_test<control_system::size::States::DeltaRNoDrift,
           control_system::size::States::DeltaR>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // A, B are false, C true. (D. false and E. true).
-  // We exit DeltaRNoDrift.
+  // CharSpeed is safe, but DeltaR is not. D is false, so stay in
+  // DeltaRNoDrift without changing the timescale.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.991;
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
       std::nullopt, std::nullopt, std::nullopt, 1.1 * test_params.damping_time,
       std::nullopt);
   do_test<control_system::size::States::DeltaRNoDrift,
-          control_system::size::States::DeltaR>(
+          control_system::size::States::DeltaRNoDrift>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
-  // A, C are false, B true. (D. false and E. true).
-  // We exit DeltaRNoDrift.
+  // DeltaR is safe, but CharSpeed is not. D is false, so stay in
+  // DeltaRNoDrift without changing the timescale.
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.98;
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.991;
+      test_params.minimum_radial_distance.value() / 0.991;
   do_test<control_system::size::States::DeltaRNoDrift,
-          control_system::size::States::DeltaR>(
+          control_system::size::States::DeltaRNoDrift>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);
 
   // A, B, C are false. (D. false and E. true).
   // We stay in State DeltaRNoDrift but with the same timescale.
   test_params.min_allowed_radial_distance =
-      test_params.average_radial_distance.value() / 0.98;
+      test_params.minimum_radial_distance.value() / 0.98;
   do_test<control_system::size::States::DeltaRNoDrift,
           control_system::size::States::DeltaRNoDrift>(
       test_params, false, std::nullopt, test_params.original_target_char_speed);

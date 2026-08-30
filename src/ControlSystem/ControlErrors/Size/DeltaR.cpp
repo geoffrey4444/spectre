@@ -102,6 +102,16 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
     info->suggested_time_scale = crossing_time_info.t_delta_radius;
     ss << "Current state DeltaR. Delta radius in danger. Staying in DeltaR.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
+  } else if (should_transition_from_state_delta_r_to_inward_drift(
+                 crossing_time_info, info->damping_time, update_args)) {
+    info->discontinuous_change_has_occurred = true;
+    info->state = std::make_unique<States::DeltaRDriftInward>();
+    info->target_char_speed = target_speed_for_inward_drift(
+        update_args.avg_distorted_normal_dot_unit_coord_vector,
+        update_args.min_char_speed, update_args.inward_drift_velocity.value());
+    ss << "Current state DeltaR. "
+          "Horizon too close to excision boundary. Switching to "
+          "DeltaRDriftInward";
   } else if (update_args.min_comoving_char_speed > 0.0 and
              std::abs(update_args.control_error_delta_r) >
                  delta_r_control_error_threshold) {
@@ -117,17 +127,6 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
        << std::abs(update_args.control_error_delta_r) << " > threshold "
        << delta_r_control_error_threshold << ". Staying in DeltaR.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
-  } else if (should_transition_from_state_delta_r_to_inward_drift(
-                 crossing_time_info.t_drift_limit, info->damping_time,
-                 update_args)) {
-    info->discontinuous_change_has_occurred = true;
-    info->state = std::make_unique<States::DeltaRDriftInward>();
-    info->target_char_speed = target_speed_for_inward_drift(
-        update_args.avg_distorted_normal_dot_unit_coord_vector,
-        update_args.min_char_speed, update_args.inward_drift_velocity.value());
-    ss << "Current state DeltaR. "
-          "Horizon too close to excision boundary. Switching to "
-          "DeltaRDriftInward";
   } else if (inward_drift_limit_in_danger) {
     info->suggested_time_scale = crossing_time_info.t_drift_limit_delta_radius;
     ss << "Current state DeltaR. Inward drift limit in danger. Staying "

@@ -3,10 +3,13 @@
 
 #include "ControlSystem/ControlErrors/Size.hpp"
 
+#include <cmath>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <pup.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ControlSystem/Averager.hpp"
@@ -18,6 +21,7 @@
 #include "ControlSystem/ControlErrors/Size/Initial.hpp"
 #include "Domain/Structure/ObjectLabel.hpp"
 #include "NumericalAlgorithms/Interpolation/ZeroCrossingPredictor.hpp"
+#include "Options/ParseError.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/GetOutput.hpp"
 
@@ -192,11 +196,51 @@ Size<DerivOrder,
 
 template <size_t DerivOrder, ::domain::ObjectLabel Horizon>
 Size<DerivOrder, Horizon>::DeltaRDriftInwardOptions::DeltaRDriftInwardOptions(
-    double min_allowed_radial_distance_in, double min_allowed_char_speed_in,
-    double inward_drift_velocity_in)
-    : min_allowed_radial_distance(min_allowed_radial_distance_in),
-      min_allowed_char_speed(min_allowed_char_speed_in),
-      inward_drift_velocity(inward_drift_velocity_in) {}
+    std::optional<double> min_allowed_radial_distance_in,
+    std::optional<double> min_allowed_char_speed_in,
+    const double inward_drift_velocity_in, const Options::Context& context)
+    : min_allowed_radial_distance(std::move(min_allowed_radial_distance_in)),
+      min_allowed_char_speed(std::move(min_allowed_char_speed_in)),
+      inward_drift_velocity(inward_drift_velocity_in) {
+  if (not(min_allowed_radial_distance.has_value() or
+          min_allowed_char_speed.has_value())) {
+    PARSE_ERROR(
+        context,
+        "At least one inward-drift safety threshold must be specified. Set "
+        "MinAllowedRadialDistance, MinAllowedCharSpeed, or both to a value.");
+  }
+  if (min_allowed_radial_distance.has_value() and
+      not std::isfinite(min_allowed_radial_distance.value())) {
+    PARSE_ERROR(context,
+                "Minimum allowed radial distance must be finite, but got "
+                    << min_allowed_radial_distance.value() << ".");
+  }
+  if (min_allowed_char_speed.has_value() and
+      not std::isfinite(min_allowed_char_speed.value())) {
+    PARSE_ERROR(context,
+                "Minimum allowed characteristic speed must be finite, but got "
+                    << min_allowed_char_speed.value() << ".");
+  }
+  if (not std::isfinite(inward_drift_velocity)) {
+    PARSE_ERROR(context, "Inward drift velocity must be finite, but got "
+                             << inward_drift_velocity << ".");
+  }
+  if (min_allowed_radial_distance.value_or(0.0) < 0.0) {
+    PARSE_ERROR(context,
+                "Minimum allowed radial distance must be nonnegative, but got "
+                    << min_allowed_radial_distance.value() << ".");
+  }
+  if (min_allowed_char_speed.value_or(0.0) < 0.0) {
+    PARSE_ERROR(
+        context,
+        "Minimum allowed characteristic speed must be nonnegative, but got "
+            << min_allowed_char_speed.value() << ".");
+  }
+  if (inward_drift_velocity <= 0.0) {
+    PARSE_ERROR(context, "Inward drift velocity must be positive, but got "
+                             << inward_drift_velocity << ".");
+  }
+}
 template <size_t DerivOrder, ::domain::ObjectLabel Horizon>
 void Size<DerivOrder, Horizon>::DeltaRDriftInwardOptions::pup(PUP::er& p) {
   p | min_allowed_radial_distance;

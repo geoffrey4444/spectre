@@ -32,6 +32,7 @@
 #include "NumericalAlgorithms/Strahlkorper/Strahlkorper.hpp"
 #include "NumericalAlgorithms/Strahlkorper/Tags.hpp"
 #include "Options/Auto.hpp"
+#include "Options/Context.hpp"
 #include "Options/String.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Printf/Printf.hpp"
@@ -254,18 +255,20 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
         Options::Auto<DeltaRDriftInwardOptions, Options::AutoLabel::None>;
     static constexpr Options::String help{
         "Options for State DeltaRDriftInward. Specify 'None' to disable State "
-        "DeltaRDriftInward."};
+        "DeltaRDriftInward. At least one safety threshold must be specified "
+        "when the state is enabled."};
     struct MinAllowedRadialDistance {
-      using type = double;
+      using type = Options::Auto<double, Options::AutoLabel::None>;
       static constexpr Options::String help{
-          "Drift excision boundary inward if distance from horizon to "
-          "excision is less than this."};
+          "Drift excision boundary inward if the minimum distance from the "
+          "horizon to excision is less than this. Specify 'None' to disable "
+          "this trigger."};
     };
     struct MinAllowedCharSpeed {
-      using type = double;
+      using type = Options::Auto<double, Options::AutoLabel::None>;
       static constexpr Options::String help{
           "Drift excision boundary inward if min char speed is less than "
-          "this."};
+          "this. Specify 'None' to disable this trigger."};
     };
     struct InwardDriftVelocity {
       using type = double;
@@ -276,13 +279,14 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
     using options = tmpl::list<MinAllowedRadialDistance, MinAllowedCharSpeed,
                                InwardDriftVelocity>;
     DeltaRDriftInwardOptions();
-    DeltaRDriftInwardOptions(double min_allowed_radial_distance_in,
-                             double min_allowed_char_speed_in,
-                             double inward_drift_velocity_in);
+    DeltaRDriftInwardOptions(
+        std::optional<double> min_allowed_radial_distance_in,
+        std::optional<double> min_allowed_char_speed_in,
+        double inward_drift_velocity_in, const Options::Context& context = {});
     void pup(PUP::er& p);
 
-    double min_allowed_radial_distance{};
-    double min_allowed_char_speed{};
+    std::optional<double> min_allowed_radial_distance{};
+    std::optional<double> min_allowed_char_speed{};
     double inward_drift_velocity{};
 
     friend bool operator==(const DeltaRDriftInwardOptions& lhs,
@@ -562,13 +566,11 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
             : std::nullopt;
     const std::optional<double> min_allowed_radial_distance =
         delta_r_drift_inward_options_.has_value()
-            ? std::optional<double>(delta_r_drift_inward_options_.value()
-                                        .min_allowed_radial_distance)
+            ? delta_r_drift_inward_options_.value().min_allowed_radial_distance
             : std::nullopt;
     const std::optional<double> min_allowed_char_speed =
         delta_r_drift_inward_options_.has_value()
-            ? std::optional<double>(
-                  delta_r_drift_inward_options_.value().min_allowed_char_speed)
+            ? delta_r_drift_inward_options_.value().min_allowed_char_speed
             : std::nullopt;
 
     // Currently we don't do anything with the derivative of the comoving char
