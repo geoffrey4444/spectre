@@ -55,7 +55,7 @@ std::string Initial::update(const gsl::not_null<Info*> info,
     info->state = std::make_unique<States::AhSpeed>();
     info->target_char_speed =
         update_args.min_char_speed * non_oscillation_factor;
-    info->suggested_time_scale = crossing_time_info.t_char_speed;
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << "Current state Initial. Char speed in danger. Switching to "
           "AhSpeed.\n";
     ss << " Target char speed = " << info->target_char_speed << "\n";
@@ -64,7 +64,7 @@ std::string Initial::update(const gsl::not_null<Info*> info,
              or update_args.min_comoving_char_speed > 0.0) {
     info->discontinuous_change_has_occurred = true;
     if (delta_radius_is_in_danger) {
-      info->suggested_time_scale = crossing_time_info.t_delta_radius;
+      info->suggest_timescale(crossing_time_info.t_delta_radius);
     }
     const bool drift_inward = should_activate_inward_drift(update_args);
     if (drift_inward) {
