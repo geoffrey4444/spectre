@@ -324,6 +324,41 @@ void test_suggested_timescale_latches_minimum() {
         approx(0.99 * test_params.damping_time));
 }
 
+void test_inward_drift_requires_positive_char_speed() {
+  TestParams test_params{};
+  test_params.min_allowed_radial_distance = 0.02;
+  test_params.min_allowed_char_speed = std::nullopt;
+  test_params.comoving_char_speed_increasing_inward = true;
+
+  for (const double min_char_speed : {0.0, -0.01}) {
+    test_params.min_char_speed = min_char_speed;
+    const control_system::size::StateUpdateArgs update_args{
+        test_params.min_char_speed,
+        test_params.min_comoving_char_speed,
+        test_params.horizon_00,
+        test_params.control_err_delta_r,
+        test_params.average_radial_distance,
+        test_params.minimum_radial_distance,
+        test_params.max_allowed_radial_distance,
+        test_params.avg_distorted_normal_dot_unit_coord_vector,
+        test_params.min_distorted_normal_dot_unit_coord_vector,
+        test_params.inward_drift_velocity,
+        test_params.min_allowed_radial_distance,
+        test_params.min_allowed_char_speed,
+        test_params.comoving_char_speed_increasing_inward};
+    const control_system::size::CrossingTimeInfo crossing_time_info{
+        std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt};
+
+    CAPTURE(min_char_speed);
+    CHECK_FALSE(control_system::size::States::should_activate_inward_drift(
+        update_args));
+    CHECK_FALSE(control_system::size::States::
+                    should_transition_from_state_delta_r_to_inward_drift(
+                        crossing_time_info, test_params.damping_time,
+                        update_args));
+  }
+}
+
 void test_size_control_update() {
   TestParams test_params;  // With reasonable default values.
 
@@ -1228,6 +1263,7 @@ void test_name_and_number() {
 SPECTRE_TEST_CASE("Unit.ControlSystem.SizeControlStates", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
   test_suggested_timescale_latches_minimum();
+  test_inward_drift_requires_positive_char_speed();
   test_size_control_update();
   test_size_control_error();
   test_target_speed_for_inward_drift();

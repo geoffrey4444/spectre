@@ -206,6 +206,7 @@ bool should_transition_from_state_delta_r_to_inward_drift(
       not(crossing_time_info.t_drift_limit_char_speed.has_value() and
           crossing_time_info.t_drift_limit_char_speed.value() < damping_time);
   return update_args.inward_drift_velocity.has_value() and
+         update_args.min_char_speed > 0.0 and
          update_args.comoving_char_speed_increasing_inward and
          (radial_distance_requires_inward_drift or
           char_speed_requires_inward_drift);
@@ -237,6 +238,7 @@ bool should_activate_inward_drift(const StateUpdateArgs& update_args) {
               update_args.min_allowed_char_speed.value();
 
   return (update_args.inward_drift_velocity.has_value() and
+          update_args.min_char_speed > 0.0 and
           update_args.comoving_char_speed_increasing_inward and
           (radial_distance_requires_inward_drift or
            char_speed_requires_inward_drift));
