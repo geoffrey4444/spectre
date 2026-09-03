@@ -340,6 +340,74 @@ void test_size_error_horizon_higher_res_than_excision() {
           "excision boundary resolution is at least as high"));
 }
 
+void test_recovery_crossing_of_inward_drift_limit_is_ignored() {
+  control_system::size::Info info{
+      std::make_unique<control_system::size::States::DeltaR>(),
+      1.0,
+      0.0,
+      0.0,
+      std::nullopt,
+      false};
+
+  intrp::ZeroCrossingPredictor predictor_char_speed;
+  intrp::ZeroCrossingPredictor predictor_comoving_char_speed;
+  intrp::ZeroCrossingPredictor predictor_delta_radius;
+  intrp::ZeroCrossingPredictor predictor_drift_limit_char_speed;
+  intrp::ZeroCrossingPredictor predictor_drift_limit_delta_radius;
+
+  constexpr size_t l_max = 2;
+  const std::array<double, 3> center{};
+  const ylm::Strahlkorper<Frame::Distorted> excision_boundary{l_max, 1.0,
+                                                              center};
+  const size_t number_of_points =
+      excision_boundary.ylm_spherepack().physical_size();
+  tnsr::i<DataVector, 2, ::Frame::Spherical<Frame::Distorted>> theta_phi{
+      number_of_points};
+  tnsr::i<DataVector, 3, Frame::Distorted> rhat{number_of_points};
+  ylm::theta_phi(make_not_null(&theta_phi), excision_boundary);
+  ylm::rhat(make_not_null(&rhat), theta_phi);
+  const Scalar<DataVector> lapse{DataVector(number_of_points, 0.5)};
+  tnsr::I<DataVector, 3, Frame::Distorted> shift{number_of_points};
+  for (size_t i = 0; i < 3; ++i) {
+    shift.get(i) = 1.5 * rhat.get(i);
+  }
+  tnsr::ii<DataVector, 3, Frame::Distorted> spatial_metric{number_of_points,
+                                                           0.0};
+  tnsr::II<DataVector, 3, Frame::Distorted> inverse_spatial_metric{
+      number_of_points, 0.0};
+  for (size_t i = 0; i < 3; ++i) {
+    spatial_metric.get(i, i) = 1.0;
+    inverse_spatial_metric.get(i, i) = 1.0;
+  }
+  const Scalar<DataVector> deriv_comoving_char_speed{
+      DataVector(number_of_points, 1.0)};
+
+  // The horizon is already inside the configured safety limit and moving away
+  // from the excision boundary. The generic zero-crossing predictor sees the
+  // future recovery through the safety limit, but that crossing must not be
+  // interpreted as approaching danger.
+  constexpr double min_allowed_radial_distance = 0.03;
+  const std::array horizon_radii{1.028, 1.029, 1.0295};
+  for (size_t step = 0; step < horizon_radii.size(); ++step) {
+    const ylm::Strahlkorper<Frame::Distorted> horizon{
+        l_max, gsl::at(horizon_radii, step), center};
+    static_cast<void>(control_system::size::control_error(
+        make_not_null(&info), make_not_null(&predictor_char_speed),
+        make_not_null(&predictor_comoving_char_speed),
+        make_not_null(&predictor_delta_radius),
+        make_not_null(&predictor_drift_limit_char_speed),
+        make_not_null(&predictor_drift_limit_delta_radius),
+        static_cast<double>(step), 0.0, std::nullopt, std::nullopt, 0.001,
+        min_allowed_radial_distance, std::nullopt, horizon.coefficients()[0],
+        0.0, horizon, excision_boundary, lapse, shift, spatial_metric,
+        inverse_spatial_metric, deriv_comoving_char_speed));
+  }
+
+  CHECK(info.state->number() ==
+        control_system::size::States::DeltaR{}.number());
+  CHECK_FALSE(info.suggested_time_scale.has_value());
+}
+
 void test_inward_drift_uses_pointwise_normal_bound() {
   control_system::size::Info info{
       std::make_unique<control_system::size::States::DeltaR>(),
@@ -844,6 +912,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
   test_inward_drift_option_schema();
   test_suggested_timescale_survives_averager_update();
   test_size_error_horizon_higher_res_than_excision();
+  test_recovery_crossing_of_inward_drift_limit_is_ignored();
   test_inward_drift_uses_pointwise_normal_bound();
   // Should go to DeltaR state with error of zero, since ComovingMinCharSpeed
   // will be positive.

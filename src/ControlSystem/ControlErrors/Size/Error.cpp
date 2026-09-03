@@ -205,6 +205,7 @@ ErrorDiagnostics control_error(
   }
   gr::surfaces::radial_distance(make_not_null(&radial_distance),
                                 apparent_horizon, excision_boundary);
+  const double min_radial_distance = min(get(radial_distance));
 
   // Update zero-crossing predictors.
   predictor_char_speed->add(time,
@@ -219,6 +220,16 @@ ErrorDiagnostics control_error(
   if (min_allowed_radial_distance.has_value()) {
     predictor_drift_limit_delta_radius->add(
         time, min_allowed_radial_distance.value() - get(radial_distance));
+    if (min_radial_distance <= min_allowed_radial_distance.value()) {
+      // A zero crossing predicted from this side of the limit is a recovery,
+      // not an approach to danger. Also discard these samples so they cannot
+      // contaminate a new prediction after the system has recovered.
+      predictor_drift_limit_delta_radius->clear();
+    }
+  }
+  if (min_allowed_char_speed.has_value() and
+      min_char_speed <= min_allowed_char_speed.value()) {
+    predictor_drift_limit_char_speed->clear();
   }
 
   // Compute crossing times for state-change logic.
@@ -228,20 +239,26 @@ ErrorDiagnostics control_error(
       predictor_comoving_char_speed->min_positive_zero_crossing_time(time);
   const std::optional<double> delta_radius_crossing_time =
       predictor_delta_radius->min_positive_zero_crossing_time(time);
+  const bool can_predict_radial_drift_limit =
+      min_allowed_radial_distance.has_value() and
+      min_radial_distance > min_allowed_radial_distance.value();
   const std::optional<double> drift_limit_delta_radius_crossing_time =
-      min_allowed_radial_distance.has_value()
+      can_predict_radial_drift_limit
           ? predictor_drift_limit_delta_radius->min_positive_zero_crossing_time(
                 time)
           : std::nullopt;
+  const bool can_predict_char_speed_drift_limit =
+      min_allowed_char_speed.has_value() and
+      min_char_speed > min_allowed_char_speed.value();
   const std::optional<double> drift_limit_char_speed_crossing_time =
-      min_allowed_char_speed.has_value()
+      can_predict_char_speed_drift_limit
           ? predictor_drift_limit_char_speed->min_positive_zero_crossing_time(
                 time)
           : std::nullopt;
 
   const std::optional<double> minimum_radial_distance =
       min_allowed_radial_distance.has_value()
-          ? std::optional<double>(min(get(radial_distance)))
+          ? std::optional<double>(min_radial_distance)
           : std::nullopt;
 
   // Compute average radial distance for state DeltaRDriftOutward.
@@ -291,8 +308,8 @@ ErrorDiagnostics control_error(
   return ErrorDiagnostics{
       control_error,
       info->state->number(),
-      min(get(radial_distance)),
-      min(get(radial_distance)) / apparent_horizon.average_radius(),
+      min_radial_distance,
+      min_radial_distance / apparent_horizon.average_radius(),
       min_comoving_char_speed,
       char_speed_crossing_time.value_or(0.0),
       comoving_char_speed_crossing_time.value_or(0.0),
