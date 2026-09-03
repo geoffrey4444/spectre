@@ -58,6 +58,7 @@ struct Distorted;
 
 namespace {
 constexpr double Y00 = 0.25 * M_2_SQRTPI;
+constexpr double test_inward_drift_velocity = 0.001;
 
 struct Metavars {
   using const_global_cache_tags =
@@ -525,7 +526,7 @@ void test_size_error_one_step(
     // to DeltaRNoDrift for the chosen parameters in the test.
     // This is fine-tuned.
     min_allowed_radial_distance = 0.06;
-    inward_drift_velocity = 0.001;
+    inward_drift_velocity = test_inward_drift_velocity;
     min_allowed_char_speed = 0.068;
   }
   control_system::size::Info info{std::make_unique<InitialState>(),
@@ -975,13 +976,13 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
 
   {
     // The following is computed by hand from arxiv:1211.6079 eq. 96 plus
-    // the target char speed.
+    // the live inward-drift target char speed.
     const double horizon_distorted = 2.0;
     const double excision_distorted = 1.95;
     const double expected_control_error =
         (-horizon_velocity * 0.5 * excision_distorted + excision_velocity) /
             Y00 +
-        target_char_speed;
+        test_inward_drift_velocity;
     // Should stay in state DeltaRDriftInward.
     test_size_error<control_system::size::States::DeltaRDriftInward,
                     control_system::size::States::DeltaRDriftInward>(

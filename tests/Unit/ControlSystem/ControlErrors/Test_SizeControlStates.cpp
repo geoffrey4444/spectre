@@ -359,6 +359,115 @@ void test_inward_drift_requires_positive_char_speed() {
   }
 }
 
+void test_inward_drift_target_tracks_current_speed_cap() {
+  TestParams test_params{};
+  test_params.inward_drift_velocity = 0.1;
+  test_params.min_allowed_radial_distance = 0.02;
+  test_params.min_allowed_char_speed = std::nullopt;
+  test_params.comoving_char_speed_increasing_inward = true;
+
+  // The stored target was safe for the preceding measurement.
+  const double previous_min_char_speed = 0.02;
+  const double previous_min_normal_projection = -0.5;
+  const double previous_target =
+      control_system::size::States::target_speed_for_inward_drift(
+          previous_min_normal_projection, previous_min_char_speed,
+          test_params.inward_drift_velocity.value());
+  control_system::size::Info info{
+      std::make_unique<control_system::size::States::DeltaRDriftInward>(),
+      test_params.damping_time,
+      previous_target,
+      0.001,
+      std::nullopt,
+      false};
+
+  // On the next measurement both a smaller speed and a more negative local
+  // normal tighten the pointwise safety cap. The gap is nondecreasing, so this
+  // exercises the ordinary stay-in-state-3 path.
+  test_params.min_char_speed = 0.002;
+  test_params.min_distorted_normal_dot_unit_coord_vector = -2.0;
+  const control_system::size::StateUpdateArgs update_args{
+      test_params.min_char_speed,
+      test_params.min_comoving_char_speed,
+      test_params.horizon_00,
+      test_params.control_err_delta_r,
+      test_params.average_radial_distance,
+      test_params.minimum_radial_distance,
+      test_params.max_allowed_radial_distance,
+      test_params.avg_distorted_normal_dot_unit_coord_vector,
+      test_params.min_distorted_normal_dot_unit_coord_vector,
+      test_params.inward_drift_velocity,
+      test_params.min_allowed_radial_distance,
+      test_params.min_allowed_char_speed,
+      test_params.comoving_char_speed_increasing_inward};
+  static_cast<void>(control_system::size::States::DeltaRDriftInward{}.update(
+      make_not_null(&info), update_args,
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt,
+                                             std::nullopt, std::nullopt,
+                                             std::nullopt}));
+
+  const double expected_target =
+      control_system::size::States::target_speed_for_inward_drift(
+          test_params.min_distorted_normal_dot_unit_coord_vector,
+          test_params.min_char_speed,
+          test_params.inward_drift_velocity.value());
+  CHECK(info.state->number() ==
+        control_system::size::States::DeltaRDriftInward{}.number());
+  CHECK(info.target_char_speed == approx(expected_target));
+  CHECK(control_system::size::States::DeltaRDriftInward{}.control_error(
+            info,
+            control_system::size::ControlErrorArgs{
+                test_params.min_char_speed, test_params.control_err_delta_r,
+                std::nullopt,
+                test_params.avg_distorted_normal_dot_unit_coord_vector, 0.0}) ==
+        approx(test_params.control_err_delta_r + expected_target));
+  // The live cap is part of the state-3 control law, so its continuous change
+  // must not reset the averager on every measurement.
+  CHECK_FALSE(info.discontinuous_change_has_occurred);
+
+  // If another effect has already made the speed nonpositive, state 3 cannot
+  // construct a safe live cap and must hand control back to AhSpeed while
+  // retaining its previous positive recovery target.
+  const double positive_recovery_target = info.target_char_speed;
+  info.discontinuous_change_has_occurred = false;
+  test_params.min_char_speed = -0.001;
+  const control_system::size::StateUpdateArgs negative_speed_update_args{
+      test_params.min_char_speed,
+      test_params.min_comoving_char_speed,
+      test_params.horizon_00,
+      test_params.control_err_delta_r,
+      test_params.average_radial_distance,
+      test_params.minimum_radial_distance,
+      test_params.max_allowed_radial_distance,
+      test_params.avg_distorted_normal_dot_unit_coord_vector,
+      test_params.min_distorted_normal_dot_unit_coord_vector,
+      test_params.inward_drift_velocity,
+      test_params.min_allowed_radial_distance,
+      test_params.min_allowed_char_speed,
+      test_params.comoving_char_speed_increasing_inward};
+  static_cast<void>(control_system::size::States::DeltaRDriftInward{}.update(
+      make_not_null(&info), negative_speed_update_args,
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt,
+                                             std::nullopt, std::nullopt,
+                                             std::nullopt}));
+  CHECK(info.state->number() ==
+        control_system::size::States::AhSpeed{}.number());
+  CHECK(info.target_char_speed == approx(positive_recovery_target));
+  CHECK(info.discontinuous_change_has_occurred);
+  const double recovery_control_error =
+      control_system::size::States::AhSpeed{}.control_error(
+          info,
+          control_system::size::ControlErrorArgs{
+              test_params.min_char_speed, test_params.control_err_delta_r,
+              std::nullopt,
+              test_params.avg_distorted_normal_dot_unit_coord_vector, 0.0});
+  // With an inward-pointing (negative) normal, this control signal increases
+  // the characteristic speed instead of driving it farther below zero.
+  CHECK(recovery_control_error * y00 *
+            test_params.avg_distorted_normal_dot_unit_coord_vector >
+        0.0);
+}
+
 void test_size_control_update() {
   TestParams test_params;  // With reasonable default values.
 
@@ -892,6 +1001,11 @@ void test_size_control_update() {
   test_params.comoving_char_speed_increasing_inward = true;
   test_params.min_allowed_radial_distance = std::nullopt;
   test_params.min_allowed_char_speed = std::nullopt;
+  const auto current_inward_drift_target = [&test_params]() {
+    return control_system::size::States::target_speed_for_inward_drift(
+        test_params.min_distorted_normal_dot_unit_coord_vector,
+        test_params.min_char_speed, test_params.inward_drift_velocity.value());
+  };
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRNoDrift>(
       test_params, true, std::nullopt, test_params.original_target_char_speed);
@@ -900,7 +1014,7 @@ void test_size_control_update() {
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+      test_params, false, std::nullopt, current_inward_drift_target());
 
   // A dangerous radial-distance trigger also keeps inward drift active.
   test_params.min_allowed_char_speed = std::nullopt;
@@ -908,7 +1022,7 @@ void test_size_control_update() {
       test_params.minimum_radial_distance.value() / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+      test_params, false, std::nullopt, current_inward_drift_target());
 
   // A predicted drift-limit crossing inside the damping time takes priority.
   test_params.crossing_time_info = control_system::size::CrossingTimeInfo(
@@ -927,7 +1041,7 @@ void test_size_control_update() {
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.91;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+      test_params, false, std::nullopt, current_inward_drift_target());
 
   // Both configured quantities have recovered, so stop drifting inward.
   test_params.min_allowed_radial_distance =
@@ -942,14 +1056,14 @@ void test_size_control_update() {
   test_params.min_allowed_char_speed = test_params.min_char_speed / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+      test_params, false, std::nullopt, current_inward_drift_target());
 
   // Put DeltaR below its limit too, so both triggers remain dangerous.
   test_params.min_allowed_radial_distance =
       test_params.minimum_radial_distance.value() / 0.89;
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
-      test_params, false, std::nullopt, test_params.original_target_char_speed);
+      test_params, false, std::nullopt, current_inward_drift_target());
 
   // Disabling the configured velocity stops inward drift.
   test_params.inward_drift_velocity = std::nullopt;
@@ -987,10 +1101,7 @@ void test_size_control_update() {
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, 0.99 * test_params.damping_time,
-      std::min(
-          test_params.inward_drift_velocity.value(),
-          0.5 * test_params.min_char_speed /
-              (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
+      current_inward_drift_target());
   test_params.damping_time = 0.1;
 
   // Now do DeltaRInDanger. Should stay in State DeltaRDriftInward but with
@@ -1001,7 +1112,7 @@ void test_size_control_update() {
   do_test<control_system::size::States::DeltaRDriftInward,
           control_system::size::States::DeltaRDriftInward>(
       test_params, false, test_params.crossing_time_info.t_delta_radius,
-      test_params.original_target_char_speed);
+      current_inward_drift_target());
 
   // Now do CharSpeedInDanger. Should go to State AhSpeed with new
   // damping time.
@@ -1264,6 +1375,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeControlStates", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
   test_suggested_timescale_latches_minimum();
   test_inward_drift_requires_positive_char_speed();
+  test_inward_drift_target_tracks_current_speed_cap();
   test_size_control_update();
   test_size_control_error();
   test_target_speed_for_inward_drift();

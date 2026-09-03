@@ -47,10 +47,11 @@ std::string DeltaRDriftInward::update(
           std::numeric_limits<double>::infinity()) <
           info->damping_time * time_tolerance_for_delta_r_in_danger;
   const bool char_speed_is_in_danger =
-      crossing_time_info.char_speed_will_hit_zero_first and
-      crossing_time_info.t_char_speed.value_or(
-          std::numeric_limits<double>::infinity()) < info->damping_time and
-      not delta_radius_is_in_danger;
+      update_args.min_char_speed <= 0.0 or
+      (crossing_time_info.char_speed_will_hit_zero_first and
+       crossing_time_info.t_char_speed.value_or(
+           std::numeric_limits<double>::infinity()) < info->damping_time and
+       not delta_radius_is_in_danger);
 
   // spherepack_factor is needed because horizon_00 is a
   // spherepack coefficient, not a spherical harmonic coefficient.
@@ -73,8 +74,13 @@ std::string DeltaRDriftInward::update(
     constexpr double non_oscillation_factor = 1.01;
     info->discontinuous_change_has_occurred = true;
     info->state = std::make_unique<States::AhSpeed>();
-    info->target_char_speed =
-        update_args.min_char_speed * non_oscillation_factor;
+    if (update_args.min_char_speed > 0.0) {
+      info->target_char_speed =
+          update_args.min_char_speed * non_oscillation_factor;
+    }
+    // If the speed is already nonpositive, retain the last positive state-3
+    // target. A nonpositive AhSpeed target would drive the speed in the wrong
+    // direction instead of recovering the outflow boundary condition.
     ss << " Target char speed = " << info->target_char_speed << "\n";
     // If the comoving char speed is positive and is not about to
     // cross zero, staying in DeltaRDriftInward mode will rescue the
@@ -127,10 +133,6 @@ std::string DeltaRDriftInward::update(
     constexpr double delta_r_drift_inward_decrease_factor = 0.99;
     info->suggest_timescale(info->damping_time *
                             delta_r_drift_inward_decrease_factor);
-    info->target_char_speed = target_speed_for_inward_drift(
-        update_args.min_distorted_normal_dot_unit_coord_vector,
-        update_args.min_char_speed, update_args.inward_drift_velocity.value());
-    ss << " Target char speed = " << info->target_char_speed << "\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (update_args.average_radial_distance.has_value() and
              update_args.average_radial_distance.value() >
@@ -144,6 +146,16 @@ std::string DeltaRDriftInward::update(
   } else {
     ss << "Current state DeltaRDriftInward. No change necessary. Staying in "
           "DeltaRDriftInward.";
+  }
+
+  if (info->state->number() == DeltaRDriftInward{}.number()) {
+    // The characteristic-speed margin and the surface normal can change on
+    // every measurement. Reapply the pointwise safety cap as part of the
+    // state-3 control law instead of retaining the entry-time value.
+    info->target_char_speed = target_speed_for_inward_drift(
+        update_args.min_distorted_normal_dot_unit_coord_vector,
+        update_args.min_char_speed, update_args.inward_drift_velocity.value());
+    ss << "\n Target char speed = " << info->target_char_speed;
   }
 
   return ss.str();

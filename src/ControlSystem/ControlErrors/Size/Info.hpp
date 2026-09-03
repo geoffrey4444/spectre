@@ -36,8 +36,9 @@ struct Info {
   std::unique_ptr<State> state;
   /// The current damping time associated with size control.
   double damping_time;
-  /// target_char_speed is what the characteristic speed is driven
-  /// toward in state Label::AhSpeed.
+  /// target_char_speed is what the characteristic speed is driven toward in
+  /// state Label::AhSpeed, or the live additive target in state
+  /// Label::DeltaRDriftInward.
   double target_char_speed;
   /// target_drift_velocity is what dr/dt (where r and t are distorted frame
   /// variables) of the excision boundary is driven toward in state
