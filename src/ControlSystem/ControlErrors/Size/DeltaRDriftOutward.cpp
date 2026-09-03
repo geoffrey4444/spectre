@@ -64,10 +64,10 @@ std::string DeltaRDriftOutward::update(
     // cross zero, staying in DeltaRDriftOutward mode will rescue the speed
     // automatically (since it drives char speed to comoving char
     // speed).  But we should decrease the timescale in any case.
-    info->suggested_time_scale = crossing_time_info.t_char_speed;
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (delta_radius_is_in_danger) {
-    info->suggested_time_scale = crossing_time_info.t_delta_radius;
+    info->suggest_timescale(crossing_time_info.t_delta_radius);
     ss << "Current state DeltaRDriftOutward. Delta radius in danger. Staying "
           "in DeltaRDriftOutward.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;

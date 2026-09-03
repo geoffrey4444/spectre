@@ -81,10 +81,10 @@ std::string DeltaRDriftInward::update(
     // speed automatically (since it drives char speed to comoving
     // char speed, plus a small difference).  But we should decrease
     // the timescale in any case.
-    info->suggested_time_scale = crossing_time_info.t_char_speed.value();
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (delta_radius_is_in_danger) {
-    info->suggested_time_scale = crossing_time_info.t_delta_radius.value();
+    info->suggest_timescale(crossing_time_info.t_delta_radius);
     ss << "Current state DeltaRDriftInward. Delta radius in danger. Staying "
           "in DeltaRDriftInward.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
@@ -93,7 +93,7 @@ std::string DeltaRDriftInward::update(
     ss << "Current state DeltaRDriftInward. Switching to DeltaRNoDrift.\n";
     info->discontinuous_change_has_occurred = true;
     info->state = std::make_unique<States::DeltaRNoDrift>();
-    info->suggested_time_scale = crossing_time_info.t_drift_limit;
+    info->suggest_timescale(crossing_time_info.t_drift_limit);
   } else if (crossing_time_info.t_delta_radius.has_value() and
              info->damping_time >
                  2.0 * spherepack_factor * update_args.horizon_00 * Y00) {
@@ -125,8 +125,8 @@ std::string DeltaRDriftInward::update(
     // DeltaRDriftInward::update will decrease the timescale to
     // 2*average_horizon_radius too quickly.
     constexpr double delta_r_drift_inward_decrease_factor = 0.99;
-    info->suggested_time_scale =
-        info->damping_time * delta_r_drift_inward_decrease_factor;
+    info->suggest_timescale(info->damping_time *
+                            delta_r_drift_inward_decrease_factor);
     info->target_char_speed = target_speed_for_inward_drift(
         update_args.min_distorted_normal_dot_unit_coord_vector,
         update_args.min_char_speed, update_args.inward_drift_velocity.value());

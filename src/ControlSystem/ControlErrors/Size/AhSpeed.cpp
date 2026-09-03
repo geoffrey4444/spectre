@@ -96,7 +96,7 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
       info->target_char_speed = min_char_speed * min_char_speed_increase_factor;
       ss << " Target char speed = " << info->target_char_speed << "\n";
     }
-    info->suggested_time_scale = crossing_time_info.t_char_speed;
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (delta_radius_is_in_danger) {
     // The values of target_speed_decrease_factor and
@@ -111,9 +111,9 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
         update_args.min_comoving_char_speed < 0.0) {
       info->discontinuous_change_has_occurred = true;
       info->target_char_speed = min_char_speed * target_speed_decrease_factor;
-      info->suggested_time_scale = std::min(
+      info->suggest_timescale(std::min(
           info->damping_time, crossing_time_info.t_delta_radius.value_or(
-                                  std::numeric_limits<double>::infinity()));
+                                  std::numeric_limits<double>::infinity())));
 
       ss << " Staying in AhSpeed.\n";
       if (update_args.min_comoving_char_speed < 0.0) {
@@ -131,7 +131,7 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
     } else if (should_activate_inward_drift(update_args)) {
       info->discontinuous_change_has_occurred = true;
       info->state = std::make_unique<States::DeltaRDriftInward>();
-      info->suggested_time_scale = crossing_time_info.t_delta_radius;
+      info->suggest_timescale(crossing_time_info.t_delta_radius);
       info->target_char_speed = target_speed_for_inward_drift(
           update_args.min_distorted_normal_dot_unit_coord_vector,
           update_args.min_char_speed,
@@ -141,7 +141,7 @@ std::string AhSpeed::update(const gsl::not_null<Info*> info,
     } else {
       info->discontinuous_change_has_occurred = true;
       info->state = std::make_unique<States::DeltaR>();
-      info->suggested_time_scale = crossing_time_info.t_delta_radius;
+      info->suggest_timescale(crossing_time_info.t_delta_radius);
       info->target_char_speed = 0.0;
       ss << " Switching to DeltaR.\n";
       ss << " Suggested timescale = " << info->suggested_time_scale;

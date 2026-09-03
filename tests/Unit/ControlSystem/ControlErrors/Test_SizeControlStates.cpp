@@ -250,6 +250,80 @@ void test_transition_to_delta_r_inward(
               (y00 * -test_params.min_distorted_normal_dot_unit_coord_vector)));
 }
 
+void test_suggested_timescale_latches_minimum() {
+  TestParams test_params{};
+  control_system::size::Info info{
+      std::make_unique<control_system::size::States::Initial>(),
+      test_params.damping_time,
+      test_params.original_target_char_speed,
+      0.001,
+      std::nullopt,
+      false};
+  const auto make_update_args = [&test_params]() {
+    return control_system::size::StateUpdateArgs{
+        test_params.min_char_speed,
+        test_params.min_comoving_char_speed,
+        test_params.horizon_00,
+        test_params.control_err_delta_r,
+        test_params.average_radial_distance,
+        test_params.minimum_radial_distance,
+        test_params.max_allowed_radial_distance,
+        test_params.avg_distorted_normal_dot_unit_coord_vector,
+        test_params.min_distorted_normal_dot_unit_coord_vector,
+        test_params.inward_drift_velocity,
+        test_params.min_allowed_radial_distance,
+        test_params.min_allowed_char_speed,
+        test_params.comoving_char_speed_increasing_inward};
+  };
+
+  // The first measurement makes an urgent recommendation while transitioning
+  // from Initial to DeltaR.
+  static_cast<void>(control_system::size::States::Initial{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{
+          std::nullopt, std::nullopt, 0.01, std::nullopt, std::nullopt}));
+  REQUIRE(info.state->number() ==
+          control_system::size::States::DeltaR{}.number());
+  REQUIRE(info.suggested_time_scale.has_value());
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // Averager acknowledgement occurs on every measurement, but tuner reset only
+  // occurs on the final measurement in a batch.
+  info.acknowledge_discontinuous_change();
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // A measurement with no recommendation must leave the urgent value pending.
+  test_params.min_comoving_char_speed = 0.02;
+  test_params.control_err_delta_r = 0.0;
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{
+          std::nullopt, std::nullopt, std::nullopt, std::nullopt,
+          std::nullopt}));
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // A later, less urgent recommendation in the same batch must not overwrite
+  // the pending minimum.
+  test_params.control_err_delta_r = 0.03;
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{
+          std::nullopt, std::nullopt, std::nullopt, std::nullopt,
+          std::nullopt}));
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // Once the tuner consumes the pending value, reset starts a new batch.
+  info.reset();
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{
+          std::nullopt, std::nullopt, std::nullopt, std::nullopt,
+          std::nullopt}));
+  REQUIRE(info.suggested_time_scale.has_value());
+  CHECK(info.suggested_time_scale.value() ==
+        approx(0.99 * test_params.damping_time));
+}
+
 void test_size_control_update() {
   TestParams test_params;  // With reasonable default values.
 
@@ -1153,6 +1227,7 @@ void test_name_and_number() {
 
 SPECTRE_TEST_CASE("Unit.ControlSystem.SizeControlStates", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
+  test_suggested_timescale_latches_minimum();
   test_size_control_update();
   test_size_control_error();
   test_target_speed_for_inward_drift();
