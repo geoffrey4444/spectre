@@ -117,6 +117,13 @@ struct ControlErrorArgs {
    * excision boundary in the distorted frame with respect to the grid frame.
    */
   double time_deriv_of_lambda_00;
+
+  /// Serialization for the stored Size control-error inputs.
+  // NOLINTNEXTLINE(google-runtime-references)
+  void pup(PUP::er& p);
+
+  /// Equality comparison.
+  bool operator==(const ControlErrorArgs& rhs) const = default;
 };
 
 /*!

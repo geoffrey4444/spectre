@@ -147,7 +147,7 @@ template <size_t DerivOrder, ::domain::ObjectLabel Horizon>
 std::deque<std::pair<double, double>>
 Size<DerivOrder, Horizon>::control_error_history() const {
   std::deque<std::pair<double, double>> history =
-      state_history_.state_history(info_.state->number());
+      state_history_.state_history(info_);
   // pop back so we don't include the current time, otherwise the averager
   // will error
   history.pop_back();

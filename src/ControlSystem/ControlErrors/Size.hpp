@@ -102,11 +102,12 @@ namespace ControlErrors {
  * This class holds a `control_system::size::Info` and three different
  * `intrp::ZeroCrossingPredictor`s internally which are needed to calculate the
  * `control_system::size::control_error`. Additionally, this class stores a
- * history of control errors for all `control_system::size::State`s using a
- * `control_system::size::StateHistory`. This is useful for when a discontinuous
- * change happens (switching `control_system::size::State`s) and we need to
- * repopulate the `Averager` with a history of the control error. It also
- * conforms to the `control_system::protocols::ControlError` protocol.
+ * history of the inputs needed to reconstruct control errors for all
+ * `control_system::size::State`s using a `control_system::size::StateHistory`.
+ * This is useful for when a discontinuous change happens (switching
+ * `control_system::size::State`s) and we need to repopulate the `Averager` with
+ * a history of the control error. It also conforms to the
+ * `control_system::protocols::ControlError` protocol.
  *
  * In order to calculate the control error, we need the $\ell = 0, m = 0$
  * coefficient of the horizon and its time derivative. However, because we will
@@ -618,7 +619,7 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
         excision_surface, lapse, shifty_quantity, spatial_metric_on_excision,
         inverse_spatial_metric_on_excision, deriv_comoving_char_speed);
 
-    state_history_.store(time, info_, error_diagnostics.control_error_args);
+    state_history_.store(time, error_diagnostics.control_error_args);
 
     if (Parallel::get<control_system::Tags::WriteDataToDisk>(cache)) {
       auto& observer_writer_proxy = Parallel::get_parallel_component<

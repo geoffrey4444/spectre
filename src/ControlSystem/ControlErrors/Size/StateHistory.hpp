@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include <cstddef>
 #include <deque>
 #include <pup.h>
-#include <unordered_map>
 #include <utility>
 
 #include "ControlSystem/ControlErrors/Size/Info.hpp"
@@ -13,8 +13,8 @@
 
 namespace control_system::size {
 /*!
- * \brief A struct for holding a history of control errors for each state in the
- * `control_system::Systems::Size` control system.
+ * \brief A struct for holding the measurements needed to reconstruct control
+ * errors for the `control_system::Systems::Size` control system.
  */
 struct StateHistory {
   StateHistory();
@@ -23,29 +23,31 @@ struct StateHistory {
   StateHistory(size_t num_times_to_store);
 
   /*!
-   * \brief Store the control errors for all `control_system::size::State`s.
+   * \brief Store the inputs used to compute each
+   * `control_system::size::State`'s control error.
    *
-   * \param time Time to store control errors at
-   * \param info `control_system::size::Info`
+   * \param time Time of the stored inputs
    * \param control_error_args `control_system::size::ControlErrorArgs`
    */
-  void store(double time, const Info& info,
-             const ControlErrorArgs& control_error_args);
+  void store(double time, const ControlErrorArgs& control_error_args);
 
   /*!
-   * \brief Return a const reference to the stored control errors from all the
-   * states.
+   * \brief Reconstruct the stored control errors for the state and target in
+   * the current `info`.
    *
-   * \param state_number `size_t` corresponding to the
-   * `control_system::size::State::number()` of a state.
+   * Reconstructing the errors when they are requested ensures target-dependent
+   * states use the target associated with the current state transition, rather
+   * than a target that belonged to a different state when the measurement was
+   * stored.
+   *
+   * \param info Current `control_system::size::Info`
    * \return std::deque<std::pair<double, double>> The `std::pair` holds
    * the time and control error, respectively. The `std::deque` is ordered with
    * earlier times at the "front" and later times at the "back". This is to make
    * iteration over the deque easier as we typically want to start with earlier
    * times.
    */
-  const std::deque<std::pair<double, double>>& state_history(
-      size_t state_number) const;
+  std::deque<std::pair<double, double>> state_history(const Info& info) const;
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);
@@ -54,10 +56,7 @@ struct StateHistory {
   friend bool operator!=(const StateHistory& lhs, const StateHistory& rhs);
 
  private:
-  void initialize_stored_control_errors();
-
   size_t num_times_to_store_{};
-  std::unordered_map<size_t, std::deque<std::pair<double, double>>>
-      stored_control_errors_{};
+  std::deque<std::pair<double, ControlErrorArgs>> stored_control_error_args_{};
 };
 }  // namespace control_system::size
