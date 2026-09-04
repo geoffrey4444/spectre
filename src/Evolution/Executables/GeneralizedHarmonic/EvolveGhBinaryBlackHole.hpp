@@ -301,12 +301,22 @@ struct EvolutionMetavars {
     using temporal_id = ::Tags::Time;
     using tags_to_observe =
         tmpl::list<gr::Tags::Lapse<DataVector>,
-                   gr::Tags::Shift<DataVector, 3, Frame::Grid>>;
+                   gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+                   gh::CharacteristicSpeedsOnStrahlkorper<Frame::Grid>>;
     using compute_vars_to_interpolate =
         intrp::ComputeExcisionBoundaryVolumeQuantities;
-    using vars_to_interpolate_to_target = tags_to_observe;
+    using vars_to_interpolate_to_target =
+        tmpl::list<gr::Tags::Lapse<DataVector>,
+                   gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+                   gr::Tags::SpatialMetric<DataVector, 3, Frame::Grid>,
+                   gh::Tags::ConstraintGamma1,
+                   domain::Tags::Coordinates<3, Frame::Inertial>>;
     using compute_items_on_source = tmpl::list<>;
-    using compute_items_on_target = tmpl::list<>;
+    using compute_items_on_target = tmpl::list<
+        gr::Tags::DetAndInverseSpatialMetricCompute<DataVector, 3, Frame::Grid>,
+        ylm::Tags::OneOverOneFormMagnitudeCompute<DataVector, 3, Frame::Grid>,
+        ylm::Tags::UnitNormalOneFormCompute<Frame::Grid>,
+        gh::CharacteristicSpeedsOnStrahlkorperCompute<3, Frame::Grid>>;
     using compute_target_points =
         intrp::TargetPoints::Sphere<ExcisionBoundary<Excision>, ::Frame::Grid>;
     using post_interpolation_callbacks =
@@ -322,6 +332,9 @@ struct EvolutionMetavars {
 
   using ExcisionBoundaryA = ExcisionBoundary<::domain::ObjectLabel::A>;
   using ExcisionBoundaryB = ExcisionBoundary<::domain::ObjectLabel::B>;
+  using excision_boundary_source_vars =
+      tmpl::push_back<ah::source_vars<3>, gh::Tags::ConstraintGamma1,
+                      domain::Tags::Coordinates<3, Frame::Inertial>>;
   using both_horizons = control_system::measurements::BothHorizons;
   using control_systems =
       tmpl::list<control_system::Systems::Rotation<3, both_horizons>,
@@ -506,9 +519,9 @@ struct EvolutionMetavars {
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, BondiSachs, source_vars_no_deriv>,
                        intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryA, ah::source_vars<3>>,
+                           3, ExcisionBoundaryA, excision_boundary_source_vars>,
                        intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundaryB, ah::source_vars<3>>,
+                           3, ExcisionBoundaryB, excision_boundary_source_vars>,
                        Events::MonitorMemory<3>, Events::Completion,
                        dg::Events::field_observations<
                            volume_dim, observe_fields, non_tensor_compute_tags>,

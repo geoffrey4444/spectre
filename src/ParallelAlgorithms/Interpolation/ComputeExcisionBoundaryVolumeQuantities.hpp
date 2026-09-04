@@ -84,7 +84,9 @@ struct ComputeExcisionBoundaryVolumeQuantities
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
                  ::Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
-                               Frame::Inertial>>;
+                               Frame::Inertial>,
+                 gh::Tags::ConstraintGamma1,
+                 domain::Tags::Coordinates<3, Frame::Inertial>>;
 
   using required_src_tags =
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>>;
@@ -100,7 +102,9 @@ struct ComputeExcisionBoundaryVolumeQuantities
                     tmpl::size_t<3>, TargetFrame>,
       gr::Tags::ShiftyQuantity<DataVector, 3, TargetFrame>,
       ::domain::Tags::InverseJacobian<3, Frame::Grid, TargetFrame>,
-      gr::Tags::SpatialChristoffelSecondKind<DataVector, 3, TargetFrame>>;
+      gr::Tags::SpatialChristoffelSecondKind<DataVector, 3, TargetFrame>,
+      gh::Tags::ConstraintGamma1,
+      domain::Tags::Coordinates<3, Frame::Inertial>>;
 
   template <typename TargetFrame>
   using allowed_dest_tags = tmpl::remove_duplicates<

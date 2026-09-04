@@ -27,6 +27,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/InitialShapeFromFile.hpp"
 #include "NumericalAlgorithms/Strahlkorper/InitialShape.hpp"
 #include "Options/FactoryHelpers.hpp"
@@ -67,6 +68,7 @@
 #include "ParallelAlgorithms/Interpolation/Tags.hpp"
 #include "ParallelAlgorithms/Interpolation/Targets/Sphere.hpp"
 #include "PointwiseFunctions/GeneralRelativity/DetAndInverseSpatialMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintDampingTags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/Tags.hpp"
 #include "Time/Actions/SelfStartActions.hpp"
 #include "Time/AdvanceTime.hpp"
@@ -118,12 +120,22 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
     using temporal_id = ::Tags::Time;
     using tags_to_observe =
         tmpl::list<gr::Tags::Lapse<DataVector>,
-                   gr::Tags::Shift<DataVector, 3, Frame::Grid>>;
+                   gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+                   gh::CharacteristicSpeedsOnStrahlkorper<Frame::Grid>>;
     using compute_vars_to_interpolate =
         intrp::ComputeExcisionBoundaryVolumeQuantities;
-    using vars_to_interpolate_to_target = tags_to_observe;
+    using vars_to_interpolate_to_target =
+        tmpl::list<gr::Tags::Lapse<DataVector>,
+                   gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+                   gr::Tags::SpatialMetric<DataVector, 3, Frame::Grid>,
+                   gh::Tags::ConstraintGamma1,
+                   domain::Tags::Coordinates<3, Frame::Inertial>>;
     using compute_items_on_source = tmpl::list<>;
-    using compute_items_on_target = tmpl::list<>;
+    using compute_items_on_target = tmpl::list<
+        gr::Tags::DetAndInverseSpatialMetricCompute<DataVector, 3, Frame::Grid>,
+        ylm::Tags::OneOverOneFormMagnitudeCompute<DataVector, 3, Frame::Grid>,
+        ylm::Tags::UnitNormalOneFormCompute<Frame::Grid>,
+        gh::CharacteristicSpeedsOnStrahlkorperCompute<3, Frame::Grid>>;
     using compute_target_points =
         intrp::TargetPoints::Sphere<ExcisionBoundary, ::Frame::Grid>;
     using post_interpolation_callbacks =
@@ -148,6 +160,9 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
 
   static constexpr bool use_control_systems =
       tmpl::size<control_systems>::value > 0;
+  using excision_boundary_source_vars =
+      tmpl::push_back<ah::source_vars<volume_dim>, gh::Tags::ConstraintGamma1,
+                      domain::Tags::Coordinates<3, Frame::Inertial>>;
 
   struct BondiSachs;
 
@@ -200,7 +215,7 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
                        intrp::Events::InterpolateWithoutInterpComponent<
                            3, BondiSachs, source_vars_no_deriv>,
                        intrp::Events::InterpolateWithoutInterpComponent<
-                           3, ExcisionBoundary, ::ah::source_vars<volume_dim>>,
+                           3, ExcisionBoundary, excision_boundary_source_vars>,
                        amr::Events::RefineMesh,
                        amr::Events::ObserveAmrStats<volume_dim>>>>,
         tmpl::pair<DenseTrigger,
