@@ -4,7 +4,9 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <cmath>
+#include <complex>
 #include <cstddef>
+#include <limits>
 #include <random>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -114,10 +116,10 @@ void test_polarization_basis_on_coordinate_planes() {
   auto spatial_ricci =
       make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
                                                                 0.0);
-  auto extrinsic_curvature =
+  const auto extrinsic_curvature =
       make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
                                                                 0.0);
-  auto cov_deriv_extrinsic_curvature =
+  const auto cov_deriv_extrinsic_curvature =
       make_with_value<tnsr::ijj<DataVector, 3, Frame::Inertial>>(used_for_size,
                                                                  0.0);
   auto spatial_metric =
@@ -162,6 +164,61 @@ void test_polarization_basis_on_coordinate_planes() {
   auto expected = ComplexDataVector(7, 0.5);
   expected[4] = expected[5] = expected[6] = std::complex<double>{-0.5, 1.0};
   CHECK_ITERABLE_APPROX(get(result), expected);
+  auto expected_real = DataVector(7, 0.5);
+  expected_real[4] = expected_real[5] = expected_real[6] = -0.5;
+  CHECK_ITERABLE_APPROX(
+      get(gr::psi_4_real(spatial_ricci, extrinsic_curvature,
+                         cov_deriv_extrinsic_curvature, spatial_metric,
+                         inverse_spatial_metric, inertial_coords)),
+      expected_real);
+}
+
+void test_polarization_basis_with_curved_metric() {
+  const DataVector used_for_size(1, 0.0);
+  auto spatial_ricci =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  const auto extrinsic_curvature =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  const auto cov_deriv_extrinsic_curvature =
+      make_with_value<tnsr::ijj<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                 0.0);
+  auto spatial_metric =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  spatial_metric.get(0, 0) = 1.0;
+  spatial_metric.get(0, 1) = 0.5;
+  spatial_metric.get(1, 1) = 1.0;
+  spatial_metric.get(2, 2) = 4.0;
+  auto inverse_spatial_metric =
+      make_with_value<tnsr::II<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  inverse_spatial_metric.get(0, 0) = 4.0 / 3.0;
+  inverse_spatial_metric.get(0, 1) = -2.0 / 3.0;
+  inverse_spatial_metric.get(1, 1) = 4.0 / 3.0;
+  inverse_spatial_metric.get(2, 2) = 0.25;
+  auto inertial_coords =
+      make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                               0.0);
+  inertial_coords.get(0) = 1.0;
+
+  // The projected x direction vanishes, so the first polarization is the
+  // normalized projected y direction (-1/sqrt(3), 2/sqrt(3), 0). The curved
+  // metric cross product must give the second polarization (0, 0, 1/2).
+  // These Ricci components then give Psi4 = 1/2 + i.
+  spatial_ricci.get(2, 2) = 4.0;
+  spatial_ricci.get(1, 2) = sqrt(3.0);
+  const auto result = gr::psi_4(spatial_ricci, extrinsic_curvature,
+                                cov_deriv_extrinsic_curvature, spatial_metric,
+                                inverse_spatial_metric, inertial_coords);
+  const ComplexDataVector expected(1, std::complex<double>{0.5, 1.0});
+  CHECK_ITERABLE_APPROX(get(result), expected);
+  CHECK_ITERABLE_APPROX(
+      get(gr::psi_4_real(spatial_ricci, extrinsic_curvature,
+                         cov_deriv_extrinsic_curvature, spatial_metric,
+                         inverse_spatial_metric, inertial_coords)),
+      DataVector(1, 0.5));
 }
 }  // namespace
 
@@ -177,4 +234,5 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.GeneralRelativity.Psi4",
   test_psi_4(used_for_size_real_dv, used_for_size_complex_dv);
   test_compute_item_in_databox(used_for_size_real_dv);
   test_polarization_basis_on_coordinate_planes();
+  test_polarization_basis_with_curved_metric();
 }

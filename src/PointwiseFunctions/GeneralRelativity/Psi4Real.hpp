@@ -29,7 +29,10 @@ namespace gr {
 /*!
  * \ingroup GeneralRelativityGroup
  * \brief Computes the real part of the Newman Penrose quantity \f$\Psi_4\f$
- * using  \f$\Psi_4[Real] = -0.5*U^{8+}_{ij}*(x^ix^j - y^iy^j)\f$.
+ * using \f$\mathrm{Re}(\Psi_4) =
+ * -\frac{1}{2}U^{8+}_{ij}(\hat{x}^i\hat{x}^j -
+ * \hat{y}^i\hat{y}^j)\f$, with the polarization basis described by
+ * `gr::psi_4`.
  */
 template <typename Frame>
 void psi_4_real(
@@ -52,7 +55,9 @@ Scalar<DataVector> psi_4_real(
 
 namespace Tags {
 /// Computes the real part of the Newman Penrose quantity \f$\Psi_4\f$ using
-/// \f$\Psi_4[Real] = -0.5*U^{8+}_{ij}*(x^ix^j - y^iy^j)\f$.
+/// \f$\mathrm{Re}(\Psi_4) =
+/// -\frac{1}{2}U^{8+}_{ij}(\hat{x}^i\hat{x}^j -
+/// \hat{y}^i\hat{y}^j)\f$.
 ///
 /// Can be retrieved using `gr::Tags::Psi4Real`
 template <typename Frame>

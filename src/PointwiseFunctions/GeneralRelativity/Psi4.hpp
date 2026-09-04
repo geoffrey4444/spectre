@@ -23,9 +23,9 @@ namespace gr {
  * field U\f$^{8+}\f$ and complex vector \f$\bar{m}^i\f$.
  *
  * \details Computes \f$\Psi_4\f$ as: \f$\Psi_4 =
- * U^{8+}_{ij}\bar{m}^i\bar{m}^j\f$ with the characteristic field
+ * -\frac{1}{2} U^{8+}_{ij}\bar{m}^i\bar{m}^j\f$ with the characteristic field
  * \f$U^{8+} = (P^{(a}_i P^{b)}_j - \frac{1}{2}P_{ij}P^{ab})
- * (E_{ab} - \epsilon_a^{cd}n_dB_{cb}\f$)
+ * (E_{ab} - \epsilon_a^{cd}n_dB_{cb})\f$,
  * and \f$\bar{m}^i\f$ = \f$(\hat{x}^i-i\hat{y}^i)\f$. The first polarization
  * vector \f$\hat{x}^i\f$ is constructed by projecting the coordinate
  * \f$x\f$ direction orthogonal to the radial direction, with the coordinate

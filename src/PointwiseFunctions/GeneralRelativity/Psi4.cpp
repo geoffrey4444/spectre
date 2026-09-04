@@ -4,6 +4,7 @@
 #include "PointwiseFunctions/GeneralRelativity/Psi4.hpp"
 
 #include <cmath>
+#include <complex>
 #include <cstddef>
 #include <limits>
 
