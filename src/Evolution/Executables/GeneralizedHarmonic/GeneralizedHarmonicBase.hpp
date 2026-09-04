@@ -116,6 +116,7 @@
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfLapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfShift.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Psi0Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Ricci.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
@@ -259,6 +260,7 @@ struct ObserverTags {
                                                   Frame::Inertial>,
               gr::Tags::WeylTypeD1Compute<DataVector, 3, Frame::Inertial>,
               gr::Tags::WeylTypeD1ScalarCompute<DataVector, 3, Frame::Inertial>,
+              gr::Tags::Psi0RealCompute<Frame::Inertial>,
               gr::Tags::Psi4RealCompute<Frame::Inertial>>,
           tmpl::list<>>>;
   using non_tensor_compute_tags = tmpl::list<

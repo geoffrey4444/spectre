@@ -184,6 +184,14 @@ struct SpatialRicciScalar : db::SimpleTag {
 };
 
 /*!
+ * \brief Computes the real part of \f$\Psi_0\f$
+ */
+template <typename DataType>
+struct Psi0Real : db::SimpleTag {
+  using type = Scalar<DataType>;
+};
+
+/*!
  * \brief Computes the real part of \f$\Psi_4\f$
  */
 template <typename DataType>

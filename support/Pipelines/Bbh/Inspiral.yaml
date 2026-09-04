@@ -437,6 +437,7 @@ EventsAndTriggersAtSlabs:
             # For visualization:
             - Lapse
             - SpatialRicciScalar
+            - Psi0Real
             - Psi4Real
           InterpolateToMesh: None
           # Save disk space by saving single precision data. This is enough

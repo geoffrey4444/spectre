@@ -18,6 +18,8 @@ OutputFileChecks:
 ExtraFileCheckExecs:
   - Label: "check_excision_characteristic_speeds_xdmf"
     Executable: "CheckExcisionCharacteristicSpeedsXdmf.py"
+  - Label: "check_psi0_real_volume_output"
+    Executable: "CheckPsi0RealVolumeOutput.py"
 
 ---
 
@@ -205,6 +207,8 @@ EventsAndTriggersAtSlabs:
             - PointwiseL2Norm(GaugeConstraint)
             - PointwiseL2Norm(ThreeIndexConstraint)
             - PointwiseL2Norm(FourIndexConstraint)
+            - Psi0Real
+            - Psi4Real
           InterpolateToMesh: None
           ProjectToMesh: None
           CoordinatesFloatingPointType: Double

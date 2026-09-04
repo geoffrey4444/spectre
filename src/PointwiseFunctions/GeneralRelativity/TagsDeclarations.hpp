@@ -68,6 +68,8 @@ struct SpatialRicci;
 template <typename DataType>
 struct SpatialRicciScalar;
 template <typename DataType>
+struct Psi0Real;
+template <typename DataType>
 struct Psi4Real;
 template <typename DataType>
 struct EnergyDensity;

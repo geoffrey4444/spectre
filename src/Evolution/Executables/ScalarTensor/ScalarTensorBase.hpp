@@ -111,6 +111,7 @@
 #include "PointwiseFunctions/GeneralRelativity/DetAndInverseSpatialMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintDampingTags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintGammas.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Psi0Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Ricci.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Surfaces/Tags.hpp"
@@ -282,6 +283,7 @@ struct ObserverTags {
           gr::Tags::WeylElectric<DataVector, volume_dim, Frame::Inertial>,
           gr::Tags::WeylElectricScalar<DataVector>,
           gr::Tags::WeylMagneticScalar<DataVector>,
+          gr::Tags::Psi0RealCompute<Frame::Inertial>,
           gr::Tags::Psi4RealCompute<Frame::Inertial>>>;
   using non_tensor_compute_tags = tmpl::list<
       ::Events::Tags::ObserverMeshCompute<volume_dim>,

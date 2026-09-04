@@ -282,7 +282,7 @@ EventsAndTriggersAtSlabs:
           Interval: 1000
           Offset: 0
     Events:
-      # SpatialRicciScalar and Psi4Real output for visualizations scripts.
+      # SpatialRicciScalar and Weyl scalar output for visualization scripts.
       - ObserveFields:
           SubfileName: VolumeData
           VariablesToObserve:
@@ -295,6 +295,7 @@ EventsAndTriggersAtSlabs:
             # For visualization:
             - Lapse
             - SpatialRicciScalar
+            - Psi0Real
             - Psi4Real
           InterpolateToMesh: None
           ProjectToMesh: None
