@@ -3,9 +3,13 @@
 
 #include "PointwiseFunctions/GeneralRelativity/Psi4.hpp"
 
+#include <cmath>
 #include <cstddef>
+#include <limits>
 
 #include "DataStructures/Tags/TempTensor.hpp"
+#include "DataStructures/Tensor/EagerMath/CrossProduct.hpp"
+#include "DataStructures/Tensor/EagerMath/Determinant.hpp"
 #include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Expressions/Evaluate.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
@@ -26,7 +30,8 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
            const tnsr::ii<DataVector, 3, Frame>& spatial_metric,
            const tnsr::II<DataVector, 3, Frame>& inverse_spatial_metric,
            const tnsr::I<DataVector, 3, Frame>& inertial_coords) {
-  Variables<tmpl::list<::Tags::TempScalar<0>, ::Tags::TempI<0, 3, Frame>,
+  Variables<tmpl::list<::Tags::TempScalar<0>, ::Tags::TempScalar<1>,
+                       ::Tags::TempScalar<2>, ::Tags::TempI<0, 3, Frame>,
                        ::Tags::TempI<1, 3, Frame>, ::Tags::TempI<2, 3, Frame>,
                        ::Tags::TempI<3, 3, Frame>, ::Tags::Tempi<0, 3, Frame>,
                        ::Tags::Tempij<0, 3, Frame>, ::Tags::Tempii<0, 3, Frame>,
@@ -68,23 +73,46 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
       inverse_spatial_metric, cov_deriv_extrinsic_curvature, r_hat,
       inverse_projection_tensor, projection_tensor, projection_up_lo, 1.0);
 
-  // Gram-Schmidt x_hat, a unit vector that's orthogonal to r_hat
-  auto& x_coord = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
-  x_coord.get(0) = 1.0;
-  x_coord.get(1) = x_coord.get(2) = 0.0;
-  auto& x_component = get<::Tags::TempScalar<0>>(temp_buffer);
-  dot_product(make_not_null(&x_component), x_coord, r_hat, spatial_metric);
-  auto& x_hat = get<::Tags::TempI<2, 3, Frame>>(temp_buffer);
-  tenex::evaluate<ti::I>(make_not_null(&x_hat),
-                         x_coord(ti::I) - (x_component() * r_hat(ti::I)));
-  auto& magnitude_x = get<::Tags::TempScalar<0>>(temp_buffer);
-  magnitude(make_not_null(&magnitude_x), x_hat, spatial_metric);
+  // Project the coordinate x direction into the transverse plane.  Near the
+  // x axis use the projected y direction instead, to avoid normalizing
+  // roundoff.  This preserves the historical Cartesian polarization
+  // convention away from its coordinate singularity.
+  auto& coordinate_direction = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
+  coordinate_direction.get(0) = 1.0;
+  coordinate_direction.get(1) = coordinate_direction.get(2) = 0.0;
+  auto& coordinate_component = get<::Tags::TempScalar<1>>(temp_buffer);
+  dot_product(make_not_null(&coordinate_component), coordinate_direction, r_hat,
+              spatial_metric);
+  auto& first_polarization = get<::Tags::TempI<2, 3, Frame>>(temp_buffer);
+  tenex::evaluate<ti::I>(
+      make_not_null(&first_polarization),
+      coordinate_direction(ti::I) - coordinate_component() * r_hat(ti::I));
+  auto& magnitude_first_polarization = get<::Tags::TempScalar<2>>(temp_buffer);
+  magnitude(make_not_null(&magnitude_first_polarization), first_polarization,
+            spatial_metric);
+
+  coordinate_direction.get(1) = 1.0;
+  coordinate_direction.get(0) = coordinate_direction.get(2) = 0.0;
+  dot_product(make_not_null(&coordinate_component), coordinate_direction, r_hat,
+              spatial_metric);
+  auto& projected_y = get<::Tags::TempI<3, 3, Frame>>(temp_buffer);
+  tenex::evaluate<ti::I>(
+      make_not_null(&projected_y),
+      coordinate_direction(ti::I) - coordinate_component() * r_hat(ti::I));
+  auto& magnitude_projected_y = get<::Tags::TempScalar<1>>(temp_buffer);
+  magnitude(make_not_null(&magnitude_projected_y), projected_y, spatial_metric);
   for (size_t j = 0; j < 3; j++) {
-    for (size_t i = 0; i < get(magnitude_x).size(); i++) {
-      if (magnitude_x.get()[i] != 0.0) {
-        x_hat.get(j)[i] /= magnitude_x.get()[i];
+    for (size_t i = 0; i < get(magnitude_first_polarization).size(); i++) {
+      const double minimum_magnitude = 100.0 *
+                                       std::numeric_limits<double>::epsilon() *
+                                       sqrt(spatial_metric.get(0, 0)[i]);
+      if (get(magnitude_first_polarization)[i] > minimum_magnitude) {
+        first_polarization.get(j)[i] /= get(magnitude_first_polarization)[i];
+      } else if (get(magnitude_projected_y)[i] != 0.0) {
+        first_polarization.get(j)[i] =
+            projected_y.get(j)[i] / get(magnitude_projected_y)[i];
       } else {
-        x_hat.get(j)[i] = 0.0;
+        first_polarization.get(j)[i] = 0.0;
       }
     }
   }
@@ -93,39 +121,44 @@ void psi_4(const gsl::not_null<Scalar<ComplexDataVector>*> psi_4_result,
                        ::Tags::TempI<1, 3, Frame, ComplexDataVector>>>
       y_hat_buffer{get<0>(inertial_coords).size()};
 
-  // Grad-Schmidt y_hat, a unit vector orthogonal to r_hat and x_hat
-  auto& y_coord = get<::Tags::TempI<1, 3, Frame>>(temp_buffer);
-  y_coord.get(1) = 1.0;
-  y_coord.get(0) = y_coord.get(2) = 0.0;
-  auto& y_component = get<::Tags::TempScalar<0>>(temp_buffer);
-  dot_product(make_not_null(&y_component), y_coord, r_hat, spatial_metric);
-  auto& y_hat_not_complex = get<::Tags::TempI<3, 3, Frame>>(temp_buffer);
-  tenex::evaluate<ti::I>(make_not_null(&y_hat_not_complex),
-                         y_coord(ti::I) - (y_component() * r_hat(ti::I)));
-  dot_product(make_not_null(&y_component), y_coord, x_hat, spatial_metric);
+  // Preserve the historical Gram-Schmidt projection of the coordinate y
+  // direction wherever it is well-conditioned.  It becomes linearly
+  // dependent on r_hat and the first polarization vector over an entire
+  // coordinate plane, so use the metric cross product there.  This fallback
+  // fixes the degenerate plane without changing the complex-Psi4 convention
+  // where the old basis was valid (including the origin and both z axes).
+  dot_product(make_not_null(&coordinate_component), projected_y,
+              first_polarization, spatial_metric);
   tenex::evaluate<ti::I>(
-      make_not_null(&y_hat_not_complex),
-      y_hat_not_complex(ti::I) - (y_component() * x_hat(ti::I)));
-  auto& magnitude_y = get<::Tags::TempScalar<0>>(temp_buffer);
-  magnitude(make_not_null(&magnitude_y), y_hat_not_complex, spatial_metric);
-  for (size_t j = 0; j < 3; j++) {
-    for (size_t i = 0; i < get(magnitude_y).size(); i++) {
-      if (magnitude_y.get()[i] != 0.0) {
-        y_hat_not_complex.get(j)[i] /= magnitude_y.get()[i];
-      } else {
-        y_hat_not_complex.get(j)[i] = 0.0;
+      make_not_null(&projected_y),
+      projected_y(ti::I) - coordinate_component() * first_polarization(ti::I));
+  magnitude(make_not_null(&magnitude_projected_y), projected_y, spatial_metric);
+
+  auto& second_polarization = coordinate_direction;
+  second_polarization =
+      cross_product(r_hat, first_polarization, inverse_spatial_metric,
+                    determinant(spatial_metric));
+  for (size_t j = 0; j < 3; ++j) {
+    for (size_t i = 0; i < get(magnitude_projected_y).size(); ++i) {
+      const double minimum_magnitude = 100.0 *
+                                       std::numeric_limits<double>::epsilon() *
+                                       sqrt(spatial_metric.get(1, 1)[i]);
+      if (get(magnitude_projected_y)[i] > minimum_magnitude) {
+        second_polarization.get(j)[i] =
+            projected_y.get(j)[i] / get(magnitude_projected_y)[i];
       }
     }
   }
   const std::complex<double> imag = std::complex<double>(0.0, 1.0);
-  auto& y_hat =
+  auto& imaginary_phi_hat =
       get<::Tags::TempI<0, 3, Frame, ComplexDataVector>>(y_hat_buffer);
-  tenex::evaluate<ti::I>(make_not_null(&y_hat),
-                         imag * y_hat_not_complex(ti::I));
+  tenex::evaluate<ti::I>(make_not_null(&imaginary_phi_hat),
+                         imag * second_polarization(ti::I));
 
   auto& m_bar =
       get<::Tags::TempI<1, 3, Frame, ComplexDataVector>>(y_hat_buffer);
-  tenex::evaluate<ti::I>(make_not_null(&m_bar), x_hat(ti::I) - y_hat(ti::I));
+  tenex::evaluate<ti::I>(make_not_null(&m_bar),
+                         first_polarization(ti::I) - imaginary_phi_hat(ti::I));
 
   tenex::evaluate(psi_4_result,
                   -0.5 * u8_plus(ti::i, ti::j) * m_bar(ti::I) * m_bar(ti::J));

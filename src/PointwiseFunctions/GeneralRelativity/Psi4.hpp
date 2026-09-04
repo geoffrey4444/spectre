@@ -26,8 +26,16 @@ namespace gr {
  * U^{8+}_{ij}\bar{m}^i\bar{m}^j\f$ with the characteristic field
  * \f$U^{8+} = (P^{(a}_i P^{b)}_j - \frac{1}{2}P_{ij}P^{ab})
  * (E_{ab} - \epsilon_a^{cd}n_dB_{cb}\f$)
- * and \f$\bar{m}^i\f$ = \f$\frac{(x^i + iy^i)}{\sqrt{2}}\f$. \f$x^i\f$ and
- * \f$y^i\f$ are normalized unit vectors in the frame Frame.
+ * and \f$\bar{m}^i\f$ = \f$(\hat{x}^i-i\hat{y}^i)\f$. The first polarization
+ * vector \f$\hat{x}^i\f$ is constructed by projecting the coordinate
+ * \f$x\f$ direction orthogonal to the radial direction, with the coordinate
+ * \f$y\f$ direction used as a fallback near the \f$x\f$ axis. The second
+ * polarization vector \f$\hat{y}^i\f$ is the coordinate \f$y\f$ direction
+ * Gram-Schmidt orthonormalized against the radial direction and
+ * \f$\hat{x}^i\f$. Where those directions become linearly dependent, the
+ * metric cross product of the radial direction and \f$\hat{x}^i\f$ is used as
+ * a fallback. At the origin, where the radial direction is undefined, the
+ * historical Cartesian \f$x\f$-\f$y\f$ basis is used.
  *
  */
 template <typename Frame>
