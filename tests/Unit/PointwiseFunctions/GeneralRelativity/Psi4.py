@@ -53,19 +53,36 @@ def psi_4(
     x_component = np.einsum("a,b,ab", x_coord, r_hat, spatial_metric)
     x_hat = x_coord - (x_component * r_hat)
     magnitude_x = math.sqrt(np.einsum("a,b,ab", x_hat, x_hat, spatial_metric))
-    if magnitude_x != 0.0:
-        x_hat = np.einsum("a", x_hat / magnitude_x)
-    else:
-        x_hat = np.einsum("a", x_hat * 0.0)
+    minimum_magnitude = (
+        100.0 * np.finfo(float).eps * math.sqrt(spatial_metric[0, 0])
+    )
     y_coord = np.zeros((3))
     y_coord[1] = 1
     y_component = np.einsum("a,b,ab", y_coord, r_hat, spatial_metric)
-    y_hat = y_coord - (y_component * r_hat)
-    y_component = np.einsum("a,b,ab", y_coord, x_hat, spatial_metric)
-    y_hat = y_hat - (y_component * x_hat)
+    projected_y = y_coord - (y_component * r_hat)
+    if magnitude_x > minimum_magnitude:
+        x_hat = np.einsum("a", x_hat / magnitude_x)
+    else:
+        x_hat = projected_y
+        magnitude_x = math.sqrt(
+            np.einsum("a,b,ab", x_hat, x_hat, spatial_metric)
+        )
+        if magnitude_x != 0.0:
+            x_hat = np.einsum("a", x_hat / magnitude_x)
+        else:
+            x_hat = np.einsum("a", x_hat * 0.0)
+    y_component = np.einsum("a,b,ab", projected_y, x_hat, spatial_metric)
+    y_hat = projected_y - y_component * x_hat
     magnitude_y = math.sqrt(np.einsum("a,b,ab", y_hat, y_hat, spatial_metric))
-    if magnitude_y != 0.0:
+    minimum_magnitude_y = (
+        100.0 * np.finfo(float).eps * math.sqrt(spatial_metric[1, 1])
+    )
+    if magnitude_y > minimum_magnitude_y:
         y_hat = np.einsum("a", y_hat / magnitude_y)
+    elif magnitude_inertial != 0.0:
+        y_hat = math.sqrt(np.linalg.det(spatial_metric)) * np.einsum(
+            "li,l->i", inv_spatial_metric, np.cross(r_hat, x_hat)
+        )
     else:
         y_hat = np.einsum("a", y_hat * 0.0)
     m_bar = x_hat - (y_hat * complex(0.0, 1.0))

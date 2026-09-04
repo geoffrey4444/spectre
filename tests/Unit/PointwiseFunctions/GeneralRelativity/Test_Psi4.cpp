@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <cmath>
 #include <cstddef>
 #include <random>
 
@@ -22,6 +23,7 @@
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/TagsDeclarations.hpp"
 #include "PointwiseFunctions/GeneralRelativity/WeylPropagating.hpp"
+#include "Utilities/MakeWithValue.hpp"
 
 namespace {
 template <typename RealDataType>
@@ -115,6 +117,61 @@ void test_psi_4(const RealDataType& used_for_size_real,
   Approx local_approx = Approx::custom().epsilon(1e-13).scale(1.0);
   CHECK_ITERABLE_CUSTOM_APPROX(expected, python_psi_4, local_approx);
 }
+
+void test_polarization_basis_on_coordinate_planes() {
+  const DataVector used_for_size(7, 0.0);
+  auto spatial_ricci =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  auto extrinsic_curvature =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  auto cov_deriv_extrinsic_curvature =
+      make_with_value<tnsr::ijj<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                 0.0);
+  auto spatial_metric =
+      make_with_value<tnsr::ii<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  auto inverse_spatial_metric =
+      make_with_value<tnsr::II<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                                0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    spatial_metric.get(i, i) = 1.0;
+    inverse_spatial_metric.get(i, i) = 1.0;
+  }
+  // At the first four points the radial direction is in the xy plane. The
+  // projected x direction and its metric cross product with the radial
+  // direction form an orthonormal polarization basis. For this Ricci tensor,
+  // the transverse trace-free projection therefore gives Psi4 = 1/2 at every
+  // azimuth, including on the x axis where the projected y direction is used
+  // as a fallback.
+  spatial_ricci.get(2, 2) = DataVector{1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0};
+  // The next two points check the historical Cartesian polarization basis on
+  // the positive and negative z axes, which are grid lines in a filled Sphere
+  // domain. The final point checks that same historical basis at the origin.
+  // At all three points Psi4 = -1/2 + i for Ricci_xx = Ricci_xy = 1. The
+  // imaginary part distinguishes the historical y polarization from its
+  // negative, so this also checks that the fallback does not change the old
+  // complex-Psi4 convention where the Gram-Schmidt construction is valid.
+  spatial_ricci.get(0, 0) = DataVector{0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0};
+  spatial_ricci.get(0, 1) = DataVector{0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0};
+  auto inertial_coords =
+      make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(used_for_size,
+                                                               0.0);
+  const double inverse_sqrt_two = 1.0 / sqrt(2.0);
+  inertial_coords.get(0) =
+      DataVector{1.0, inverse_sqrt_two, 0.0, -inverse_sqrt_two, 0.0, 0.0, 0.0};
+  inertial_coords.get(1) =
+      DataVector{0.0, inverse_sqrt_two, 1.0, inverse_sqrt_two, 0.0, 0.0, 0.0};
+  inertial_coords.get(2) = DataVector{0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0};
+
+  const auto result = gr::psi_4(spatial_ricci, extrinsic_curvature,
+                                cov_deriv_extrinsic_curvature, spatial_metric,
+                                inverse_spatial_metric, inertial_coords);
+  auto expected = ComplexDataVector(7, 0.5);
+  expected[4] = expected[5] = expected[6] = std::complex<double>{-0.5, 1.0};
+  CHECK_ITERABLE_APPROX(get(result), expected);
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.PointwiseFunctions.GeneralRelativity.Psi4",
@@ -128,4 +185,5 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.GeneralRelativity.Psi4",
       ComplexDataVector(size, std::numeric_limits<double>::signaling_NaN());
   test_psi_4(used_for_size_real_dv, used_for_size_complex_dv);
   test_compute_item_in_databox(used_for_size_real_dv);
+  test_polarization_basis_on_coordinate_planes();
 }
