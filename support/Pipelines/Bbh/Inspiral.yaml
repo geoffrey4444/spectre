@@ -566,6 +566,7 @@ ApparentHorizons:
     Verbosity: Quiet
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: ["ObjectAShell", "ObjectACube"]
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhB: &AhB
     Criteria:
       - Residual:
@@ -587,6 +588,7 @@ ApparentHorizons:
     Verbosity: Quiet
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: ["ObjectBShell", "ObjectBCube"]
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhC:
     Criteria:
     InitialGuess:
@@ -604,6 +606,7 @@ ApparentHorizons:
       - "ObjectBShell"
       - "ObjectBCube"
       - "Envelope"
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ControlSystemAhA: *AhA
   ControlSystemAhB: *AhB
   ControlSystemCharSpeedAhA: *AhA

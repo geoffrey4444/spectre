@@ -370,6 +370,7 @@ ApparentHorizons:
     Verbosity: Verbose
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: All
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhB: &AhB
     Criteria:
     InitialGuess:
@@ -382,6 +383,7 @@ ApparentHorizons:
     Verbosity: Verbose
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: All
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhC:
     Criteria:
     InitialGuess:
@@ -394,6 +396,7 @@ ApparentHorizons:
     Verbosity: Verbose
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: All
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ControlSystemAhA: *AhA
   ControlSystemAhB: *AhB
   ControlSystemCharSpeedAhA: *AhA

@@ -24,7 +24,12 @@
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "Domain/FunctionsOfTime/RegisterDerivedWithCharm.hpp"
 #include "Domain/FunctionsOfTime/Tags.hpp"
+#include "Domain/Structure/Direction.hpp"
+#include "Domain/Structure/Element.hpp"
 #include "Domain/Structure/ElementId.hpp"
+#include "Domain/Structure/Neighbors.hpp"
+#include "Domain/Structure/OrientationMap.hpp"
+#include "Domain/Structure/SegmentId.hpp"
 #include "Domain/Tags.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/TestCreation.hpp"
@@ -63,7 +68,8 @@ struct MockFindApparentHorizon {
     Variables<ah::vars_to_interpolate_to_target<3, frame>> vars;
     std::optional<std::string> dependency;
   };
-  static Results results;  // NOLINT
+  static Results results;         // NOLINT
+  static size_t number_of_calls;  // NOLINT
 
   template <typename ParallelComponent, typename DbTags, typename Metavariables,
             typename ArrayIndex>
@@ -77,6 +83,7 @@ struct MockFindApparentHorizon {
           incoming_vars_to_interpolate,
       const std::optional<std::string>& dependency,
       const bool /*source_vars_have_already_been_received*/ = false) {
+    ++number_of_calls;
     results.time = incoming_time;
     results.element_id = incoming_element_id;
     results.mesh = incoming_mesh;
@@ -86,6 +93,7 @@ struct MockFindApparentHorizon {
 };
 
 MockFindApparentHorizon::Results MockFindApparentHorizon::results{};  // NOLINT
+size_t MockFindApparentHorizon::number_of_calls = 0;                  // NOLINT
 
 struct MockHorizonMetavars : tt::ConformsTo<ah::protocols::HorizonMetavars> {
   using time_tag = ::Tags::TimeAndPrevious<0>;
@@ -111,7 +119,8 @@ struct MockComponent {
   using component_being_mocked =
       ah::Component<Metavariables, MockHorizonMetavars>;
   using const_global_cache_tags =
-      tmpl::list<domain::Tags::Domain<3>, ah::Tags::BlocksForHorizonFind>;
+      tmpl::list<domain::Tags::Domain<3>, ah::Tags::BlocksForHorizonFind,
+                 ah::Tags::ApparentHorizonOptions<MockHorizonMetavars>>;
   using mutable_global_cache_tags =
       tmpl::list<domain::Tags::FunctionsOfTimeInitialize,
                  ah::Tags::PreviousSurface<MockHorizonMetavars>>;
@@ -155,7 +164,12 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
   ::domain::creators::register_derived_with_charm();
   ::domain::creators::time_dependence::register_derived_with_charm();
   using metavars = MockMetavariables;
-  const ElementId<3> element_id(2);
+  const ElementId<3> previous_element_id{
+      0, {{SegmentId{4, 0}, SegmentId{0, 0}, SegmentId{0, 0}}}};
+  const ElementId<3> neighbor_element_id{
+      0, {{SegmentId{4, 1}, SegmentId{0, 0}, SegmentId{0, 0}}}};
+  const ElementId<3> element_id{
+      0, {{SegmentId{4, 2}, SegmentId{0, 0}, SegmentId{0, 0}}}};
 
   using component = MockComponent<metavars>;
   using elem_component = MockElement<metavars>;
@@ -172,12 +186,22 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
       std::optional{domain::creators::Sphere::TimeDepOptionType{
           std::move(time_dependence)}});
   const auto block_names = domain_creator.block_names();
+  const auto make_horizon_options = [](const ah::ElementSendPolicy policy) {
+    ah::HorizonOptions<Frame::Grid> options{};
+    options.element_send_policy = policy;
+    return options;
+  };
+  const ah::Storage::PreviousSurface<Frame::Grid> previous_surface{
+      LinkedMessageId<double>{1.5, {1.0}},
+      ylm::Strahlkorper<Frame::Grid>{2, 2.0, std::array{0.0, 0.0, 0.0}},
+      {previous_element_id}};
   ActionTesting::MockRuntimeSystem<metavars> runner{
       {domain_creator.create_domain(),
        std::unordered_map<std::string, std::unordered_set<std::string>>{
-           {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}}},
+           {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}},
+       make_horizon_options(ah::ElementSendPolicy::All)},
       {domain_creator.functions_of_time(),
-       ah::Storage::LockedPreviousSurface<Frame::Grid>{}}};
+       ah::Storage::LockedPreviousSurface<Frame::Grid>{previous_surface}}};
   ActionTesting::set_phase(make_not_null(&runner),
                            Parallel::Phase::Initialization);
   ActionTesting::emplace_array_component<component>(
@@ -279,7 +303,12 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
       Parallel::Tags::MetavariablesImpl<metavars>,
       typename MockHorizonMetavars::time_tag, ::Events::Tags::ObserverMesh<3>,
       domain::Tags::Element<3>, ::Tags::Variables<ah::source_vars<3>>>>(
-      metavars{}, observation_time, mesh, Element<3>{element_id, {}}, vars);
+      metavars{}, observation_time, mesh,
+      Element<3>{element_id,
+                 {{Direction<3>::lower_xi(),
+                   Neighbors<3>{neighbor_element_id,
+                                OrientationMap<3>::create_aligned()}}}},
+      vars);
 
   const metavars::event event{dependency};
   const metavars::event serialized_event = serialize_and_deserialize(event);
@@ -295,6 +324,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
   const auto check_results = [&]() {
     // Invoke all actions
     runner.invoke_queued_simple_action<component>(0);
+    CHECK(MockFindApparentHorizon::number_of_calls == 1);
 
     // No more queued simple actions.
     CHECK(runner.is_simple_action_queue_empty<component>(0));
@@ -325,6 +355,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
   check_results();
 
   MockFindApparentHorizon::results = MockFindApparentHorizon::Results{};
+  MockFindApparentHorizon::number_of_calls = 0;
   dependency.reset();
 
   const auto option_event =
@@ -336,5 +367,68 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizonEvent",
                               std::add_pointer_t<elem_component>{}, {});
 
   check_results();
+
+  MockFindApparentHorizon::number_of_calls = 0;
+  ActionTesting::MockRuntimeSystem<metavars> filtered_runner{
+      {domain_creator.create_domain(),
+       std::unordered_map<std::string, std::unordered_set<std::string>>{
+           {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}},
+       make_horizon_options(ah::ElementSendPolicy::PreviousSurfaceNeighbors)},
+      {domain_creator.functions_of_time(),
+       ah::Storage::LockedPreviousSurface<Frame::Grid>{previous_surface}}};
+  ActionTesting::set_phase(make_not_null(&filtered_runner),
+                           Parallel::Phase::Initialization);
+  ActionTesting::emplace_array_component<component>(
+      &filtered_runner, ActionTesting::NodeId{0}, ActionTesting::LocalCoreId{0},
+      0);
+  ActionTesting::emplace_array_component<elem_component>(
+      &filtered_runner, ActionTesting::NodeId{0}, ActionTesting::LocalCoreId{0},
+      element_id);
+  ActionTesting::set_phase(make_not_null(&filtered_runner),
+                           Parallel::Phase::Testing);
+  auto& filtered_cache =
+      ActionTesting::cache<elem_component>(filtered_runner, element_id);
+  serialized_event.run(make_not_null(&obs_box), filtered_cache, element_id,
+                       std::add_pointer_t<elem_component>{}, {});
+  CHECK(filtered_runner.is_simple_action_queue_empty<component>(0));
+  CHECK(MockFindApparentHorizon::number_of_calls == 0);
+
+  // Neither policy should resend data at or before the completed surface,
+  // even from an element intersecting that surface.
+  auto completed_surface = previous_surface;
+  completed_surface.intersecting_element_ids = {element_id};
+  for (const auto policy : {ah::ElementSendPolicy::All,
+                            ah::ElementSendPolicy::PreviousSurfaceNeighbors}) {
+    ActionTesting::MockRuntimeSystem<metavars> completed_runner{
+        {domain_creator.create_domain(),
+         std::unordered_map<std::string, std::unordered_set<std::string>>{
+             {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}},
+         make_horizon_options(policy)},
+        {domain_creator.functions_of_time(),
+         ah::Storage::LockedPreviousSurface<Frame::Grid>{completed_surface}}};
+    ActionTesting::set_phase(make_not_null(&completed_runner),
+                             Parallel::Phase::Initialization);
+    ActionTesting::emplace_array_component<component>(
+        &completed_runner, ActionTesting::NodeId{0},
+        ActionTesting::LocalCoreId{0}, 0);
+    ActionTesting::emplace_array_component<elem_component>(
+        &completed_runner, ActionTesting::NodeId{0},
+        ActionTesting::LocalCoreId{0}, element_id);
+    ActionTesting::set_phase(make_not_null(&completed_runner),
+                             Parallel::Phase::Testing);
+    auto& completed_cache =
+        ActionTesting::cache<elem_component>(completed_runner, element_id);
+    for (const double completed_time : {1.0, 1.5}) {
+      db::mutate<typename MockHorizonMetavars::time_tag>(
+          [completed_time](const gsl::not_null<LinkedMessageId<double>*> time) {
+            *time = LinkedMessageId<double>{completed_time, {0.0}};
+          },
+          make_not_null(&box));
+      serialized_event.run(make_not_null(&obs_box), completed_cache, element_id,
+                           std::add_pointer_t<elem_component>{}, {});
+      CHECK(completed_runner.is_simple_action_queue_empty<component>(0));
+      CHECK(MockFindApparentHorizon::number_of_calls == 0);
+    }
+  }
 }
 }  // namespace

@@ -24,6 +24,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FindApparentHorizon.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
 #include "ParallelAlgorithms/Events/Tags.hpp"
 #include "ParallelAlgorithms/EventsAndTriggers/Event.hpp"
@@ -41,7 +42,9 @@ namespace ah::Events {
  * `ah::FindApparentHorizon` simple action.
  *
  * \details Only sends data if this Element is in the
- * `ah::Tags::BlocksForHorizonFind` tag.
+ * `ah::Tags::BlocksForHorizonFind` tag. Within those blocks, the
+ * `ElementSendPolicy` option selects whether all elements send or only elements
+ * intersecting or neighboring the previous surface.
  *
  */
 template <typename HorizonMetavars>
@@ -100,26 +103,9 @@ class FindApparentHorizon : public Event {
       return;
     }
 
-    // Send volume data ONLY if this element intersected with the previous
-    // horizon or if it's a neighbor of an intersecting element.
-    // - WARNING: the algorithm WILL deadlock if the horizon has moved outside
-    //   of the elements that send data here. So we can't be too greedy with the
-    //   elements that send data. We may have to send data from corner neighbors
-    //   as well if deadlocks occur.
-    // - WARNING: we don't currently wait for the `PreviousSurface` to be
-    //   updated by the last horizon find. This could be done by storing the
-    //   time of the last horizon find in the element DataBox and comparing it
-    //   to the time that's stored in `PreviousSurface`. However, this added
-    //   dependency would possibly introduce waiting. So far, I (NV) haven't
-    //   found that waiting for the update is necessary, meaning that whichever
-    //   intersecting element IDs are stored are close enough to the latest
-    //   state so that they cover the new apparent horizon (no deadlocks have
-    //   occurred in testing).
-    //   Alternatives: if we find that we need the up-to-date intersecting
-    //   elements we could just send the data without waiting if the
-    //   intersecting element IDs are not up-to-date, which just risks sending
-    //   more data than necessary (and therefore doing more work, potentially
-    //   undoing this performance optimization if it happens a lot).
+    const auto element_send_policy =
+        Parallel::get<ah::Tags::ApparentHorizonOptions<HorizonMetavars>>(cache)
+            .element_send_policy;
     const auto& locked_previous_surface =
         Parallel::get<ah::Tags::PreviousSurface<HorizonMetavars>>(cache);
     {
@@ -128,38 +114,42 @@ class FindApparentHorizon : public Event {
       const CleanupRoutine unlock_read_lock = [&locked_previous_surface]() {
         locked_previous_surface.lock.read_unlock();
       };
-      // Only skip elements if we have a previous surface
       if (locked_previous_surface.surface.has_value()) {
         const auto& previous_surface = locked_previous_surface.surface.value();
-        // If we already found a horizon AFTER the current time, skip sending
-        // anything (the data won't be needed anymore). Unlikely to occur.
+        // Both policies skip data at or before a completed horizon find.
         if (previous_surface.time.id >= time.id) {
           return;
         }
-        // Check if this element or any of its neighbors overlaps an element
-        // that intersected the horizon in the last find. Only send volume data
-        // if so.
-        const bool send_volume_data = alg::any_of(
-            previous_surface.intersecting_element_ids,
-            [&element_id,
-             &element](const ElementId<3>& intersecting_element_id) {
-              return overlapping(element_id, intersecting_element_id) or
-                     alg::any_of(
-                         element.neighbors(),
-                         [&intersecting_element_id](
-                             const std::pair<Direction<3>, Neighbors<3>>&
-                                 direction_and_neighbors) {
-                           return alg::any_of(
-                               direction_and_neighbors.second.ids(),
-                               [&intersecting_element_id](
-                                   const ElementId<3>& neighbor_id) {
-                                 return overlapping(neighbor_id,
-                                                    intersecting_element_id);
-                               });
-                         });
-            });
-        if (not send_volume_data) {
-          return;
+        // The neighbor filter can miss senders when the surface moves beyond
+        // these elements or the cached previous surface is stale. `All`
+        // bypasses the filter, while still respecting BlocksForHorizonFind.
+        if (element_send_policy ==
+            ah::ElementSendPolicy::PreviousSurfaceNeighbors) {
+          // Check if this element or any of its neighbors overlaps an element
+          // that intersected the horizon in the last find. Only send volume
+          // data if so.
+          const bool send_volume_data = alg::any_of(
+              previous_surface.intersecting_element_ids,
+              [&element_id,
+               &element](const ElementId<3>& intersecting_element_id) {
+                return overlapping(element_id, intersecting_element_id) or
+                       alg::any_of(
+                           element.neighbors(),
+                           [&intersecting_element_id](
+                               const std::pair<Direction<3>, Neighbors<3>>&
+                                   direction_and_neighbors) {
+                             return alg::any_of(
+                                 direction_and_neighbors.second.ids(),
+                                 [&intersecting_element_id](
+                                     const ElementId<3>& neighbor_id) {
+                                   return overlapping(neighbor_id,
+                                                      intersecting_element_id);
+                                 });
+                           });
+              });
+          if (not send_volume_data) {
+            return;
+          }
         }
       }  // if previous_surface.has_value()
     }    // Unlock read lock here

@@ -252,6 +252,7 @@ ApparentHorizons:
     Verbosity: Quiet
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: ["Shell0"]
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ControlSystemSingleAh: *Ah
   ControlSystemCharSpeedAh: *Ah
 
