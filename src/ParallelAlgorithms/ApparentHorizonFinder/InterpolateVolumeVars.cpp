@@ -130,6 +130,25 @@ bool interpolate_volume_data(
         }
       });
 
+  if (current_iteration_storage->rescaled_surface_vars.has_value()) {
+    ASSERT(volume_vars_storage.rescaled_surface_vars.has_value(),
+           "Rescaled-surface interpolation requires lapse and shift data.");
+    auto& diagnostic_vars = *current_iteration_storage->rescaled_surface_vars;
+    diagnostic_vars.initialize(expected_num_points);
+    const auto local_diagnostic_vars =
+        interpolator.interpolate(*volume_vars_storage.rescaled_surface_vars);
+    tmpl::for_each<rescaled_surface_char_speed_vars>(
+        [&]<typename Tag>(tmpl::type_<Tag>) {
+          auto& result = get<Tag>(diagnostic_vars);
+          const auto& local_result = get<Tag>(local_diagnostic_vars);
+          for (size_t i = 0; i < result.size(); ++i) {
+            for (size_t p = 0; p < offsets.size(); ++p) {
+              result[i][offsets[p]] = local_result[i][p];
+            }
+          }
+        });
+  }
+
   current_iteration_storage->intersecting_element_ids.insert(element_id);
   return true;
 }

@@ -21,7 +21,9 @@
 #include "Parallel/ParallelComponentHelpers.hpp"
 #include "ParallelAlgorithms/Actions/GetItemFromDistributedObject.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/ComputeRescaledSurfaceCharSpeedVars.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FindApparentHorizon.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
@@ -41,7 +43,10 @@ namespace ah::Events {
  * `ah::FindApparentHorizon` simple action.
  *
  * \details Only sends data if this Element is in the
- * `ah::Tags::BlocksForHorizonFind` tag.
+ * `ah::Tags::BlocksForHorizonFind` tag. When rescaled-surface characteristic
+ * speeds are enabled, sends the additional diagnostic fields from every
+ * element in these blocks, including elements that did not intersect the
+ * previous horizon.
  *
  */
 template <typename HorizonMetavars>
@@ -100,8 +105,20 @@ class FindApparentHorizon : public Event {
       return;
     }
 
-    // Send volume data ONLY if this element intersected with the previous
-    // horizon or if it's a neighbor of an intersecting element.
+    using horizon_frame = typename HorizonMetavars::frame;
+    bool observe_rescaled_surface_char_speeds = false;
+    if constexpr (std::is_same_v<horizon_frame, Frame::Distorted> and
+                  HorizonMetavars::destination ==
+                      ah::Destination::Observation) {
+      observe_rescaled_surface_char_speeds =
+          Parallel::get<ah::Tags::ApparentHorizonOptions<HorizonMetavars>>(
+              cache)
+              .rescaled_surface_char_speeds.has_value();
+    }
+
+    // Without the rescaled-surface diagnostic, send volume data ONLY if this
+    // element intersected with the previous horizon or if it's a neighbor of
+    // an intersecting element.
     // - WARNING: the algorithm WILL deadlock if the horizon has moved outside
     //   of the elements that send data here. So we can't be too greedy with the
     //   elements that send data. We may have to send data from corner neighbors
@@ -120,9 +137,13 @@ class FindApparentHorizon : public Event {
     //   intersecting element IDs are not up-to-date, which just risks sending
     //   more data than necessary (and therefore doing more work, potentially
     //   undoing this performance optimization if it happens a lot).
-    const auto& locked_previous_surface =
-        Parallel::get<ah::Tags::PreviousSurface<HorizonMetavars>>(cache);
-    {
+    // Rescaled surfaces may require elements that are unrelated to the
+    // previous horizon. Their interpolation can also still need volume data
+    // after the current horizon has been published in PreviousSurface, so
+    // bypass the entire previous-surface filter when observing these speeds.
+    if (not observe_rescaled_surface_char_speeds) {
+      const auto& locked_previous_surface =
+          Parallel::get<ah::Tags::PreviousSurface<HorizonMetavars>>(cache);
       // Scope to lock and unlock the read lock
       locked_previous_surface.lock.read_lock();
       const CleanupRoutine unlock_read_lock = [&locked_previous_surface]() {
@@ -167,9 +188,13 @@ class FindApparentHorizon : public Event {
     // Make Variables<ah::vars_to_interpolate_to_target> and
     // fill it by calling compute_vars_to_interpolate_to_target().
     // Then pass this variables to the FindApparentHorizon simple action.
-    using horizon_frame = typename HorizonMetavars::frame;
     Variables<ah::vars_to_interpolate_to_target<3, horizon_frame>>
         vars_to_interpolate_to_target{mesh.number_of_grid_points()};
+    std::optional<Variables<ah::rescaled_surface_char_speed_vars>>
+        rescaled_surface_char_speed_vars{};
+    if (observe_rescaled_surface_char_speeds) {
+      rescaled_surface_char_speed_vars.emplace();
+    }
     if (block.is_time_dependent()) {
       if constexpr (Parallel::is_in_global_cache<
                         Metavariables, domain::Tags::FunctionsOfTime>) {
@@ -178,6 +203,12 @@ class FindApparentHorizon : public Event {
         ah::compute_vars_to_interpolate_to_target(
             make_not_null(&vars_to_interpolate_to_target), spacetime_metric, pi,
             phi, deriv_phi, time, domain, mesh, element_id, functions_of_time);
+        if (rescaled_surface_char_speed_vars.has_value()) {
+          ah::compute_rescaled_surface_char_speed_vars(
+              make_not_null(&rescaled_surface_char_speed_vars.value()),
+              spacetime_metric, domain, mesh, element_id, time.id,
+              functions_of_time);
+        }
       } else {
         ERROR(
             "Block is time-dependent but FunctionsOfTime are not available "
@@ -187,11 +218,27 @@ class FindApparentHorizon : public Event {
       ah::compute_vars_to_interpolate_to_target(
           make_not_null(&vars_to_interpolate_to_target), spacetime_metric, pi,
           phi, deriv_phi, time, domain, mesh, element_id, {});
+      if (rescaled_surface_char_speed_vars.has_value()) {
+        ah::compute_rescaled_surface_char_speed_vars(
+            make_not_null(&rescaled_surface_char_speed_vars.value()),
+            spacetime_metric, domain, mesh, element_id, time.id, {});
+      }
     }
 
     auto& horizon_finder_proxy = Parallel::get_parallel_component<
         ah::Component<Metavariables, HorizonMetavars>>(cache);
 
+    if constexpr (std::is_same_v<horizon_frame, Frame::Distorted> and
+                  HorizonMetavars::destination ==
+                      ah::Destination::Observation) {
+      if (observe_rescaled_surface_char_speeds) {
+        Parallel::simple_action<ah::FindApparentHorizon<HorizonMetavars>>(
+            horizon_finder_proxy, time, element_id, mesh,
+            std::move(vars_to_interpolate_to_target), dependency_, false,
+            std::move(rescaled_surface_char_speed_vars));
+        return;
+      }
+    }
     Parallel::simple_action<ah::FindApparentHorizon<HorizonMetavars>>(
         horizon_finder_proxy, time, element_id, mesh,
         std::move(vars_to_interpolate_to_target), dependency_);

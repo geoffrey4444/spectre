@@ -9,9 +9,11 @@
 #include "IO/Logging/Verbosity.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/ParallelComponentHelpers.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
+#include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -88,6 +90,11 @@ struct Initialize {
       const gsl::not_null<::FastFlow*> fast_flow,
       const gsl::not_null<std::optional<LinkedMessageId<double>>*> current_time,
       const HorizonOptions<Fr>& options) {
+    if constexpr (HorizonMetavars::destination != Destination::Observation) {
+      if (options.rescaled_surface_char_speeds.has_value()) {
+        ERROR("RescaledSurfaceCharSpeeds requires an Observation horizon.");
+      }
+    }
     (*verbosity) = options.verbosity;
     (*fast_flow) = options.fast_flow;
     current_time->reset();

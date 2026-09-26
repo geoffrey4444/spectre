@@ -5,8 +5,10 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -36,6 +38,7 @@
 #include "PointwiseFunctions/GeneralRelativity/KerrHorizon.hpp"
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace {
@@ -73,12 +76,100 @@ struct TestCreationMetavariables {
                               ah::InitialShapes::KerrSchild<Frame::Grid>>>>;
   };
 };
+
+struct DistortedTestCreationMetavariables {
+  struct factory_creation
+      : tt::ConformsTo<Options::protocols::FactoryCreation> {
+    using factory_classes = tmpl::map<
+        tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
+        tmpl::pair<ylm::InitialShape<Frame::Distorted>,
+                   tmpl::list<ylm::InitialShapes::Sphere<Frame::Distorted>>>>;
+  };
+};
+
+void test_rescaled_surface_options() {
+  const ah::RescaledSurfaceCharSpeedOptions defaults{"ExcisionSphereA"};
+  CHECK(defaults.number_of_surfaces == 10);
+  CHECK(defaults.relative_excision_margin == 1.e-7);
+  const auto diagnostic =
+      TestHelpers::test_creation<ah::RescaledSurfaceCharSpeedOptions>(
+          "ExcisionSphere: ExcisionSphereA\n"
+          "NumberOfSurfaces: 7\n"
+          "RelativeExcisionMargin: 1.e-5\n");
+  CHECK(diagnostic.excision_sphere == "ExcisionSphereA");
+  CHECK(diagnostic.number_of_surfaces == 7);
+  CHECK(diagnostic.relative_excision_margin == 1.e-5);
+  CHECK(serialize_and_deserialize(diagnostic) == diagnostic);
+  CHECK(diagnostic != defaults);
+
+  const std::string horizon_options =
+      "Criteria: []\n"
+      "InitialGuess:\n"
+      "  InitialL: 4\n"
+      "  InitialShape:\n"
+      "    Sphere:\n"
+      "      Center: [0.0, 0.0, 0.0]\n"
+      "      Radius: 2.0\n"
+      "FastFlow:\n"
+      "  Flow: Fast\n"
+      "  Alpha: 1.0\n"
+      "  Beta: 0.5\n"
+      "  AbsTol: 1.e-12\n"
+      "  TruncationTol: 1.e-2\n"
+      "  DivergenceTol: 1.2\n"
+      "  DivergenceIter: 5\n"
+      "  MaxIts: 100\n"
+      "Verbosity: Quiet\n"
+      "MaxComputeCoordsRetries: 3\n"
+      "BlocksForHorizonFind: All\n";
+  const std::string enabled_options =
+      "RescaledSurfaceCharSpeeds:\n"
+      "  ExcisionSphere: ExcisionSphereA\n"
+      "  NumberOfSurfaces: 7\n"
+      "  RelativeExcisionMargin: 1.e-5\n";
+  const auto enabled =
+      TestHelpers::test_creation<ah::HorizonOptions<Frame::Distorted>,
+                                 DistortedTestCreationMetavariables>(
+          horizon_options + enabled_options);
+  REQUIRE(enabled.rescaled_surface_char_speeds.has_value());
+  CHECK(*enabled.rescaled_surface_char_speeds == diagnostic);
+  CHECK(serialize_and_deserialize(enabled) == enabled);
+  for (const std::string& suffix :
+       {std::string{}, std::string{"RescaledSurfaceCharSpeeds: None\n"}}) {
+    const auto disabled =
+        TestHelpers::test_creation<ah::HorizonOptions<Frame::Distorted>,
+                                   DistortedTestCreationMetavariables>(
+            horizon_options + suffix);
+    CHECK_FALSE(disabled.rescaled_surface_char_speeds.has_value());
+  }
+  CHECK_THROWS_WITH(
+      (TestHelpers::test_creation<ah::HorizonOptions<Frame::Grid>,
+                                  TestCreationMetavariables>(horizon_options +
+                                                             enabled_options)),
+      Catch::Matchers::ContainsSubstring("requires the Distorted frame"));
+  CHECK_THROWS_WITH(
+      (ah::RescaledSurfaceCharSpeedOptions{"", 10, 1.e-7}),
+      Catch::Matchers::ContainsSubstring("ExcisionSphere must not be empty"));
+  CHECK_THROWS_WITH(
+      (ah::RescaledSurfaceCharSpeedOptions{"ExcisionSphereA", 1, 1.e-7}),
+      Catch::Matchers::ContainsSubstring(
+          "NumberOfSurfaces must be at least 2"));
+  for (const auto margin :
+       {0.0, -1.e-7, std::numeric_limits<double>::infinity(),
+        std::numeric_limits<double>::quiet_NaN()}) {
+    CHECK_THROWS_WITH(
+        (ah::RescaledSurfaceCharSpeedOptions{"ExcisionSphereA", 10, margin}),
+        Catch::Matchers::ContainsSubstring(
+            "RelativeExcisionMargin must be finite and positive"));
+  }
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
                   "[ApparentHorizonFinder][Unit]") {
   (void)MockHorizonMetavars::destination;
   domain::creators::register_derived_with_charm();
+  test_rescaled_surface_options();
 
   // Constants used in this test.
   const size_t l_max = 12;

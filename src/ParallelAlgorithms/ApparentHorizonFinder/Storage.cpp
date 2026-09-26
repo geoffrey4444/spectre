@@ -11,17 +11,47 @@
 #include "Utilities/GenerateInstantiations.hpp"
 
 namespace ah::Storage {
+void RescaledSurfaceCharSpeeds::pup(PUP::er& p) {
+  p | horizon;
+  p | time_deriv_horizon;
+  p | radius_factors;
+  p | min_speeds;
+  p | max_speeds;
+  p | next_surface;
+  p | interpolation;
+  p | status;
+}
+
+bool operator==(const RescaledSurfaceCharSpeeds& lhs,
+                const RescaledSurfaceCharSpeeds& rhs) {
+  return lhs.horizon == rhs.horizon and
+         lhs.time_deriv_horizon == rhs.time_deriv_horizon and
+         lhs.radius_factors == rhs.radius_factors and
+         lhs.min_speeds == rhs.min_speeds and
+         lhs.max_speeds == rhs.max_speeds and
+         lhs.next_surface == rhs.next_surface and
+         lhs.interpolation == rhs.interpolation and lhs.status == rhs.status;
+}
+
+bool operator!=(const RescaledSurfaceCharSpeeds& lhs,
+                const RescaledSurfaceCharSpeeds& rhs) {
+  return not(lhs == rhs);
+}
+
 template <typename Fr>
 void VolumeVariables<Fr>::pup(PUP::er& p) {
   p | mesh;
   p | vars_to_interpolate_to_target;
+  p | rescaled_surface_vars;
 }
 
 template <typename Fr>
 bool operator==(const VolumeVariables<Fr>& lhs,
                 const VolumeVariables<Fr>& rhs) {
   return lhs.mesh == rhs.mesh and
-         lhs.vars_to_interpolate_to_target == rhs.vars_to_interpolate_to_target;
+         lhs.vars_to_interpolate_to_target ==
+             rhs.vars_to_interpolate_to_target and
+         lhs.rescaled_surface_vars == rhs.rescaled_surface_vars;
 }
 template <typename Fr>
 bool operator!=(const VolumeVariables<Fr>& lhs,
@@ -43,6 +73,7 @@ void Iteration<Fr>::reset_for_next_iteration() {
   this->indices_interpolated_to_thus_far.clear();
   this->intersecting_element_ids.clear();
   this->compute_coords_retries = 0;
+  this->rescaled_surface_vars.reset();
 }
 
 template <typename Fr>
@@ -53,6 +84,7 @@ void Iteration<Fr>::pup(PUP::er& p) {
   p | indices_interpolated_to_thus_far;
   p | intersecting_element_ids;
   p | compute_coords_retries;
+  p | rescaled_surface_vars;
   // No need to serialize the memory buffers because they are resized as needed
 }
 
@@ -64,7 +96,8 @@ bool operator==(const Iteration<Fr>& lhs, const Iteration<Fr>& rhs) {
          lhs.indices_interpolated_to_thus_far ==
              rhs.indices_interpolated_to_thus_far and
          lhs.intersecting_element_ids == rhs.intersecting_element_ids and
-         lhs.compute_coords_retries == rhs.compute_coords_retries;
+         lhs.compute_coords_retries == rhs.compute_coords_retries and
+         lhs.rescaled_surface_vars == rhs.rescaled_surface_vars;
   // No need to compare the memory buffers
 }
 template <typename Fr>
@@ -79,6 +112,7 @@ void SingleTimeStorage<Fr>::pup(PUP::er& p) {
   p | previous_iteration_surface;
   p | destination;
   p | time_is_ready;
+  p | rescaled_surface_char_speeds;
 }
 
 template <typename Fr>
@@ -88,7 +122,8 @@ bool operator==(const SingleTimeStorage<Fr>& lhs,
          lhs.current_iteration == rhs.current_iteration and
          lhs.previous_iteration_surface == rhs.previous_iteration_surface and
          lhs.destination == rhs.destination and
-         lhs.time_is_ready == rhs.time_is_ready;
+         lhs.time_is_ready == rhs.time_is_ready and
+         lhs.rescaled_surface_char_speeds == rhs.rescaled_surface_char_speeds;
 }
 template <typename Fr>
 bool operator!=(const SingleTimeStorage<Fr>& lhs,

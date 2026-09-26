@@ -10,6 +10,7 @@ spectre_target_sources(
   PRIVATE
   CleanUp.cpp
   ComputeCoords.cpp
+  ComputeRescaledSurfaceCharSpeedVars.cpp
   ComputeVarsToInterpolateToTarget.cpp
   CurrentTime.cpp
   Destination.cpp
@@ -17,6 +18,8 @@ spectre_target_sources(
   InterpolateVolumeVars.cpp
   KerrSchild.cpp
   OptionTags.cpp
+  RescaledSurfaceCharSpeeds.cpp
+  SampleRescaledSurfaceCharSpeeds.cpp
   Storage.cpp
   )
 
@@ -28,6 +31,7 @@ spectre_target_headers(
   CleanUp.hpp
   Component.hpp
   ComputeCoords.hpp
+  ComputeRescaledSurfaceCharSpeedVars.hpp
   ComputeVarsToInterpolateToTarget.hpp
   CurrentTime.hpp
   Destination.hpp
@@ -39,6 +43,8 @@ spectre_target_headers(
   KerrSchild.hpp
   OptionTags.hpp
   PrintDeadlockAnalysis.hpp
+  RescaledSurfaceCharSpeeds.hpp
+  SampleRescaledSurfaceCharSpeeds.hpp
   Storage.hpp
   Tags.hpp
   )

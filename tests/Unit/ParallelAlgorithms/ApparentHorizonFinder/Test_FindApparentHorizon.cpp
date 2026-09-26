@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -31,6 +32,7 @@
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/TestHelpers.hpp"
+#include "Helpers/IO/Observers/MockWriteReductionDataRow.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.tpp"
@@ -48,6 +50,7 @@
 #include "ParallelAlgorithms/Actions/InitializeItems.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Callbacks/FailedHorizonFind.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Component.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/ComputeRescaledSurfaceCharSpeedVars.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/ComputeVarsToInterpolateToTarget.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Factory.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Criteria/Residual.hpp"
@@ -60,6 +63,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Protocols/Callback.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Protocols/HorizonMetavars.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/SampleRescaledSurfaceCharSpeeds.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/GeneralRelativity/DetAndInverseSpatialMetric.hpp"
@@ -159,7 +163,8 @@ struct MockComponent {
 template <typename Fr, ah::Destination Dest>
 struct MockMetavariables {
   using component_list =
-      tmpl::list<MockComponent<MockMetavariables, HorizonMetavars<Fr, Dest>>>;
+      tmpl::list<MockComponent<MockMetavariables, HorizonMetavars<Fr, Dest>>,
+                 TestHelpers::observers::MockObserverWriter<MockMetavariables>>;
   using const_global_cache_tags =
       tmpl::list<domain::Tags::Domain<3>,
                  ah::Tags::ApparentHorizonOptions<HorizonMetavars<Fr, Dest>>,
@@ -194,7 +199,8 @@ void test_apparent_horizon(
     const bool is_time_dependent,
     const std::optional<std::string>& dependency = std::nullopt,
     const size_t max_its = 100_st,
-    std::vector<std::unique_ptr<ah::Criterion>> criteria = {}) {
+    std::vector<std::unique_ptr<ah::Criterion>> criteria = {},
+    const bool diagnostic_enabled = false) {
   using metavars = MockMetavariables<Fr, Dest>;
   using horizon_metavars = HorizonMetavars<Fr, Dest>;
   using component = MockComponent<metavars, horizon_metavars>;
@@ -218,6 +224,10 @@ void test_apparent_horizon(
       FastFlow{FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5,
                max_its},
       Verbosity::Verbose, 3_st, std::nullopt);
+  if (diagnostic_enabled) {
+    apparent_horizon_opts.rescaled_surface_char_speeds.emplace("ExcisionSphere",
+                                                               3, 1.e-7);
+  }
 
   std::unordered_map<std::string, std::unordered_set<std::string>>
       blocks_for_interpolation{};
@@ -278,6 +288,10 @@ void test_apparent_horizon(
   ActionTesting::emplace_array_component<component>(
       &runner, ActionTesting::NodeId{0}, ActionTesting::LocalCoreId{0}, 0_st);
   ActionTesting::next_action<component>(make_not_null(&runner), 0);
+  using writer = TestHelpers::observers::MockObserverWriter<metavars>;
+  ActionTesting::emplace_nodegroup_component_and_initialize<writer>(
+      make_not_null(&runner),
+      tuples::TaggedTuple<TestHelpers::observers::MockReductionFileTag>{});
   ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Register);
 
   // Find horizon at three times.  The horizon find at the second time will use
@@ -318,6 +332,15 @@ void test_apparent_horizon(
     }
     return {0.0, 0.0, 0.0};
   }();
+
+  struct DeferredVolumeData {
+    ElementId<3> element_id;
+    Mesh<3> mesh;
+    Variables<ah::vars_to_interpolate_to_target<3, Fr>> horizon_vars;
+    std::optional<Variables<ah::rescaled_surface_char_speed_vars>>
+        diagnostic_vars;
+  };
+  std::vector<DeferredVolumeData> deferred_data{};
 
   // Create volume data and send it to the interpolator, for each time.
   for (const auto& time : times) {
@@ -417,29 +440,109 @@ void test_apparent_horizon(
                           Frame::Inertial>>(source_vars),
           time, domain, mesh, element_id, functions_of_time);
 
+      std::optional<Variables<ah::rescaled_surface_char_speed_vars>>
+          diagnostic_vars{};
+      if (diagnostic_enabled) {
+        diagnostic_vars.emplace();
+        ah::compute_rescaled_surface_char_speed_vars(
+            make_not_null(&*diagnostic_vars),
+            get<gr::Tags::SpacetimeMetric<DataVector, 3>>(source_vars), domain,
+            mesh, element_id, time.id, functions_of_time);
+      }
+
+      // At the second observation, withhold the innermost radial elements.
+      // They do not intersect the horizon but are needed by the smallest copy.
+      if (diagnostic_enabled and time == times[1] and
+          gsl::at(element_id.segment_ids(), 2).index() == 0) {
+        deferred_data.push_back({element_id, mesh, std::move(target_vars),
+                                 std::move(diagnostic_vars)});
+        continue;
+      }
       // Queue the action so we can invoke in a random order below
       ActionTesting::queue_simple_action<
           component, ah::FindApparentHorizon<horizon_metavars>>(
           make_not_null(&runner), 0, time, element_id, mesh, target_vars,
-          dependency);
+          dependency, false, std::move(diagnostic_vars));
     }
   }
 
+  // Observation times are not linked. Start the first time before delivering
+  // the remaining elements (including data for later times) in random order.
+  if (diagnostic_enabled) {
+    runner.template invoke_queued_simple_action<component>(0);
+  }
   // Invoke remaining actions in random order.
   MAKE_GENERATOR(generator);
-  auto array_indices_with_queued_simple_actions =
-      ActionTesting::array_indices_with_queued_simple_actions<
-          typename metavars::component_list>(make_not_null(&runner));
-  while (ActionTesting::number_of_elements_with_queued_simple_actions<
-             typename metavars::component_list>(
-             array_indices_with_queued_simple_actions) > 0) {
-    ActionTesting::invoke_random_queued_simple_action<
-        typename metavars::component_list>(
-        make_not_null(&runner), make_not_null(&generator),
-        array_indices_with_queued_simple_actions);
-    array_indices_with_queued_simple_actions =
+  const auto drain_actions = [&runner, &generator]() {
+    auto array_indices_with_queued_simple_actions =
         ActionTesting::array_indices_with_queued_simple_actions<
             typename metavars::component_list>(make_not_null(&runner));
+    while (ActionTesting::number_of_elements_with_queued_simple_actions<
+               typename metavars::component_list>(
+               array_indices_with_queued_simple_actions) > 0) {
+      ActionTesting::invoke_random_queued_simple_action<
+          typename metavars::component_list>(
+          make_not_null(&runner), make_not_null(&generator),
+          array_indices_with_queued_simple_actions);
+      array_indices_with_queued_simple_actions =
+          ActionTesting::array_indices_with_queued_simple_actions<
+              typename metavars::component_list>(make_not_null(&runner));
+    }
+  };
+  drain_actions();
+  if (diagnostic_enabled) {
+    const auto& pending_storage =
+        ActionTesting::get_databox_tag<component, ah::Tags::Storage<Fr>>(runner,
+                                                                         0);
+    REQUIRE(pending_storage.contains(times[1]));
+    REQUIRE(
+        pending_storage.at(times[1]).rescaled_surface_char_speeds.has_value());
+    CHECK(callback_count == 4);
+    CHECK(ActionTesting::get_databox_tag<component,
+                                         ah::Tags::PreviousSurfaces<Fr>>(runner,
+                                                                         0)
+              .size() == 2);
+    for (auto& data : deferred_data) {
+      ActionTesting::queue_simple_action<
+          component, ah::FindApparentHorizon<horizon_metavars>>(
+          make_not_null(&runner), 0, times[1], data.element_id, data.mesh,
+          std::move(data.horizon_vars), dependency, false,
+          std::move(data.diagnostic_vars));
+    }
+    drain_actions();
+    size_t rows_written = 0;
+    while (not runner.template is_threaded_action_queue_empty<writer>(0)) {
+      runner.template invoke_queued_threaded_action<writer>(0);
+      ++rows_written;
+    }
+    REQUIRE(rows_written == times.size());
+    const auto& output =
+        ActionTesting::get_databox_tag<
+            writer, TestHelpers::observers::MockReductionFileTag>(runner, 0)
+            .get_dat("/TestingHorizonMetavars/RescaledCharSpeeds");
+    CHECK(output.get_legend() == ah::rescaled_surface_char_speed_legend(3));
+    const auto& data = output.get_data();
+    REQUIRE(data.rows() == times.size());
+    REQUIRE(data.columns() == 11);
+    for (size_t i = 0; i < times.size(); ++i) {
+      CHECK(data(i, 0) == times[i].id);
+      CHECK(data(i, 1) == (i == 0 ? 1.0 : 0.0));
+      CHECK(data(i, 2) == 1.0);
+      CHECK(data(i, 5) > data(i, 8));
+      if (i == 0) {
+        CHECK(std::isnan(data(i, 3)));
+        CHECK(std::isnan(data(i, 4)));
+      } else {
+        for (size_t surface = 0; surface < 3; ++surface) {
+          CHECK(std::isfinite(data(i, 3 + 3 * surface)));
+          CHECK(data(i, 3 + 3 * surface) <= data(i, 4 + 3 * surface));
+        }
+        CHECK(data(i, 9) > 0.0);
+      }
+    }
+    CHECK(ActionTesting::get_databox_tag<component, ah::Tags::Storage<Fr>>(
+              runner, 0)
+              .empty());
   }
 }
 
@@ -539,5 +642,21 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
   CHECK(callback_count == 0);
   CHECK(callback_failure_count == 6);
   CHECK(callback_failure_mode == FastFlow::Status::MaxIts);
+}
+
+// [[TimeOut, 60]]
+SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.RescaledSurfaceLifecycle",
+                  "[ApparentHorizonFinder][Unit]") {
+  domain::creators::register_derived_with_charm();
+  domain::FunctionsOfTime::register_derived_with_charm();
+  register_factory_classes_with_charm<
+      MockMetavariables<Frame::Distorted, ah::Destination::Observation>>();
+  callback_count = 0;
+  callback_failure_count = 0;
+  ah_found_resolutions.clear();
+  test_apparent_horizon<Frame::Distorted, ah::Destination::Observation>(
+      3, 4, 1.1, {{0.0, 0.0, 0.0}}, true, std::nullopt, 100_st, {}, true);
+  CHECK(callback_count == 6);
+  CHECK(callback_failure_count == 0);
 }
 }  // namespace

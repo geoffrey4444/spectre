@@ -6,6 +6,7 @@ set(LIBRARY "Test_ApparentHorizonFinder")
 set(LIBRARY_SOURCES
   Test_CleanUp.cpp
   Test_ComputeCoords.cpp
+  Test_ComputeRescaledSurfaceCharSpeedVars.cpp
   Test_ComputeVarsToInterpolateToTarget.cpp
   Test_CurrentTime.cpp
   Test_Destination.cpp
@@ -14,6 +15,8 @@ set(LIBRARY_SOURCES
   Test_Initialization.cpp
   Test_InterpolateVolumeVars.cpp
   Test_OptionTags.cpp
+  Test_RescaledSurfaceCharSpeeds.cpp
+  Test_SampleRescaledSurfaceCharSpeeds.cpp
   Test_Storage.cpp
   Test_Tags.cpp
   )

@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <array>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -39,6 +40,49 @@ struct MockHorizonMetavars : tt::ConformsTo<ah::protocols::HorizonMetavars> {
 
   static std::string name() { return "MockHorizonMetavars"; }
 };
+
+template <ah::Destination Destination>
+struct DistortedHorizonMetavars : MockHorizonMetavars {
+  using frame = Frame::Distorted;
+  static constexpr ah::Destination destination = Destination;
+};
+
+void test_observation_only_diagnostic() {
+  const FastFlow expected_fast_flow{
+      FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5, 100};
+  const ah::HorizonOptions<Frame::Distorted> horizon_options{
+      std::vector<std::unique_ptr<ah::Criterion>>{},
+      ylm::Strahlkorper<Frame::Distorted>{4, 2.0, std::array{0.0, 0.0, 0.0}},
+      expected_fast_flow,
+      ::Verbosity::Debug,
+      3,
+      std::nullopt,
+      ah::RescaledSurfaceCharSpeedOptions{"ExcisionSphereA"}};
+  std::optional<size_t> current_resolution_l{4};
+  ::Verbosity verbosity{};
+  std::optional<LinkedMessageId<double>> current_time =
+      LinkedMessageId<double>{1.0, std::nullopt};
+  FastFlow fast_flow{};
+
+  using ControlHorizon =
+      DistortedHorizonMetavars<ah::Destination::ControlSystem>;
+  CHECK_THROWS_WITH(
+      ah::Initialize<ControlHorizon>::apply(
+          make_not_null(&current_resolution_l), make_not_null(&verbosity),
+          make_not_null(&fast_flow), make_not_null(&current_time),
+          horizon_options),
+      Catch::Matchers::ContainsSubstring("requires an Observation horizon"));
+
+  using ObservationHorizon =
+      DistortedHorizonMetavars<ah::Destination::Observation>;
+  ah::Initialize<ObservationHorizon>::apply(
+      make_not_null(&current_resolution_l), make_not_null(&verbosity),
+      make_not_null(&fast_flow), make_not_null(&current_time), horizon_options);
+  CHECK(verbosity == ::Verbosity::Debug);
+  CHECK_FALSE(current_time.has_value());
+  CHECK(fast_flow == expected_fast_flow);
+  CHECK_FALSE(current_resolution_l.has_value());
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.Initialization",
@@ -69,4 +113,5 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.Initialization",
   CHECK_FALSE(current_time.has_value());
   CHECK(fast_flow == expected_fast_flow);
   CHECK_FALSE(current_resolution_l.has_value());
+  test_observation_only_diagnostic();
 }

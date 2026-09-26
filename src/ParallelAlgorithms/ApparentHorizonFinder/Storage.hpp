@@ -20,6 +20,7 @@
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Strahlkorper/Strahlkorper.hpp"
 #include "Parallel/MultiReaderSpinlock.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/ComputeRescaledSurfaceCharSpeedVars.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/FastFlow.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
@@ -42,6 +43,11 @@ struct VolumeVariables {
    */
   Variables<ah::vars_to_interpolate_to_target<3, Fr>>
       vars_to_interpolate_to_target{};
+
+  /// Additional volume fields, present only for the rescaled-surface
+  /// diagnostic.
+  std::optional<Variables<ah::rescaled_surface_char_speed_vars>>
+      rescaled_surface_vars{};
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);
@@ -116,6 +122,10 @@ struct Iteration {
    */
   size_t compute_coords_retries = 0;
 
+  /// Additional interpolated fields for rescaled-surface sampling.
+  std::optional<Variables<ah::rescaled_surface_char_speed_vars>>
+      rescaled_surface_vars{};
+
   /*!
    * \brief Whether all points in `interpolated_vars` have been filled.
    */
@@ -131,6 +141,40 @@ template <typename Fr>
 bool operator==(const Iteration<Fr>& lhs, const Iteration<Fr>& rhs);
 template <typename Fr>
 bool operator!=(const Iteration<Fr>& lhs, const Iteration<Fr>& rhs);
+
+/// Status written with the characteristic speeds on rescaled horizons.
+enum class RescaledSurfaceStatus {
+  Valid = 0,
+  MissingTimeDerivative = 1,
+  InvalidGeometry = 2,
+  OutsideDomain = 3,
+  MissingBlockCoverage = 4,
+  NonfiniteSpeed = 5
+};
+
+/// Same-time state for sampling a family after the horizon has converged.
+struct RescaledSurfaceCharSpeeds {
+  /// The converged horizon and its derivative at fixed distorted coordinates.
+  ylm::Strahlkorper<Frame::Distorted> horizon{};
+  ylm::Strahlkorper<Frame::Distorted> time_deriv_horizon{};
+  /// Factors and angular extrema in order from the horizon toward excision.
+  std::vector<double> radius_factors{};
+  std::vector<double> min_speeds{};
+  std::vector<double> max_speeds{};
+  /// The surface currently being sampled; the size of radius_factors when done.
+  size_t next_surface = 0;
+  /// Separate buffers so sampling cannot change the horizon iteration/history.
+  Iteration<Frame::Distorted> interpolation{};
+  RescaledSurfaceStatus status = RescaledSurfaceStatus::Valid;
+
+  // NOLINTNEXTLINE(google-runtime-references)
+  void pup(PUP::er& p);
+};
+
+bool operator==(const RescaledSurfaceCharSpeeds& lhs,
+                const RescaledSurfaceCharSpeeds& rhs);
+bool operator!=(const RescaledSurfaceCharSpeeds& lhs,
+                const RescaledSurfaceCharSpeeds& rhs);
 
 /*!
  * \brief Holds all data necessary for a single horizon find.
@@ -172,6 +216,9 @@ struct SingleTimeStorage {
    * this horizon find.
    */
   bool time_is_ready = false;
+
+  /// Engaged after successful callbacks while optional sampling is pending.
+  std::optional<RescaledSurfaceCharSpeeds> rescaled_surface_char_speeds{};
 
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);

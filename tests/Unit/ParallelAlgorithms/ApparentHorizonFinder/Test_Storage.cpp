@@ -25,6 +25,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/Destination.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
+#include "Utilities/Serialization/Serialize.hpp"
 
 namespace ah {
 namespace {
@@ -32,10 +33,14 @@ namespace {
 // structs with public members
 template <typename Fr>
 void test_storage() {
-  const ah::Storage::VolumeVariables<Fr> volume_variables{
+  ah::Storage::VolumeVariables<Fr> volume_variables{
       Mesh<3>{3, Spectral::Basis::Legendre, Spectral::Quadrature::GaussLobatto},
       Variables<ah::vars_to_interpolate_to_target<3, Fr>>{4, 4.321}};
   test_serialization(volume_variables);
+  volume_variables.rescaled_surface_vars.emplace(4, 2.5);
+  test_serialization(volume_variables);
+  CHECK(serialize_and_deserialize(volume_variables).rescaled_surface_vars ==
+        volume_variables.rescaled_surface_vars);
 
   ah::Storage::Iteration<Fr> iteration{
       ylm::Strahlkorper<Fr>{4_st, 3.0, std::array{0.0, 0.1, 0.2}},
@@ -47,6 +52,10 @@ void test_storage() {
       {},
       {2}};
   test_serialization(iteration);
+  iteration.rescaled_surface_vars.emplace(6, 3.5);
+  test_serialization(iteration);
+  CHECK(serialize_and_deserialize(iteration).rescaled_surface_vars ==
+        iteration.rescaled_surface_vars);
   CHECK_FALSE(iteration.interpolation_is_complete());
   for (size_t i = 0; i < iteration.indices_interpolated_to_thus_far.size();
        ++i) {
@@ -54,7 +63,7 @@ void test_storage() {
   }
   CHECK(iteration.interpolation_is_complete());
 
-  const ah::Storage::SingleTimeStorage<Fr> single_time_storage{
+  ah::Storage::SingleTimeStorage<Fr> single_time_storage{
       std::unordered_map<ElementId<3>, ah::Storage::VolumeVariables<Fr>>{
           {ElementId<3>{0}, volume_variables}},
       {},
@@ -62,6 +71,21 @@ void test_storage() {
       iteration.strahlkorper,
       Destination::ControlSystem};
   test_serialization(single_time_storage);
+  auto& diagnostic = single_time_storage.rescaled_surface_char_speeds.emplace();
+  diagnostic.horizon =
+      ylm::Strahlkorper<Frame::Distorted>{4_st, 2.0, std::array{0.0, 0.0, 0.0}};
+  diagnostic.time_deriv_horizon = diagnostic.horizon;
+  diagnostic.radius_factors = {1.0, 0.95, 0.9};
+  diagnostic.min_speeds = {0.0, 0.1, 0.2};
+  diagnostic.max_speeds = {0.3, 0.4, 0.5};
+  diagnostic.next_surface = 1;
+  diagnostic.status = ah::Storage::RescaledSurfaceStatus::OutsideDomain;
+  diagnostic.interpolation.strahlkorper = diagnostic.horizon;
+  diagnostic.interpolation.rescaled_surface_vars.emplace(6, 1.5);
+  diagnostic.interpolation.indices_interpolated_to_thus_far = {true, false};
+  test_serialization(single_time_storage);
+  CHECK(serialize_and_deserialize(single_time_storage)
+            .rescaled_surface_char_speeds.has_value());
 
   const ah::Storage::PreviousSurface<Fr> previous_surface{
       LinkedMessageId<double>{3.0, {2.0}},

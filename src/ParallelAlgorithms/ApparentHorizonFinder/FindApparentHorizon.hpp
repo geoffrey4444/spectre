@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <limits>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -19,10 +20,13 @@
 #include "Domain/FunctionsOfTime/Tags.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "IO/Logging/Verbosity.hpp"
+#include "IO/Observer/ObserverComponent.hpp"
+#include "IO/Observer/ReductionActions.hpp"
 #include "NumericalAlgorithms/Interpolation/IrregularInterpolant.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Strahlkorper/Strahlkorper.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Parallel/Invoke.hpp"
 #include "ParallelAlgorithms/Actions/FunctionsOfTimeAreReady.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Callbacks/InvokeCallbacks.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/CleanUp.hpp"
@@ -33,6 +37,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/InterpolateVolumeVars.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/SampleRescaledSurfaceCharSpeeds.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
@@ -67,8 +72,11 @@ struct get_tags {
  * the volume date onto these coordinates. After that, we do one iteration of
  * the `FastFlow` algorithm to get a new surface. If we haven't converged yet,
  * we compute new cartesian and start another iteration. Once we have converged,
- * we call the callbacks with `ah::invoke_callbacks` and then clean up the
- * horizon finer with `ah::clean_up_horizon_finder`. Then we try to set a new
+ * we call the callbacks with `ah::invoke_callbacks`. If enabled, we then sample
+ * characteristic speeds on rescaled copies of the horizon, retaining the
+ * volume data until every surface has been sampled. Further arrivals resume
+ * only this sampling phase, without repeating FastFlow or the callbacks. We
+ * then clean up with `ah::clean_up_horizon_finder` and try to set a new
  * current time and the process starts over again. If `FastFlow` never
  * converges, we call the `horizon_find_failure_callbacks` from the
  * \p HorizonMetavars.
@@ -88,7 +96,9 @@ struct FindApparentHorizon {
                     Variables<ah::vars_to_interpolate_to_target<3, frame>>&&
                         incoming_vars_to_interpolate,
                     const std::optional<std::string>& dependency,
-                    const bool vars_have_already_been_received = false) {
+                    const bool vars_have_already_been_received = false,
+                    std::optional<Variables<rescaled_surface_char_speed_vars>>
+                        incoming_rescaled_surface_vars = std::nullopt) {
     const auto& verbosity = db::get<ah::Tags::Verbosity>(box);
     const bool quiet_print = verbosity >= ::Verbosity::Quiet;
     const bool verbose_print = verbosity >= ::Verbosity::Verbose;
@@ -133,7 +143,8 @@ struct FindApparentHorizon {
       current_time_storage.all_volume_variables.emplace(
           incoming_element_id,
           ah::Storage::VolumeVariables<frame>{
-              incoming_mesh, std::move(incoming_vars_to_interpolate)});
+              incoming_mesh, std::move(incoming_vars_to_interpolate),
+              std::move(incoming_rescaled_surface_vars)});
       current_time_storage.destination = HorizonMetavars::destination;
     }
 
@@ -213,6 +224,36 @@ struct FindApparentHorizon {
               cache);
       auto& fast_flow =
           db::get_mutable_reference<ah::Tags::FastFlow>(make_not_null(&box));
+
+      if constexpr (std::is_same_v<frame, Frame::Distorted> and
+                    HorizonMetavars::destination == Destination::Observation) {
+        if (current_time_storage.rescaled_surface_char_speeds.has_value()) {
+          auto& diagnostic = *current_time_storage.rescaled_surface_char_speeds;
+          if (not sample_rescaled_surface_char_speeds(
+                  make_not_null(&diagnostic),
+                  current_time_storage.all_volume_variables, domain,
+                  functions_of_time, current_time.id,
+                  Parallel::get<ah::Tags::BlocksForHorizonFind>(cache).at(
+                      name))) {
+            return;
+          }
+          auto& writer = Parallel::get_parallel_component<
+              observers::ObserverWriter<Metavariables>>(cache);
+          Parallel::threaded_action<
+              observers::ThreadedActions::WriteReductionDataRow>(
+              writer[0], "/" + name + "/RescaledCharSpeeds",
+              rescaled_surface_char_speed_legend(
+                  diagnostic.radius_factors.size()),
+              std::make_tuple(rescaled_surface_char_speed_row(current_time.id,
+                                                              diagnostic)));
+          clean_up_horizon_finder(make_not_null(&current_time_optional),
+                                  make_not_null(&all_storage),
+                                  make_not_null(&completed_times),
+                                  make_not_null(&fast_flow));
+          interpolate_only_from_incoming_element = false;
+          continue;
+        }
+      }
 
       auto& all_volume_variables = current_time_storage.all_volume_variables;
       auto& current_iteration_storage = current_time_storage.current_iteration;
@@ -481,19 +522,41 @@ struct FindApparentHorizon {
             rerunning_with_higher_resolution = false;
           }
 
-          // We have converged to the apparent horizon. Invoke the callbacks and
-          // clean up for the next horizon find
+          // Invoke the callbacks once, before starting optional sampling.
           invoke_callbacks<HorizonMetavars>(make_not_null(&box), cache,
                                             dependency, status_and_info.first);
 
           if (debug_print) {
-            Parallel::printf(
-                "%s: Horizon find finished at current time %s. Cleaning up and "
-                "moving to next time\n",
-                name, current_time);
+            Parallel::printf("%s: Horizon find finished at current time %s.\n",
+                             name, current_time);
           }
 
           current_resolution_l = next_resolution_l;
+          if constexpr (std::is_same_v<frame, Frame::Distorted> and
+                        HorizonMetavars::destination ==
+                            Destination::Observation) {
+            if (options.rescaled_surface_char_speeds.has_value()) {
+              const auto& horizon =
+                  db::get<ylm::Tags::Strahlkorper<frame>>(box);
+              const bool derivative_is_available =
+                  previous_surfaces.size() > 1 and
+                  alg::all_of(previous_surfaces, [&](const auto& previous) {
+                    return previous.surface.expansion_center() ==
+                           horizon.expansion_center();
+                  });
+              auto& diagnostic =
+                  current_time_storage.rescaled_surface_char_speeds.emplace();
+              initialize_rescaled_surface_char_speeds(
+                  make_not_null(&diagnostic), horizon,
+                  db::get<ylm::Tags::TimeDerivStrahlkorper<frame>>(box),
+                  derivative_is_available,
+                  *options.rescaled_surface_char_speeds, domain,
+                  functions_of_time, current_time.id);
+              // Return to the time loop to enter the sampling phase. Keep all
+              // volume data until it completes, including late inner elements.
+              break;
+            }
+          }
           clean_up_horizon_finder(make_not_null(&current_time_optional),
                                   make_not_null(&all_storage),
                                   make_not_null(&completed_times),
