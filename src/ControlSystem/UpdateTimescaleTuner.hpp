@@ -54,11 +54,9 @@ void update_timescale_tuner(
         MakeString{} << suggested_timescale, min(tuner->current_timescale()));
   }
 
-  // This reset call is ok because if there was a discontinuous change
-  // above after calculating the control error, the control error class was
-  // already reset so this reset won't do anything. If there wasn't a
-  // discontinuous change, then this will only affect the suggested
-  // timescale, which we always want to reset.
+  // The control error is reset only after the suggested timescale has been
+  // consumed. Size control acknowledges discontinuous changes separately when
+  // it repopulates the Averager so that the suggestion survives until here.
   control_error->reset();
 }
 }  // namespace control_system

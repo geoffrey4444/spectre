@@ -145,6 +145,12 @@ void do_test(const TestParams& test_params,
   CHECK(info.discontinuous_change_has_occurred ==
         expected_discontinuous_change_has_occurred);
 
+  if (expected_discontinuous_change_has_occurred) {
+    info.acknowledge_discontinuous_change();
+    CHECK(info.suggested_time_scale == expected_suggested_time_scale);
+    CHECK_FALSE(info.discontinuous_change_has_occurred);
+  }
+
   info.reset();
   CHECK(info.damping_time == test_params.damping_time);
   CHECK(info.target_char_speed == expected_target_char_speed);

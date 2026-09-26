@@ -53,6 +53,10 @@ void Info::reset() {
   // target_drift_velocity = 0.0;
 }
 
+void Info::acknowledge_discontinuous_change() {
+  discontinuous_change_has_occurred = false;
+}
+
 bool operator==(const Info& lhs, const Info& rhs) {
   const bool states_are_equal =
       (lhs.state == nullptr and rhs.state == nullptr) or
