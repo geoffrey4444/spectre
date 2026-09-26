@@ -5,12 +5,12 @@
 
 #include <cstddef>
 
-#include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/DataBox/Tag.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
+#include "Utilities/TMPL.hpp"
 
 /// \cond
 namespace domain::Tags {
@@ -30,6 +30,9 @@ namespace gr {
  * \ingroup GeneralRelativityGroup
  * \brief Computes the imaginary part of the Newman Penrose quantity
  * \f$\Psi_4\f$ using  \f$\Psi_4[Imag] = -0.5*U^{8+}_{ij}*(x^ix^j - y^iy^j)\f$.
+ *
+ * The derivative of extrinsic curvature must be its spatial covariant
+ * derivative; see gr::covariant_derivative_of_extrinsic_curvature.
  */
 template <typename Frame>
 void psi_4_imag(
@@ -54,14 +57,16 @@ namespace Tags {
 /// Computes the imaginary part of the Newman Penrose quantity \f$\Psi_4\f$
 /// using \f$\Psi_4[Imag] = -0.5*U^{8+}_{ij}*(x^ix^j - y^iy^j)\f$.
 ///
+/// Uses `gr::Tags::CovariantDerivativeOfExtrinsicCurvature`, including the
+/// spatial Christoffel terms, rather than the partial derivative of K.
+///
 /// Can be retrieved using `gr::Tags::Psi4Imag`
 template <typename Frame>
 struct Psi4ImagCompute : Psi4Imag<DataVector>, db::ComputeTag {
   using argument_tags = tmpl::list<
       gr::Tags::SpatialRicci<DataVector, 3, Frame>,
       gr::Tags::ExtrinsicCurvature<DataVector, 3, Frame>,
-      ::Tags::deriv<gr::Tags::ExtrinsicCurvature<DataVector, 3, Frame>,
-                    tmpl::size_t<3>, Frame>,
+      gr::Tags::CovariantDerivativeOfExtrinsicCurvature<DataVector, 3, Frame>,
       gr::Tags::SpatialMetric<DataVector, 3, Frame>,
       gr::Tags::InverseSpatialMetric<DataVector, 3, Frame>,
       domain::Tags::Coordinates<3, Frame>>;

@@ -17,6 +17,7 @@
 #include "Helpers/DataStructures/DataBox/TestHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
 #include "Helpers/PointwiseFunctions/GeneralRelativity/TestHelpers.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Imag.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
@@ -54,19 +55,43 @@ void test_compute_item_in_databox(const RealDataType& used_for_size_real) {
       make_with_random_values<tnsr::I<RealDataType, 3, Frame::Inertial>>(
           nn_generator, nn_distribution, used_for_size_real);
 
+  const auto spatial_christoffel =
+      make_with_random_values<tnsr::Ijj<RealDataType, 3, Frame::Inertial>>(
+          nn_generator, nn_distribution, used_for_size_real);
+  // Construct partial derivatives from independently chosen covariant ones.
+  // Nonzero connection terms distinguish the two in the observation DataBox.
+  auto partial_deriv_extrinsic_curvature = cov_deriv_extrinsic_curvature;
+  tenex::evaluate<ti::i, ti::j, ti::k>(
+      make_not_null(&partial_deriv_extrinsic_curvature),
+      cov_deriv_extrinsic_curvature(ti::i, ti::j, ti::k) +
+          spatial_christoffel(ti::L, ti::i, ti::j) *
+              extrinsic_curvature(ti::l, ti::k) +
+          spatial_christoffel(ti::L, ti::i, ti::k) *
+              extrinsic_curvature(ti::j, ti::l));
+
   const auto box = db::create<
       db::AddSimpleTags<
-          gr::Tags::SpatialRicci<RealDataType, 3>,
-          gr::Tags::ExtrinsicCurvature<RealDataType, 3>,
-          ::Tags::deriv<gr::Tags::ExtrinsicCurvature<RealDataType, 3>,
-                        tmpl::size_t<3>, Frame::Inertial>,
-          gr::Tags::SpatialMetric<RealDataType, 3>,
-          gr::Tags::InverseSpatialMetric<RealDataType, 3>,
+          gr::Tags::SpatialRicci<RealDataType, 3, Frame::Inertial>,
+          gr::Tags::ExtrinsicCurvature<RealDataType, 3, Frame::Inertial>,
+          ::Tags::deriv<
+              gr::Tags::ExtrinsicCurvature<RealDataType, 3, Frame::Inertial>,
+              tmpl::size_t<3>, Frame::Inertial>,
+          gr::Tags::SpatialChristoffelSecondKind<RealDataType, 3,
+                                                 Frame::Inertial>,
+          gr::Tags::SpatialMetric<RealDataType, 3, Frame::Inertial>,
+          gr::Tags::InverseSpatialMetric<RealDataType, 3, Frame::Inertial>,
           domain::Tags::Coordinates<3, Frame::Inertial>>,
-      db::AddComputeTags<gr::Tags::Psi4RealCompute<Frame::Inertial>,
-                         gr::Tags::Psi4ImagCompute<Frame::Inertial>>>(
-      spatial_ricci, extrinsic_curvature, cov_deriv_extrinsic_curvature,
-      spatial_metric, inv_spatial_metric, inertial_coords);
+      db::AddComputeTags<
+          gr::Tags::CovariantDerivativeOfExtrinsicCurvatureCompute<
+              3, Frame::Inertial>,
+          gr::Tags::Psi4RealCompute<Frame::Inertial>,
+          gr::Tags::Psi4ImagCompute<Frame::Inertial>>>(
+      spatial_ricci, extrinsic_curvature, partial_deriv_extrinsic_curvature,
+      spatial_christoffel, spatial_metric, inv_spatial_metric, inertial_coords);
+  CHECK_ITERABLE_APPROX(
+      (db::get<gr::Tags::CovariantDerivativeOfExtrinsicCurvature<
+           RealDataType, 3, Frame::Inertial>>(box)),
+      cov_deriv_extrinsic_curvature);
   const auto psi_4_real_expected = gr::psi_4_real(
       spatial_ricci, extrinsic_curvature, cov_deriv_extrinsic_curvature,
       spatial_metric, inv_spatial_metric, inertial_coords);

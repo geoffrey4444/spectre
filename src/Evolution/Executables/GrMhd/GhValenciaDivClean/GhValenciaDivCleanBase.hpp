@@ -200,6 +200,7 @@
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
 #include "PointwiseFunctions/GeneralRelativity/DetAndInverseSpatialMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintGammas.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SecondTimeDerivOfSpacetimeMetric.hpp"
@@ -512,6 +513,8 @@ struct GhValenciaDivCleanTemplateBase<
                   volume_dim, Frame::ElementLogical, Frame::Inertial>,
               ::Events::Tags::ObserverMesh<volume_dim>,
               ::Events::Tags::ObserverCoordinates<volume_dim, Frame::Inertial>>,
+          gr::Tags::CovariantDerivativeOfExtrinsicCurvatureCompute<
+              3, Frame::Inertial>,
           gr::Tags::WeylElectricCompute<DataVector, 3, Frame::Inertial>,
           gr::Tags::Psi4RealCompute<Frame::Inertial>,
           gr::Tags::Psi4ImagCompute<Frame::Inertial>,
