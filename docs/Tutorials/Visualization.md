@@ -88,6 +88,39 @@ necessarily be the dataset you want.
 \note ParaView cannot understand `.xmf` files when subfile names have colons in
 them. Please avoid subfile names like `My::Subfile:Name`.
 
+### Characteristic speeds on excision surfaces
+
+The generalized-harmonic single- and binary-black-hole executables can write
+pointwise characteristic speeds on their `ExcisionBoundary` interpolation
+targets (`ObservationExcisionBoundaryA` and `ObservationExcisionBoundaryB` for
+a binary). Add the corresponding event to `EventsAndTriggersAtSlabs` or
+`EventsAndTriggersAtSteps` and configure the spherical target under
+`InterpolationTargets`. The resulting subfile in `SurfaceFileName` contains the
+lapse, grid-frame shift, characteristic speeds, and inertial coordinates.
+For a single hole, generate the visualization file with:
+
+```
+spectre generate-xdmf --subfile-name ExcisionBoundary \
+  --output ExcisionBoundary Surfaces.h5
+```
+
+The output contains four scalar characteristic speeds:
+
+| H5 dataset | Characteristic field |
+| --- | --- |
+| `CharacteristicSpeedMetric` | Spacetime metric, \f$u^g\f$ |
+| `CharacteristicSpeedZero` | Field \f$u^0\f$ |
+| `CharacteristicSpeedPlus` | Plus field, \f$u^+\f$ |
+| `CharacteristicSpeedMinus` | Minus field, \f$u^-\f$ |
+
+The speeds are measured in the grid frame, including the effect of mesh motion,
+along the surface normal pointing away from the hole. This is opposite to the
+normal pointing out of the evolution domain at its excision boundary. Thus a
+negative speed here means propagation into the hole; a positive speed means
+propagation from the excised region into the evolution domain. In particular,
+the plus speed approaching zero identifies where physical outflow is being
+lost. The metric-field speed is identically zero when \f$\gamma_1=-1\f$.
+
 ### Helpful ParaView Filters
 
 Here we describe the usage of filters we've found to better visualize our data.

@@ -12,6 +12,7 @@
 #include <optional>
 #include <pup.h>
 #include <random>
+#include <string>
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
@@ -112,6 +113,27 @@ void test_characteristic_speeds_on_strahlkorper() {
   TestHelpers::db::test_compute_tag<
       gh::CharacteristicSpeedsOnStrahlkorperCompute<Dim, Frame>>(
       "CharacteristicSpeedsOnStrahlkorper");
+  if constexpr (Dim == 3) {
+    MAKE_GENERATOR(generator);
+    std::uniform_real_distribution<> distribution(-2.0, 2.0);
+    const auto speeds = make_with_random_values<tnsr::a<DataVector, 3, Frame>>(
+        make_not_null(&generator), make_not_null(&distribution), DataVector(5));
+    const std::array<std::string, 4> names{
+        "CharacteristicSpeedMetric", "CharacteristicSpeedZero",
+        "CharacteristicSpeedPlus", "CharacteristicSpeedMinus"};
+    tmpl::for_each<tmpl::integral_list<size_t, 0, 1, 2, 3>>([&](auto index_v) {
+      constexpr size_t index = tmpl::type_from<decltype(index_v)>::value;
+      using tag = gh::CharacteristicSpeedOnStrahlkorper<Frame, index>;
+      using compute_tag =
+          gh::CharacteristicSpeedOnStrahlkorperCompute<Frame, index>;
+      TestHelpers::db::test_simple_tag<tag>(gsl::at(names, index));
+      TestHelpers::db::test_compute_tag<compute_tag>(gsl::at(names, index));
+      const auto box =
+          db::create<tmpl::list<gh::CharacteristicSpeedsOnStrahlkorper<Frame>>,
+                     tmpl::list<compute_tag>>(speeds);
+      CHECK_ITERABLE_APPROX(get(db::get<tag>(box)), get<index>(speeds));
+    });
+  }
   const DataVector used_for_size(5);
   pypp::check_with_random_values<1>(speed_with_index<0, Dim, Frame>,
                                     "Characteristics", "char_speed_upsi",

@@ -11,6 +11,7 @@
 #include <random>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -20,6 +21,7 @@
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
+#include "Domain/Tags.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
@@ -28,6 +30,7 @@
 #include "IO/H5/AccessType.hpp"
 #include "IO/H5/Dat.hpp"
 #include "IO/H5/File.hpp"
+#include "IO/H5/VolumeData.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "IO/Observer/Initialize.hpp"
 #include "IO/Observer/ObservationId.hpp"
@@ -781,13 +784,14 @@ void run_test() {
                            Parallel::Phase::Testing);
   auto& adaptive_cache = ActionTesting::cache<ObsWriter>(adaptive_runner, 0_st);
 
-  const auto make_box = [](const ylm::Strahlkorper<Frame::Inertial>&
-                               strahlkorper) {
-    const auto coords = ylm::cartesian_coords(strahlkorper);
-    return db::create<tmpl::list<ylm::Tags::Strahlkorper<Frame::Inertial>,
-                                 ylm::Tags::CartesianCoords<Frame::Inertial>>>(
-        strahlkorper, coords);
-  };
+  const auto make_box =
+      [](const ylm::Strahlkorper<Frame::Inertial>& strahlkorper) {
+        const auto coords = ylm::cartesian_coords(strahlkorper);
+        return db::create<
+            tmpl::list<ylm::Tags::Strahlkorper<Frame::Inertial>,
+                       domain::Tags::Coordinates<3, Frame::Inertial>>>(
+            strahlkorper, coords);
+      };
 
   using Callback =
       intrp::callbacks::ObserveSurfaceData<tmpl::list<>, AdaptiveSurfaceTarget,
@@ -849,6 +853,25 @@ void run_test() {
             max_resolution_and_output_l);
   check_row(ylm_data, 1, 2.0, strahlkorper_high, high_l,
             max_resolution_and_output_l);
+
+  const auto surface_file =
+      h5::H5File<h5::AccessType::ReadOnly>(adaptive_surface_file_name);
+  const auto& surface_data = surface_file.get<h5::VolumeData>(surface_name);
+  const auto check_coordinates = [&](const auto& box, const double time) {
+    const observers::ObservationId observation_id{time,
+                                                  "/" + surface_name + ".vol"};
+    const auto& expected_coords =
+        get<domain::Tags::Coordinates<3, Frame::Inertial>>(box);
+    for (size_t i = 0; i < 3; ++i) {
+      const auto written_component = surface_data.get_tensor_component(
+          observation_id.hash(),
+          "InertialCoordinates" + expected_coords.component_suffix(i));
+      CHECK_ITERABLE_APPROX(std::get<DataVector>(written_component.data),
+                            expected_coords[i]);
+    }
+  };
+  check_coordinates(low_box, 1.0);
+  check_coordinates(high_box, 2.0);
 
   remove_file_if_exists(adaptive_surface_reduction_file_name);
   remove_file_if_exists(adaptive_surface_file_name);

@@ -15,6 +15,9 @@ OutputFileChecks:
     Subfile: "/ApparentHorizon.dat"
     FileGlob: "GhKerrSchildReductions.h5"
     AbsoluteTolerance: 1e2
+ExtraFileCheckExecs:
+  - Label: "check_excision_characteristic_speeds_xdmf"
+    Executable: "CheckExcisionCharacteristicSpeedsXdmf.py"
 
 ---
 
