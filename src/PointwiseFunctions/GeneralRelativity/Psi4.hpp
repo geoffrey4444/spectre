@@ -23,11 +23,28 @@ namespace gr {
  * field U\f$^{8+}\f$ and complex vector \f$\bar{m}^i\f$.
  *
  * \details Computes \f$\Psi_4\f$ as: \f$\Psi_4 =
- * U^{8+}_{ij}\bar{m}^i\bar{m}^j\f$ with the characteristic field
+ * -\frac{1}{2} U^{8+}_{ij}\bar{m}^i\bar{m}^j\f$ with the characteristic field
  * \f$U^{8+} = (P^{(a}_i P^{b)}_j - \frac{1}{2}P_{ij}P^{ab})
- * (E_{ab} - \epsilon_a^{cd}n_dB_{cb}\f$)
- * and \f$\bar{m}^i\f$ = \f$\frac{(x^i + iy^i)}{\sqrt{2}}\f$. \f$x^i\f$ and
- * \f$y^i\f$ are normalized unit vectors in the frame Frame.
+ * (E_{ab} - \epsilon_a^{cd}n_dB_{cb})\f$,
+ * and \f$\bar{m}^i\f$ = \f$(\hat{x}^i-i\hat{y}^i)\f$. The unit radial
+ * vector is the metric-normalized `inertial_coords`. The first polarization
+ * \f$\hat{x}^i\f$ is the normalized projection of the coordinate \f$x\f$
+ * direction orthogonal to it, with the coordinate \f$y\f$ direction used
+ * as a fallback near the \f$x\f$ axis. Metric cross products construct both
+ * transverse vectors without subtracting nearly parallel vectors.
+ *
+ * Away from the coordinate singularities, the second polarization has the
+ * orientation of the historical Gram-Schmidt projection of the coordinate
+ * \f$y\f$ direction. For the projected \f$x\f$ basis this is
+ * \f$\operatorname{sgn}(z)(\hat{r}\times\hat{x})^i\f$. On the
+ * \f$xy\f$ plane, and when the first-vector fallback is used, choose
+ * \f$(\hat{r}\times\hat{x})^i\f$. This coordinate-dependent convention
+ * need not be continuous across its singularities. At the origin there is
+ * no radial null tetrad; retain the historical metric-orthonormal Cartesian
+ * \f$x\f$-\f$y\f$ extension for compatibility.
+ *
+ * \note This uses the vacuum expression for `gr::weyl_propagating` and
+ * requires the spatial covariant derivative of extrinsic curvature.
  *
  */
 template <typename Frame>
