@@ -43,9 +43,10 @@ struct Info {
   /// variables) of the excision boundary is driven toward in state
   /// Label::Initial.
   double target_drift_velocity;
-  /// Sometimes State::update will request that damping_time
-  /// be changed; the new suggested value is suggested_time_scale. If it is a
-  /// `std::nullopt` then there is no suggestion.
+  /// The smallest damping time suggested by State::update since the timescale
+  /// tuner last consumed the suggestions and called reset(). A `std::nullopt`
+  /// means that there is no pending suggestion. Update with
+  /// suggest_timescale().
   std::optional<double> suggested_time_scale;
   /// discontinuous_change_has_occurred is set to true by
   /// State::update if it changes anything in such a way that
@@ -59,6 +60,10 @@ struct Info {
   /// Acknowledge rebuilding the averager after a discontinuity, retaining
   /// `suggested_time_scale` for the next timescale-tuner update.
   void acknowledge_discontinuous_change();
+
+  /// Retain the smallest timescale suggested since the last reset(). An absent
+  /// suggestion leaves any pending value unchanged.
+  void suggest_timescale(std::optional<double> new_suggested_time_scale);
 
   friend bool operator==(const Info& lhs, const Info& rhs);
   friend bool operator!=(const Info& lhs, const Info& rhs);
