@@ -111,11 +111,13 @@
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
 #include "PointwiseFunctions/GeneralRelativity/DerivativeSpatialMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/DetAndInverseSpatialMetric.hpp"
+#include "PointwiseFunctions/GeneralRelativity/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintGammas.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/DerivSpatialMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfLapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfShift.hpp"
+#include "PointwiseFunctions/GeneralRelativity/Psi0Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Imag.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Psi4Real.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Ricci.hpp"
@@ -260,6 +262,9 @@ struct ObserverTags {
                                                   Frame::Inertial>,
               gr::Tags::WeylTypeD1Compute<DataVector, 3, Frame::Inertial>,
               gr::Tags::WeylTypeD1ScalarCompute<DataVector, 3, Frame::Inertial>,
+              gr::Tags::CovariantDerivativeOfExtrinsicCurvatureCompute<
+                  3, Frame::Inertial>,
+              gr::Tags::Psi0RealCompute<Frame::Inertial>,
               gr::Tags::Psi4RealCompute<Frame::Inertial>,
               gr::Tags::Psi4ImagCompute<Frame::Inertial>>,
           tmpl::list<>>>;

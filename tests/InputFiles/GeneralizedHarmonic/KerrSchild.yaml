@@ -15,6 +15,9 @@ OutputFileChecks:
     Subfile: "/ApparentHorizon.dat"
     FileGlob: "GhKerrSchildReductions.h5"
     AbsoluteTolerance: 1e2
+ExtraFileCheckExecs:
+  - Label: "check_psi0_real_volume_output"
+    Executable: "CheckPsi0RealVolumeOutput.py"
 
 ---
 
@@ -204,6 +207,8 @@ EventsAndTriggersAtSlabs:
             - PointwiseL2Norm(GaugeConstraint)
             - PointwiseL2Norm(ThreeIndexConstraint)
             - PointwiseL2Norm(FourIndexConstraint)
+            - Psi0Real
+            - Psi4Real
           InterpolateToMesh: None
           ProjectToMesh: None
           CoordinatesFloatingPointType: Double

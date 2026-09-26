@@ -23,6 +23,7 @@ spectre_target_sources(
   Lapse.cpp
   MomentumConstraint.cpp
   ProjectionOperators.cpp
+  Psi0Real.cpp
   Psi4.cpp
   Psi4Imag.cpp
   Psi4Real.cpp
@@ -63,11 +64,12 @@ spectre_target_headers(
   Lapse.hpp
   MomentumConstraint.hpp
   ProjectionOperators.hpp
-  Ricci.hpp
+  Psi0Real.hpp
   Psi4.hpp
   Psi4Imag.hpp
   Psi4Real.hpp
   QuadraticCurvatureScalars.hpp
+  Ricci.hpp
   Shift.hpp
   SpacetimeDerivativeOfGothG.hpp
   SpacetimeMetric.hpp

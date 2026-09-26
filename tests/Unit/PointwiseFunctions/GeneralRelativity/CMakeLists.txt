@@ -17,6 +17,7 @@ set(LIBRARY_SOURCES
   Test_KerrSchildCoords.cpp
   Test_MomentumConstraint.cpp
   Test_ProjectionOperators.cpp
+  Test_Psi0.cpp
   Test_Psi4.cpp
   Test_Ricci.cpp
   Test_SpacetimeDerivativeOfGothG.cpp
