@@ -254,9 +254,8 @@ void bind_tensor(py::module& m) {
       InverseJacobian<DTYPE(data), Dim, Frame::Grid, Frame::Inertial>,       \
       TensorKind::Jacobian>(m, "Jacobian");
 
-  // Only tnsr::I and tnsr::i need to be instantiated for all frames currently,
-  // so to reduce compile time and library size, we're choosing to only
-  // instantiate other tensors in Frame::Inertial
+  // Instantiate vectors in all frames and other tensors only where needed,
+  // to reduce compile time and library size.
   GENERATE_INSTANTIATIONS(INSTANTIATE_TNSR, (double, DataVector),
                           (Frame::ElementLogical, Frame::BlockLogical,
                            Frame::Grid, Frame::Distorted, Frame::Inertial),
@@ -266,6 +265,12 @@ void bind_tensor(py::module& m) {
                           (Frame::Inertial),
                           (a, A, ii, aa, II, AA, ij, ab, Ij, Ab, iJ, aB, ijj,
                            iJJ, abb, Ijj, Abb, iaa, ijaa, iJkk, aBcc))
+
+  // The rescaled-horizon diagnostic uses a distorted inverse spatial metric.
+  if constexpr (Dim == 3) {
+    GENERATE_INSTANTIATIONS(INSTANTIATE_TNSR, (DataVector), (Frame::Distorted),
+                            (II))
+  }
 
   GENERATE_INSTANTIATIONS(INSTANTIATE_JAC, (double, DataVector),
                           (Frame::Grid, Frame::Inertial))

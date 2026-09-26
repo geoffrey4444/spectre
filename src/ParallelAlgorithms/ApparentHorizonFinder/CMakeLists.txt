@@ -18,6 +18,7 @@ spectre_target_sources(
   InterpolateVolumeVars.cpp
   KerrSchild.cpp
   OptionTags.cpp
+  PostprocessRescaledSurfaceCharSpeeds.cpp
   RescaledSurfaceCharSpeeds.cpp
   SampleRescaledSurfaceCharSpeeds.cpp
   Storage.cpp
@@ -42,6 +43,7 @@ spectre_target_headers(
   InterpolateVolumeVars.hpp
   KerrSchild.hpp
   OptionTags.hpp
+  PostprocessRescaledSurfaceCharSpeeds.hpp
   PrintDeadlockAnalysis.hpp
   RescaledSurfaceCharSpeeds.hpp
   SampleRescaledSurfaceCharSpeeds.hpp

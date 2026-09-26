@@ -163,6 +163,70 @@ class TestFindHorizon(unittest.TestCase):
             quantities["DimensionlessSpinMagnitude"], 0.0, atol=1e-3
         )
 
+    def test_horizon_only(self):
+        solution = KerrSchild(mass=1.0, dimensionless_spin=[0.0, 0.0, 0.0])
+        interpolated_fields = []
+
+        def interpolate_tensors(
+            h5_files,
+            subfile_name,
+            observation,
+            target_points,
+            tensor_names,
+            tensor_types,
+        ):
+            # Supply fields directly, without volume files or a Ricci tensor.
+            self.assertEqual(
+                tensor_names,
+                [
+                    "InverseSpatialMetric",
+                    "ExtrinsicCurvature",
+                    "SpatialChristoffelSecondKind",
+                ],
+            )
+            interpolated_fields.append(tensor_names)
+            tensors = solution.variables(target_points, tensor_names)
+            return [tensors[name] for name in tensor_names]
+
+        horizon, quantities = find_horizon(
+            "unused.h5",
+            subfile_name="element_data",
+            obs_id=0,
+            obs_time=0.0,
+            initial_guess=Strahlkorper[Frame.Inertial](
+                l_max=12, radius=2.5, center=[0.0, 0.0, 0.0]
+            ),
+            compute_horizon_quantities=False,
+            interpolate_tensors=interpolate_tensors,
+            output_surfaces_file=self.output_surfaces_filename,
+            output_coeffs_subfile="HorizonCoeffs",
+        )
+        self.assertTrue(interpolated_fields)
+        self.assertEqual(quantities, {})
+        npt.assert_allclose(
+            np.linalg.norm(cartesian_coords(horizon), axis=0), 2.0, atol=1e-10
+        )
+        self.assertTrue(os.path.exists(self.output_surfaces_filename))
+
+    def test_horizon_only_rejects_reductions(self):
+        for reduction_options in [
+            {"output_reductions_file": self.output_reductions_filename},
+            {"output_quantities_subfile": "HorizonQuantities"},
+        ]:
+            with self.subTest(reduction_options=reduction_options):
+                with self.assertRaisesRegex(ValueError, "horizon quantities"):
+                    find_horizon(
+                        "unused.h5",
+                        subfile_name="element_data",
+                        obs_id=0,
+                        obs_time=0.0,
+                        initial_guess=Strahlkorper[Frame.Inertial](
+                            l_max=12, radius=2.5, center=[0.0, 0.0, 0.0]
+                        ),
+                        compute_horizon_quantities=False,
+                        **reduction_options,
+                    )
+
     def test_cli(self):
         runner = CliRunner()
         result = runner.invoke(

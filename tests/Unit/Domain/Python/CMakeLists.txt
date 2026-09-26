@@ -54,3 +54,9 @@ spectre_add_python_bindings_test(
   Test_SegmentId.py
   "Unit;Domain"
   PyDomain)
+
+spectre_add_python_bindings_test(
+  "Unit.Domain.Python.StrahlkorperTransformations"
+  Test_StrahlkorperTransformations.py
+  "Unit;Domain"
+  PyDomain)

@@ -11,11 +11,13 @@ spectre_python_add_module(
   ControlId.py
   EccentricityControl.py
   FindHorizon.py
+  HorizonInterpolation.py
   InitialData.py
   InitialData.yaml
   Inspiral.py
   Inspiral.yaml
   PostprocessId.py
+  RescaledSurfaceCharSpeeds.py
   Ringdown.py
   Ringdown.yaml
 )

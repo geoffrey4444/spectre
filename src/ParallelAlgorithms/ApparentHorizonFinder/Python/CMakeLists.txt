@@ -15,8 +15,9 @@ spectre_python_add_module(
 spectre_python_link_libraries(
   ${LIBRARY}
   PRIVATE
-  DataStructures
   ApparentHorizonFinder
+  DataStructures
+  Domain
   SphericalHarmonics
   Strahlkorper
   pybind11::module
@@ -24,5 +25,9 @@ spectre_python_link_libraries(
 
 spectre_python_add_dependencies(
   ${LIBRARY}
+  PyDomain
+  PySpectral
   PySphericalHarmonics
+  PyStrahlkorper
+  PyTensor
 )

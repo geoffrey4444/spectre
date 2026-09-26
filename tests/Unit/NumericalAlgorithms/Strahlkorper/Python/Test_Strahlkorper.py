@@ -10,14 +10,19 @@ import numpy.testing as npt
 
 import spectre.Informer as spectre_informer
 import spectre.IO.H5 as spectre_h5
+from spectre.DataStructures import ModalVector
 from spectre.Strahlkorper import (
     AngularOrdering,
     Frame,
     Strahlkorper,
     cartesian_coords,
+    change_expansion_center_of_strahlkorper,
     power_monitor,
     read_surface_ylm,
+    read_surface_ylm_distorted,
     read_surface_ylm_single_time,
+    read_surface_ylm_single_time_distorted,
+    time_deriv_of_strahlkorper,
     write_sphere_of_points_to_text_file,
     ylm_legend_and_data,
 )
@@ -131,6 +136,122 @@ class TestStrahlkorper(unittest.TestCase):
             num_points = (l_max + 1) * (2 * l_max + 1)
             all_lines = text_file.readlines()
             self.assertEqual(num_points, len(all_lines))
+
+    def test_distorted_surface_io(self):
+        surfaces = [
+            Strahlkorper[Frame.Distorted](
+                l_max=4, radius=radius, center=[0.1, -0.2, 0.3]
+            )
+            for radius in [2.0, 2.1]
+        ]
+        with spectre_h5.H5File(self.filename, "w") as h5file:
+            legend, data = ylm_legend_and_data(surfaces[0], 1.0, 4)
+            datfile = h5file.insert_dat("Surface", legend=legend, version=0)
+            datfile.append(data)
+            datfile.append(ylm_legend_and_data(surfaces[1], 2.0, 4)[1])
+            h5file.close_current_object()
+            inertial_surface = Strahlkorper[Frame.Inertial](
+                l_max=4, radius=2.0, center=[0.1, -0.2, 0.3]
+            )
+            legend, data = ylm_legend_and_data(inertial_surface, 1.0, 4)
+            datfile = h5file.insert_dat(
+                "InertialSurface", legend=legend, version=0
+            )
+            datfile.append(data)
+        self.assertEqual(
+            read_surface_ylm_distorted(self.filename, "Surface", 2), surfaces
+        )
+        self.assertEqual(
+            read_surface_ylm_single_time_distorted(
+                self.filename, "Surface", 2.0, 1.0e-12, True
+            ),
+            surfaces[1],
+        )
+        with self.assertRaisesRegex(RuntimeError, "InertialExpansionCenter"):
+            read_surface_ylm_single_time(
+                self.filename, "Surface", 2.0, 0.0, True
+            )
+        with self.assertRaisesRegex(RuntimeError, "DistortedExpansionCenter"):
+            read_surface_ylm_single_time_distorted(
+                self.filename, "InertialSurface", 1.0, 0.0
+            )
+        with self.assertRaisesRegex(RuntimeError, "DistortedExpansionCenter"):
+            read_surface_ylm_distorted(self.filename, "InertialSurface", 1)
+        surface = surfaces[0]
+        reconstructed = Strahlkorper[Frame.Distorted](
+            surface.l_max,
+            surface.m_max,
+            ModalVector(np.asarray(surface.coefficients)),
+            surface.expansion_center,
+        )
+        self.assertEqual(reconstructed, surface)
+        coefficients = surface.coefficients
+        coefficients[0] = 0.0
+        self.assertEqual(surface, reconstructed)
+        coords = np.asarray(cartesian_coords(surface))
+        npt.assert_allclose(
+            np.linalg.norm(coords - np.array([[0.1], [-0.2], [0.3]]), axis=0),
+            2.0,
+        )
+
+    def test_surface_history_and_center(self):
+        for frame in [Frame.Inertial, Frame.Grid, Frame.Distorted]:
+            with self.subTest(frame=frame):
+                history = [
+                    (
+                        time,
+                        Strahlkorper[frame](
+                            l_max=l_max,
+                            radius=2.0 + 0.1 * time**2,
+                            center=[0.0, 0.0, 0.0],
+                        ),
+                    )
+                    for time, l_max in [(3.0, 8), (1.5, 6), (0.0, 4)]
+                ]
+                derivative = time_deriv_of_strahlkorper(history)
+                self.assertEqual(derivative.l_max, 8)
+                self.assertAlmostEqual(derivative.average_radius, 0.6)
+                self.assertAlmostEqual(
+                    time_deriv_of_strahlkorper(history[:1]).average_radius,
+                    0.0,
+                )
+                with self.assertRaisesRegex(ValueError, "newest first"):
+                    time_deriv_of_strahlkorper(history[::-1])
+                surface = history[0][1]
+                recentered = change_expansion_center_of_strahlkorper(
+                    surface, [0.01, -0.02, 0.03]
+                )
+                self.assertEqual(surface.expansion_center, [0.0, 0.0, 0.0])
+                self.assertEqual(
+                    recentered.expansion_center, [0.01, -0.02, 0.03]
+                )
+                npt.assert_allclose(
+                    np.linalg.norm(cartesian_coords(recentered), axis=0),
+                    surface.average_radius,
+                    atol=1.0e-12,
+                )
+        with self.assertRaisesRegex(ValueError, "one to four"):
+            time_deriv_of_strahlkorper([])
+
+    def test_history_with_different_m_max(self):
+        for m_max in [2, 4]:
+            with self.subTest(m_max=m_max):
+                newest = Strahlkorper[Frame.Distorted](
+                    4,
+                    m_max,
+                    Strahlkorper[Frame.Distorted](4, 2.1, [0.0] * 3),
+                )
+                older = Strahlkorper[Frame.Distorted](
+                    4,
+                    6 - m_max,
+                    Strahlkorper[Frame.Distorted](4, 2.0, [0.0] * 3),
+                )
+                derivative = time_deriv_of_strahlkorper(
+                    [(1.0, newest), (0.0, older)]
+                )
+                self.assertEqual(derivative.l_max, newest.l_max)
+                self.assertEqual(derivative.m_max, newest.m_max)
+                self.assertAlmostEqual(derivative.average_radius, 0.1)
 
 
 if __name__ == "__main__":

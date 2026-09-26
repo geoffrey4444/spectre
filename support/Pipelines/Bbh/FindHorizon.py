@@ -4,7 +4,7 @@
 import glob
 import logging
 from pathlib import Path
-from typing import Optional, Sequence, Type, Union
+from typing import Callable, Optional, Sequence, Type, Union
 
 import click
 
@@ -98,12 +98,15 @@ def find_horizon(
     output_quantities_subfile: Optional[str] = None,
     output_l_max: Optional[int] = None,
     tensor_names: Optional[Sequence[str]] = None,
+    compute_horizon_quantities: bool = True,
+    interpolate_tensors: Optional[Callable] = None,
 ):
     """Find an apparent horizon in volume data.
 
-    The volume data must contain the spatial metric, inverse spatial metric,
-    extrinsic curvature, spatial Christoffel symbols, and spatial Ricci tensor.
-    The data is assumed to be in the "inertial" frame.
+    Finding the horizon requires the inverse spatial metric, extrinsic
+    curvature, and spatial Christoffel symbols. Computing horizon quantities
+    additionally requires the spatial metric and spatial Ricci tensor. All
+    tensors are assumed to be in the "inertial" frame.
 
     Arguments:
       h5_files: List of H5 files containing volume data or glob pattern.
@@ -140,11 +143,28 @@ def find_horizon(
         curvature, spatial Christoffel symbols, and spatial Ricci tensor, in
         this order. Defaults to ["SpatialMetric", "InverseSpatialMetric",
         "ExtrinsicCurvature", "SpatialChristoffelSecondKind", "SpatialRicci"].
+      compute_horizon_quantities: Compute quantities such as mass and spin on
+        the horizon. If False, return an empty dictionary of quantities and
+        require only the three tensors needed for the horizon find. Cannot be
+        combined with reduction output options.
+      interpolate_tensors: Optional. Callable with the same signature as
+        'spectre.IO.Exporter.interpolate_tensors_to_points'. Allows supplying
+        fields derived in memory instead of reading tensors from volume files.
 
     Returns: The Strahlkorper representing the horizon, and a dictionary of
-      horizon quantities (e.g. area, mass, spin, etc.).
+      horizon quantities (e.g. area, mass, spin, etc.), empty if
+      'compute_horizon_quantities' is False.
     """
     # Validate input arguments
+    if not compute_horizon_quantities and (
+        output_reductions_file or output_quantities_subfile
+    ):
+        raise ValueError(
+            "Cannot output horizon quantities when"
+            " 'compute_horizon_quantities' is False."
+        )
+    if interpolate_tensors is None:
+        interpolate_tensors = interpolate_tensors_to_points
     if output_surfaces_file:
         assert output_coeffs_subfile or output_coords_subfile, (
             "Specify either 'output_coeffs_subfile' or 'output_coords_subfile'"
@@ -179,7 +199,7 @@ def find_horizon(
             inv_spatial_metric,
             extrinsic_curvature,
             spatial_christoffel_second_kind,
-        ) = interpolate_tensors_to_points(
+        ) = interpolate_tensors(
             h5_files,
             subfile_name,
             observation=ObservationId(obs_id),
@@ -214,38 +234,36 @@ def find_horizon(
             break
         else:
             raise RuntimeError(f"Horizon finder failed with status {status}.")
-    # Compute horizon quantities
-    # This is independent of the horizon find and could move into a separate
-    # function, or disabled on request, if we ever need to find a horizon
-    # without computing these quantities.
-    (
-        spatial_metric,
-        inv_spatial_metric,
-        extrinsic_curvature,
-        spatial_christoffel_second_kind,
-        spatial_ricci,
-    ) = interpolate_tensors_to_points(
-        h5_files,
-        subfile_name,
-        observation=ObservationId(obs_id),
-        target_points=cartesian_coords(strahlkorper),
-        tensor_names=tensor_names,
-        tensor_types=[
-            tnsr.ii[DataVector, 3],
-            tnsr.II[DataVector, 3],
-            tnsr.ii[DataVector, 3],
-            tnsr.Ijj[DataVector, 3],
-            tnsr.ii[DataVector, 3],
-        ],
-    )
-    quantities = horizon_quantities(
-        strahlkorper,
-        spatial_metric=spatial_metric,
-        inv_spatial_metric=inv_spatial_metric,
-        extrinsic_curvature=extrinsic_curvature,
-        spatial_christoffel_second_kind=spatial_christoffel_second_kind,
-        spatial_ricci=spatial_ricci,
-    )
+    quantities = {}
+    if compute_horizon_quantities:
+        (
+            spatial_metric,
+            inv_spatial_metric,
+            extrinsic_curvature,
+            spatial_christoffel_second_kind,
+            spatial_ricci,
+        ) = interpolate_tensors(
+            h5_files,
+            subfile_name,
+            observation=ObservationId(obs_id),
+            target_points=cartesian_coords(strahlkorper),
+            tensor_names=tensor_names,
+            tensor_types=[
+                tnsr.ii[DataVector, 3],
+                tnsr.II[DataVector, 3],
+                tnsr.ii[DataVector, 3],
+                tnsr.Ijj[DataVector, 3],
+                tnsr.ii[DataVector, 3],
+            ],
+        )
+        quantities = horizon_quantities(
+            strahlkorper,
+            spatial_metric=spatial_metric,
+            inv_spatial_metric=inv_spatial_metric,
+            extrinsic_curvature=extrinsic_curvature,
+            spatial_christoffel_second_kind=spatial_christoffel_second_kind,
+            spatial_ricci=spatial_ricci,
+        )
     # Write the horizon to a file and return it
     if output_surfaces_file:
         if Path(output_surfaces_file).suffix not in [".h5", ".hdf5"]:

@@ -6,3 +6,9 @@ spectre_add_python_bindings_test(
   Test_FastFlow.py
   "Unit;Python"
   PyApparentHorizonFinder)
+
+spectre_add_python_bindings_test(
+  "Unit.ApparentHorizonFinder.Python.RescaledSurfaceCharSpeeds"
+  Test_RescaledSurfaceCharSpeeds.py
+  "Unit;Python"
+  PyApparentHorizonFinder)

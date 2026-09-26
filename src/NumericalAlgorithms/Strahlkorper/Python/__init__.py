@@ -6,6 +6,7 @@ from spectre.DataStructures.Tensor import Frame
 from ._Pybindings import *
 
 Strahlkorper = {
+    Frame.Distorted: StrahlkorperDistorted,
     Frame.Grid: StrahlkorperGrid,
     Frame.Inertial: StrahlkorperInertial,
 }

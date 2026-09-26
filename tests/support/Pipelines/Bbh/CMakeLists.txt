@@ -25,6 +25,13 @@ spectre_add_python_bindings_test(
   TIMEOUT 20)
 
 spectre_add_python_bindings_test(
+  "support.Pipelines.Bbh.HorizonInterpolation"
+  Test_HorizonInterpolation.py
+  "Python"
+  None
+  TIMEOUT 60)
+
+spectre_add_python_bindings_test(
   "support.Pipelines.Bbh.InitialData"
   Test_InitialData.py
   "Python"
@@ -41,6 +48,13 @@ spectre_add_python_bindings_test(
 spectre_add_python_bindings_test(
   "support.Pipelines.Bbh.PostprocessId"
   Test_PostprocessId.py
+  "Python"
+  None
+  TIMEOUT 60)
+
+spectre_add_python_bindings_test(
+  "support.Pipelines.Bbh.RescaledSurfaceCharSpeeds"
+  Test_RescaledSurfaceCharSpeeds.py
   "Python"
   None
   TIMEOUT 60)

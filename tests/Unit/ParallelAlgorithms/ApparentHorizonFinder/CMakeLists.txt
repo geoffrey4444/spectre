@@ -15,6 +15,7 @@ set(LIBRARY_SOURCES
   Test_Initialization.cpp
   Test_InterpolateVolumeVars.cpp
   Test_OptionTags.cpp
+  Test_PostprocessRescaledSurfaceCharSpeeds.cpp
   Test_RescaledSurfaceCharSpeeds.cpp
   Test_SampleRescaledSurfaceCharSpeeds.cpp
   Test_Storage.cpp

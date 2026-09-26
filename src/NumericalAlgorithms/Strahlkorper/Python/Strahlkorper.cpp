@@ -49,6 +49,9 @@ void bind_strahlkorper_impl(pybind11::module& m) {  // NOLINT
                              &Strahlkorper::expansion_center)
       .def_property_readonly("physical_center", &Strahlkorper::physical_center)
       .def_property_readonly("average_radius", &Strahlkorper::average_radius)
+      .def_property_readonly(
+          "coefficients",
+          [](const Strahlkorper& surface) { return surface.coefficients(); })
       .def("radius", &Strahlkorper::radius, py::arg("theta"), py::arg("phi"))
       .def("point_is_contained", &Strahlkorper::point_is_contained,
            py::arg("x"))
@@ -83,6 +86,13 @@ void bind_strahlkorper(py::module& m) {
         &ylm::read_surface_ylm_single_time<Frame::Inertial>,
         py::arg("file_name"), py::arg("surface_subfile_name"), py::arg("time"),
         py::arg("relative_epsilon"), py::arg("check_frame"));
+  m.def("read_surface_ylm_distorted", &ylm::read_surface_ylm<Frame::Distorted>,
+        py::arg("file_name"), py::arg("surface_subfile_name"),
+        py::arg("requested_number_of_times_from_end"));
+  m.def("read_surface_ylm_single_time_distorted",
+        &ylm::read_surface_ylm_single_time<Frame::Distorted>,
+        py::arg("file_name"), py::arg("surface_subfile_name"), py::arg("time"),
+        py::arg("relative_epsilon"), py::arg("check_frame") = true);
   py::enum_<ylm::AngularOrdering>(m, "AngularOrdering")
       .value("Strahlkorper", ylm::AngularOrdering::Strahlkorper)
       .value("Cce", ylm::AngularOrdering::Cce);
