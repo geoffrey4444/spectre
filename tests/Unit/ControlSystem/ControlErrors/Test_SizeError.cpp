@@ -770,7 +770,7 @@ void test_size_error_one_step(
     CHECK(control_error_history.empty());
 
     // The DeltaR state's output is control_error_delta_r itself, which is used
-    // in the following test of the Taylor series used in computing size error
+    // in the following test of the extrapolation used in computing size error.
     if constexpr (std::is_same_v<FinalState,
                                  control_system::size::States::DeltaR>) {
       // This instance holds its smoothing timescale fixed at 0.2, so
@@ -786,11 +786,9 @@ void test_size_error_one_step(
       const auto smoother_timescale = DataVector{1, 0.2};
       auto mirror_horizon_averager = Averager<2>{0.25, true};
 
-      // A quadratic horizon has the nonzero second derivative needed to
-      // test the Taylor series expansion of the horizon coefs used when
-      // computing size error. Three samples build enough history. The fourth
-      // sample produces the nonzero time offset needed to test the
-      // extrapolation.
+      // A quadratic horizon distinguishes linear extrapolation from estimates
+      // that include second-derivative corrections. Three samples build enough
+      // history. The fourth sample produces a nonzero time offset.
       constexpr double horizon_acceleration = 0.2;
       constexpr size_t number_of_measurements = 4;
       for (size_t step = 0; step < number_of_measurements; ++step) {
@@ -841,16 +839,12 @@ void test_size_error_one_step(
         const double time_from_average = current_time - average_time;
         CHECK(time_from_average > 0.0);
 
-        // The averager returns the horizon and its derivatives at its effective
-        // time. Extrapolate them to the measurement time just as Size should
-        // before it evaluates the DeltaR control error.
+        // Extrapolate the averaged horizon coefficient linearly and retain the
+        // averaged first derivative, as Size does for the DeltaR control error.
         const double horizon_00 =
             averaged_horizon_values[0][0] +
-            time_from_average * averaged_horizon_values[1][0] +
-            0.5 * square(time_from_average) * averaged_horizon_values[2][0];
-        const double dt_horizon_00 =
-            averaged_horizon_values[1][0] +
-            time_from_average * averaged_horizon_values[2][0];
+            time_from_average * averaged_horizon_values[1][0];
+        const double dt_horizon_00 = averaged_horizon_values[1][0];
 
         const auto current_lambda_dt_lambda =
             function_of_time->func_and_deriv(current_time);
