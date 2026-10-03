@@ -120,10 +120,11 @@ namespace ControlErrors {
  * timescale. Then, once we have enough measurements, we use the
  * `Averager::operator()` to get the averaged coefficient and its time
  * derivative. Since `Averager%s` calculate the average at an "averaged time",
- * we linearly extrapolate the coefficient to the current time and retain the
- * averaged first derivative. We omit second-derivative corrections to avoid
- * amplifying horizon finder noise at small measurement intervals. We use these
- * estimates in our calculation of the control error. The timescale
+ * we retain the coefficient and first derivative at that averaged time without
+ * extrapolating them to the current time. This avoids feeding derivative noise
+ * into the horizon position estimate at small measurement intervals. The
+ * averaged first derivative still accounts for horizon motion in the control
+ * error. The timescale
  * in the smoothing `TimescaleTuner` is then updated using the difference
  * between the averaged and un-averaged coefficient (and its time derivative).
  *
@@ -141,7 +142,7 @@ namespace ControlErrors {
  * - DiscontinuousChangeHasOccurred: 1.0 for true, 0.0 for false.
  * - FunctionOfTime
  * - DtFunctionOfTime
- * - HorizonCoef00
+ * - HorizonCoef00: The averaged horizon coefficient, without extrapolation.
  * - AveragedDtHorizonCoef00: The averaged 00 component of the horizon
  *   (averaging scheme detailed above.)
  * - RawDtHorizonCoef00: The raw 00 component of the horizon passed in to the
@@ -510,18 +511,11 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
 
     // Only for the first few measurements will this not have a value
     if (LIKELY(averaged_horizon_coef_at_average_time.has_value())) {
-      // We need to get the averaged time and evaluate the averaged coefs at
-      // that time, not the time passed in
-      const double averaged_time = horizon_coef_averager_.average_time(time);
-
+      // Retain the estimates at the averaged time. Extrapolating the coefficient
+      // with its time derivative feeds horizon finder noise into the position
+      // estimate when the control-system measurement interval becomes small.
       horizon_00 = averaged_horizon_coef_at_average_time.value()[0][0];
       dt_horizon_00 = averaged_horizon_coef_at_average_time.value()[1][0];
-      // Extrapolate the averaged horizon coefficient linearly to the current
-      // time, retaining the averaged first derivative. Omit second-derivative
-      // corrections to both estimates to avoid amplifying measurement noise
-      // when the control-system measurement interval becomes small.
-      const double time_diff = time - averaged_time;
-      horizon_00 += time_diff * dt_horizon_00;
 
       // The "control error" for the averaged horizon coefficients is just the
       // averaged coefs minus the actual coef and time derivative from
