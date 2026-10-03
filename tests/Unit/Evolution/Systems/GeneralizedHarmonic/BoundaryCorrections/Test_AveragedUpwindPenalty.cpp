@@ -3,6 +3,8 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <random>
@@ -241,7 +243,9 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
       for (auto& component :
            get<gh::Tags::VSpacetimeMetric<DataVector, Dim, Frame::Inertial>>(
                characteristic_correction)) {
-        component[p] *= speeds[0][p] < 0.0 ? speeds[0][p] : 0.0;
+        component[p] *=
+            std::min(speeds[0][p], 0.0) -
+            0.1 * std::max(std::abs(speeds[2][p]), std::abs(speeds[3][p]));
       }
       for (auto& component :
            get<gh::Tags::VZero<DataVector, Dim, Frame::Inertial>>(
@@ -277,6 +281,50 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
   }
 }
 
+template <size_t Dim>
+void test_zero_speed_metric_dissipation() {
+  for (const double mesh_speed : {0.0, 0.5, -2.0}) {
+    CAPTURE(Dim, mesh_speed);
+    Args<Dim> average{1, 0.0};
+    auto& metric = get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(average);
+    get<0, 0>(metric) = -1.0;
+    for (size_t i = 1; i <= Dim; ++i) {
+      metric.get(i, i) = 1.0;
+    }
+    get(get<gh::Tags::ConstraintGamma1>(average)) = -1.0;
+    get(get<gh::Tags::ConstraintGamma2>(average)) = 2.0;
+    get<0>(get<domain::Tags::UnnormalizedFaceNormal<Dim>>(average)) = 1.0;
+    get<0>(get<MeshVelocity<Dim>>(average)) = mesh_speed;
+
+    // Identical traces must produce no correction, including on a moving mesh.
+    CHECK(boundary_correction<Dim>(average, average) == GhVars<Dim>(1, 0.0));
+
+    // A pure metric characteristic jump has delta Pi = gamma2 delta g and
+    // delta Phi = 0. It must remain in this field after the extra penalty.
+    Args<Dim> delta{1, 0.0};
+    get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(delta)) = 0.01;
+    get<0, 0>(get<gh::Tags::Pi<DataVector, Dim>>(delta)) = 0.02;
+    const auto correction =
+        boundary_correction<Dim>(average - delta, average + delta);
+    GhVars<Dim> expected{1, 0.0};
+    const double sigma = 0.1 * (1.0 + std::abs(mesh_speed));
+    get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(expected)) =
+        -0.02 * sigma;
+    get<0, 0>(get<gh::Tags::Pi<DataVector, Dim>>(expected)) = -0.04 * sigma;
+    CHECK_VARIABLES_APPROX(correction, expected);
+
+    // The strong-form lift subtracts this correction, so its sign relaxes
+    // the jump. Reversing the interface reverses the correction and leaves
+    // its magnitude unchanged.
+    CHECK(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(
+              correction))[0] < 0.0);
+    get<0>(get<domain::Tags::UnnormalizedFaceNormal<Dim>>(average)) = -1.0;
+    const auto reversed =
+        boundary_correction<Dim>(average + delta, average - delta);
+    CHECK_VARIABLES_APPROX(reversed, -correction);
+  }
+}
+
 SPECTRE_TEST_CASE(
     "Unit.GeneralizedHarmonic.BoundaryCorrections.AveragedUpwindPenalty",
     "[Unit][Evolution]") {
@@ -285,5 +333,8 @@ SPECTRE_TEST_CASE(
   test<1>(make_not_null(&gen), 1);
   test<2>(make_not_null(&gen), 5);
   test<3>(make_not_null(&gen), 5);
+  test_zero_speed_metric_dissipation<1>();
+  test_zero_speed_metric_dissipation<2>();
+  test_zero_speed_metric_dissipation<3>();
 }
 }  // namespace

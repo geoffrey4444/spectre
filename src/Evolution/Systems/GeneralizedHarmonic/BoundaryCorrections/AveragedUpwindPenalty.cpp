@@ -130,7 +130,8 @@ void AveragedUpwindPenalty<Dim>::dg_boundary_terms(
       ::Tags::Tempaa<0, Dim>, ::Tags::Tempii<1, Dim>, ::Tags::TempII<2, Dim>,
       ::Tags::TempI<3, Dim>, ::Tags::TempScalar<4>, ::Tags::Tempi<5, Dim>,
       ::Tags::TempScalar<6>, ::Tags::TempScalar<7>, ::Tags::TempScalar<8>,
-      ::Tags::TempScalar<9>, ::Tags::TempScalar<10>, ::Tags::Tempaa<11, Dim>>>
+      ::Tags::TempScalar<9>, ::Tags::TempScalar<10>, ::Tags::Tempaa<11, Dim>,
+      ::Tags::TempScalar<12>>>
       buffer(num_pts);
 
   // Naming: Interior stuff is *_int, exterior stuff is *_ext, *_jump
@@ -180,6 +181,15 @@ void AveragedUpwindPenalty<Dim>::dg_boundary_terms(
   auto& incoming_char_speed_minus = get<::Tags::TempScalar<9>>(buffer);
   get(incoming_char_speed_minus) = get(incoming_char_speed_0) - get(lapse);
 
+  // Experimental interface dissipation for the metric characteristic field.
+  // In particular, gamma1=-1 otherwise leaves this field with no direct
+  // penalty. The symmetric speed is the largest absolute lightlike speed,
+  // evaluated before the outgoing speeds are discarded. This modifies only
+  // the discretization: the extra correction vanishes for continuous fields.
+  auto& metric_dissipation = get<::Tags::TempScalar<12>>(buffer);
+  get(metric_dissipation) =
+      0.1 * (abs(get(incoming_char_speed_0)) + get(lapse));
+
   // Zero out the outgoing (average) speeds
   get(incoming_char_speed_0) *= step_function(-get(incoming_char_speed_0));
   get(incoming_char_speed_plus) *=
@@ -190,7 +200,11 @@ void AveragedUpwindPenalty<Dim>::dg_boundary_terms(
   auto& incoming_char_speed_g = get<::Tags::TempScalar<10>>(buffer);
   get(incoming_char_speed_g) =
       (1.0 + 0.5 * (get(constraint_gamma1_int) + get(constraint_gamma1_ext))) *
-      get(incoming_char_speed_0);
+          get(incoming_char_speed_0) -
+      get(metric_dissipation);
+  // Reusing this modified coefficient in the Pi correction below supplies
+  // gamma2 times the metric correction. Thus this extra dissipation does not
+  // change the corrections to the VPlus or VMinus characteristic fields.
 
   // lapse no longer needed, but scoping it to here would be hard, so
   // just have to be careful.

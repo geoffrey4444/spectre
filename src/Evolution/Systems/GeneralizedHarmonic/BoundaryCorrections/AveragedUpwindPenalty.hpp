@@ -97,6 +97,14 @@ namespace gh::BoundaryCorrections {
  *       0 & \text{otherwise.}
  *     \end{cases}
  * \f}
+ *
+ * \warning This experimental branch additionally replaces
+ * \f$\lambda_{v^g}^-\f$ by
+ * \f$\lambda_{v^g}^- - 0.1\max(|\lambda_{v^+}|,|\lambda_{v^-}|)\f$
+ * in both the metric and Pi corrections. This adds symmetric dissipation of
+ * metric jumps, including the zero-speed metric field when gamma1=-1, without
+ * changing the VPlus/VMinus corrections. It is a numerical stabilization
+ * experiment, not an established fix for the high-spin constraint growth.
  */
 template <size_t Dim>
 class AveragedUpwindPenalty final : public evolution::BoundaryCorrection {
