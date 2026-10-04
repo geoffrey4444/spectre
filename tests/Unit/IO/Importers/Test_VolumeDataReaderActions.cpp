@@ -117,7 +117,7 @@ void test_spherical_interpolation() {
       for (const bool select_vector : {false, true}) {
         CAPTURE(select_vector);
         tuples::tagged_tuple_from_typelist<import_tags_list> result{};
-        get<VectorTag>(result) = tnsr::I<DataVector, 2>{1, -77.0};
+        get<VectorTag>(result) = tnsr::I<DataVector, 2>{1_st, -77.0};
         const tuples::tagged_tuple_from_typelist<
             db::wrap_tags_in<importers::Tags::Selected, import_tags_list>>
             selected{select_vector ? std::optional<std::string>{"V"}
@@ -130,7 +130,7 @@ void test_spherical_interpolation() {
         if (select_vector) {
           CHECK_ITERABLE_APPROX(get<VectorTag>(result), get<VectorTag>(expected));
         } else {
-          CHECK((get<VectorTag>(result) == tnsr::I<DataVector, 2>{1, -77.0}));
+          CHECK((get<VectorTag>(result) == tnsr::I<DataVector, 2>{1_st, -77.0}));
         }
       }
     }
