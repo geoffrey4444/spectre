@@ -1,0 +1,206 @@
+diff --git a/src/ck-core/ckarray.h b/src/ck-core/ckarray.h
+index 968500935..071a51358 100644
+--- a/src/ck-core/ckarray.h
++++ b/src/ck-core/ckarray.h
+@@ -974,6 +974,8 @@ private:
+     void insert(CkArrayMessage* const msg, const int epoch)
+     {
+       const int offset = getOffset(epoch);
++      if (offset < 0)
++        CkAbort("Received an array broadcast older than the retained broadcast queue");
+       if (offset >= storage.size())
+       {
+         // Size of storage is always a power of 2 to ease masking
+@@ -1023,8 +1025,15 @@ private:
+ 
+     void springCleaning()
+     {
+-      // Remove old broadcast messages
+-      const int nDelete = oldMaxEpoch - headEpoch;
++      // Broadcasts can arrive out of epoch order. Only age the contiguous
++      // received prefix: skipping a missing epoch would discard messages that
++      // an element waiting for that epoch still needs. Use the previous
++      // cleanup's contiguous prefix so a late arrival is retained for at least
++      // one cleanup interval before it can be removed.
++      int contiguousMaxEpoch = headEpoch - 1;
++      while (contiguousMaxEpoch < curMaxEpoch && hasBcast(contiguousMaxEpoch + 1))
++        ++contiguousMaxEpoch;
++      const int nDelete = std::min(oldMaxEpoch, contiguousMaxEpoch) - headEpoch;
+       if (nDelete > 0)
+       {
+         // DEBK((AA "Cleaning out %d old broadcasts\n" AB, nDelete));
+@@ -1038,7 +1047,7 @@ private:
+         headIndex = (headIndex + nDelete) & mask;
+         headEpoch += nDelete;
+       }
+-      oldMaxEpoch = std::max(oldMaxEpoch, curMaxEpoch);
++      oldMaxEpoch = contiguousMaxEpoch;
+     }
+ 
+     void clear()
+diff --git a/tests/charm++/broadcastCleanup/CMakeLists.txt b/tests/charm++/broadcastCleanup/CMakeLists.txt
+new file mode 100644
+index 000000000..b46b1c087
+--- /dev/null
++++ b/tests/charm++/broadcastCleanup/CMakeLists.txt
+@@ -0,0 +1,27 @@
++cmake_minimum_required(VERSION 3.16)
++project(BroadcastCleanupRegression LANGUAGES CXX)
++enable_testing()
++
++# Test the actual private queue implementation without starting a Charm runtime.
++# Message allocation and PUP are stubbed in the driver; insertion and cleanup are
++# extracted byte-for-byte from the production header.
++file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/ck-core/ckarray.h" array_header)
++string(FIND "${array_header}" "  class BcastQueue\n" queue_start)
++string(FIND "${array_header}" "\n  int bcastSendEpoch" queue_end)
++if(queue_start LESS 0 OR queue_end LESS queue_start)
++  message(FATAL_ERROR "Could not locate BcastQueue in ckarray.h")
++endif()
++math(EXPR queue_length "${queue_end} - ${queue_start}")
++string(SUBSTRING "${array_header}" ${queue_start} ${queue_length} queue_source)
++file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/queue.hpp" "${queue_source}")
++
++add_executable(broadcast_cleanup_test test_queue.cpp)
++target_compile_features(broadcast_cleanup_test PRIVATE cxx_std_17)
++target_compile_definitions(broadcast_cleanup_test PRIVATE
++  QUEUE_HEADER="${CMAKE_CURRENT_BINARY_DIR}/queue.hpp")
++foreach(case ordered late random)
++  add_test(NAME broadcast_cleanup_${case} COMMAND broadcast_cleanup_test ${case})
++  set_tests_properties(broadcast_cleanup_${case} PROPERTIES TIMEOUT 5)
++endforeach()
++add_test(NAME broadcast_cleanup_stale COMMAND broadcast_cleanup_test stale)
++set_tests_properties(broadcast_cleanup_stale PROPERTIES WILL_FAIL TRUE TIMEOUT 5)
+diff --git a/tests/charm++/broadcastCleanup/README.md b/tests/charm++/broadcastCleanup/README.md
+new file mode 100644
+index 000000000..f485b077d
+--- /dev/null
++++ b/tests/charm++/broadcastCleanup/README.md
+@@ -0,0 +1,20 @@
++# Broadcast cleanup regression
++
++Configure this directory as a standalone CMake project, build the
++`broadcast_cleanup_test` target, and run `ctest --output-on-failure`.
++
++The driver extracts the production `BcastQueue` class from `ckarray.h`. It stubs
++message allocation and serialization, and exposes private state only for test
++inspection. Queue insertion and cleanup run unchanged. No MPI processes are
++started.
++
++Coverage includes ordered traffic, receipt of epochs 0–6 and 8–25 followed by two
++cleanups and late epoch 7, preservation of the newly arrived message for another
++cleanup interval, 1,000 randomized arrival/cleanup sequences, and explicit failure
++for an already-expired epoch. The old implementation hangs in the late-7 case:
++the negative offset becomes unsigned in the growth comparison, and the size
++eventually wraps to zero and doubles forever.
++
++The patch preserves the existing finite retention assumption for migrating
++elements that lag behind already-received contiguous broadcasts. It does not
++establish a new acknowledgment protocol or unlimited migration tolerance.
+diff --git a/tests/charm++/broadcastCleanup/test_queue.cpp b/tests/charm++/broadcastCleanup/test_queue.cpp
+new file mode 100644
+index 000000000..c528114a0
+--- /dev/null
++++ b/tests/charm++/broadcastCleanup/test_queue.cpp
+@@ -0,0 +1,101 @@
++// Native regression driver. The production class is extracted unchanged from
++// ckarray.h; only access specifiers are exposed for inspecting test invariants.
++#include <algorithm>
++#include <cassert>
++#include <cstdlib>
++#include <iostream>
++#include <numeric>
++#include <random>
++#include <string>
++#include <vector>
++
++struct CkArrayMessage { int epoch; };
++struct CkMigrateMessage {};
++namespace PUP {
++struct er {
++  bool isUnpacking() const { return false; }
++  template<class T> er& operator|(T&) { return *this; }
++};
++}
++#define CkAssert(x) assert(x)
++[[noreturn]] void CkAbort(const char* text) {
++  std::cerr << text << '\n';
++  std::exit(2);
++}
++#define private public
++#include QUEUE_HEADER
++#undef private
++
++void add(BcastQueue& q, int epoch) { q.insert(new CkArrayMessage{epoch}, epoch); }
++void drain(BcastQueue& q, int& next) {
++  while (q.hasBcast(next)) {
++    assert(q.getBcast(next)->epoch == next);
++    ++next;
++  }
++}
++
++int main(int argc, char** argv) {
++  assert(argc == 2);
++  const std::string mode = argv[1];
++  if (mode == "late") {
++    BcastQueue q;
++    for (int e = 0; e <= 25; ++e) if (e != 7) add(q, e);
++    q.springCleaning();
++    q.springCleaning();
++    std::cout << "before_late head=" << q.headEpoch << " watermark="
++              << q.oldMaxEpoch << " max=" << q.curMaxEpoch << std::endl;
++    add(q, 7);
++    int next = 7;
++    drain(q, next);
++    assert(next == 26);
++    // The newly arrived gap-filling message must survive this cleanup. It
++    // becomes eligible on the following cleanup, as with ordered traffic.
++    q.springCleaning();
++    assert(q.hasBcast(7));
++    q.springCleaning();
++    assert(!q.hasBcast(7));
++    assert(q.hasBcast(25));
++    std::cout << "delivered_in_order=7..25 late_retention=PASS final_head="
++              << q.headEpoch << '\n';
++  } else if (mode == "ordered") {
++    BcastQueue q;
++    q.springCleaning();
++    q.springCleaning();
++    for (int e = 0; e <= 25; ++e) add(q, e);
++    q.springCleaning();
++    assert(q.hasBcast(0));
++    q.springCleaning();
++    assert(q.headEpoch == 25);
++    assert(q.hasBcast(25));
++    std::cout << "ordered_cleanup=PASS head=25\n";
++  } else if (mode == "random") {
++    for (unsigned seed = 0; seed < 1000; ++seed) {
++      std::mt19937 rng(seed);
++      std::vector<int> epochs(128);
++      std::iota(epochs.begin(), epochs.end(), 0);
++      std::shuffle(epochs.begin(), epochs.end(), rng);
++      BcastQueue q;
++      int next = 0;
++      for (int epoch : epochs) {
++        add(q, epoch);
++        drain(q, next);
++        if (rng() % 3 == 0) q.springCleaning();
++        assert(q.headEpoch <= next);
++      }
++      assert(next == 128);
++      q.springCleaning();
++      q.springCleaning();
++      assert(q.headEpoch == 127);
++    }
++    std::cout << "randomized_delivery_and_cleanup=PASS seeds=1000 epochs=128\n";
++  } else if (mode == "stale") {
++    BcastQueue q;
++    for (int e = 0; e <= 25; ++e) add(q, e);
++    q.springCleaning();
++    q.springCleaning();
++    add(q, 7); // Explicit failure, never an infinite unsigned-growth loop.
++    assert(false);
++  } else {
++    return 3;
++  }
++}
