@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -178,13 +179,40 @@ void test_inward_drift_option_schema() {
                         "Inward drift velocity must be finite"));
 }
 
+void test_smoothing_with_bounded_position_noise() {
+  auto tuner = TimescaleTuner<true>{
+      std::vector<double>{2.0}, 20.0, 1.e-4, 2.5e-4, 1.01, 1.e-3, 0.9};
+  auto derivative_feedback = tuner;
+  constexpr double noise = 1.e-6;
+  // Alternating bounded position noise has a three-point finite-difference
+  // derivative of +/-4*noise/dt. Compare decreasing measurement intervals
+  // without changing that position noise or the underlying constant horizon.
+  for (size_t step = 0; step < 64; ++step) {
+    const double dt = 1.e-4 / std::pow(2.0, static_cast<double>(step / 8));
+    const double signed_noise = step % 2 == 0 ? noise : -noise;
+    const double previous_timescale = tuner.current_timescale()[0];
+    control_system::size::update_horizon_smoothing_timescale(
+        make_not_null(&tuner), 1.0, 1.0 + signed_noise);
+    CHECK(tuner.current_timescale()[0] >= previous_timescale);
+    derivative_feedback.update_timescale(std::array{
+        DataVector{-signed_noise}, DataVector{-4.0 * signed_noise / dt}});
+  }
+  CHECK(derivative_feedback.current_timescale()[0] < 0.02);
+  // A position discrepancy above tolerance still shortens smoothing so it
+  // can follow real horizon motion rather than retaining excessive lag.
+  const double before_lag = tuner.current_timescale()[0];
+  control_system::size::update_horizon_smoothing_timescale(
+      make_not_null(&tuner), 1.0, 1.003);
+  CHECK(tuner.current_timescale()[0] < before_lag);
+}
+
 void test_suggested_timescale_survives_averager_update() {
   using SizeError =
       control_system::ControlErrors::Size<2, domain::ObjectLabel::A>;
   constexpr size_t l_max = 2;
   const std::array<double, 3> center{};
   const ylm::Strahlkorper<Frame::Distorted> excision_surface{l_max, 1.0,
-                                                            center};
+                                                             center};
   const size_t number_of_points =
       excision_surface.ylm_spherepack().physical_size();
 
@@ -201,7 +229,7 @@ void test_suggested_timescale_survives_averager_update() {
   const tnsr::Ijj<DataVector, 3, Frame::Distorted> spatial_christoffel{
       number_of_points, 0.0};
   const tnsr::i<DataVector, 3, Frame::Distorted> deriv_lapse{number_of_points,
-                                                            0.0};
+                                                             0.0};
   const tnsr::iJ<DataVector, 3, Frame::Distorted> deriv_shift{number_of_points,
                                                               0.0};
   InverseJacobian<DataVector, 3, Frame::Grid, Frame::Distorted>
@@ -238,11 +266,10 @@ void test_suggested_timescale_survives_averager_update() {
           std::numeric_limits<double>::infinity());
   Domain<3> domain{
       std::vector<Block<3>>{},
-      {{"ExcisionSphereA",
-        ExcisionSphere<3>{
-            1.0,
-            tnsr::I<double, 3, Frame::Grid>{std::array{0.0, 0.0, 0.0}},
-            {}}}}};
+      {{"ExcisionSphereA", ExcisionSphere<3>{1.0,
+                                             tnsr::I<double, 3, Frame::Grid>{
+                                                 std::array{0.0, 0.0, 0.0}},
+                                             {}}}}};
   Parallel::GlobalCache<Metavars> cache{
       {std::move(functions_of_time), std::move(domain), false,
        ::Verbosity::Silent, "", "", std::vector<std::string>{}}};
@@ -274,16 +301,16 @@ void test_suggested_timescale_survives_averager_update() {
   CHECK(size_error.get_suggested_timescale().value() == approx(0.05));
 
   Averager<1> averager{0.25, true};
-  control_system::size::update_averager(
-      make_not_null(&averager), make_not_null(&size_error), cache, 0.2,
-      tuner.current_timescale(), "Size"s, 1);
+  control_system::size::update_averager(make_not_null(&averager),
+                                        make_not_null(&size_error), cache, 0.2,
+                                        tuner.current_timescale(), "Size"s, 1);
   CHECK_FALSE(size_error.discontinuous_change_has_occurred());
   REQUIRE(size_error.get_suggested_timescale().has_value());
   CHECK(size_error.get_suggested_timescale().value() == approx(0.05));
 
-  control_system::update_timescale_tuner(
-      make_not_null(&tuner), make_not_null(&size_error), ::Verbosity::Silent,
-      0.2, "Size"s);
+  control_system::update_timescale_tuner(make_not_null(&tuner),
+                                         make_not_null(&size_error),
+                                         ::Verbosity::Silent, 0.2, "Size"s);
   CHECK(tuner.current_timescale()[0] == approx(0.05));
   CHECK_FALSE(size_error.get_suggested_timescale().has_value());
 }
@@ -516,9 +543,9 @@ void test_size_error_one_step(
   // The NOLINTs for these following 3 vars are because clang-tidy
   // wants these to be const, but their values are changed (sometimes)
   // by the if constexpr below.
-  std::optional<double> inward_drift_velocity{}; // NOLINT
-  std::optional<double> min_allowed_radial_distance{}; // NOLINT
-  std::optional<double> min_allowed_char_speed{}; // NOLINT
+  std::optional<double> inward_drift_velocity{};        // NOLINT
+  std::optional<double> min_allowed_radial_distance{};  // NOLINT
+  std::optional<double> min_allowed_char_speed{};       // NOLINT
   if constexpr (std::is_same_v<
                     FinalState,
                     control_system::size::States::DeltaRDriftInward>) {
@@ -911,6 +938,7 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.SizeError", "[Domain][Unit]") {
   test_size_error_copy();
   test_inward_drift_option_schema();
   test_suggested_timescale_survives_averager_update();
+  test_smoothing_with_bounded_position_noise();
   test_size_error_horizon_higher_res_than_excision();
   test_recovery_crossing_of_inward_drift_limit_is_ignored();
   test_inward_drift_uses_pointwise_normal_bound();

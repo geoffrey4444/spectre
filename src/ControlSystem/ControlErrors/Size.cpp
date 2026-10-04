@@ -27,6 +27,13 @@
 
 namespace control_system {
 namespace size {
+void update_horizon_smoothing_timescale(
+    const gsl::not_null<TimescaleTuner<true>*> tuner,
+    const double averaged_coefficient, const double raw_coefficient) {
+  tuner->update_timescale(std::array{
+      DataVector{averaged_coefficient - raw_coefficient}, DataVector{0.0}});
+}
+
 double control_error_delta_r(const double horizon_00,
                              const double dt_horizon_00, const double lambda_00,
                              const double dt_lambda_00,

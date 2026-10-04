@@ -78,6 +78,15 @@ double control_error_delta_r(const double horizon_00,
                              const double dt_horizon_00, const double lambda_00,
                              const double dt_lambda_00,
                              const double grid_frame_excision_sphere_radius);
+
+/// Experimental position-based horizon smoothing adaptation. A finite-
+/// difference velocity discrepancy can grow as the measurement interval
+/// shrinks even when the underlying position noise remains bounded. Use only
+/// the position discrepancy to adapt the smoothing time; the averaged horizon
+/// velocity remains in the physical Size control error.
+void update_horizon_smoothing_timescale(
+    gsl::not_null<TimescaleTuner<true>*> tuner, double averaged_coefficient,
+    double raw_coefficient);
 }  // namespace size
 
 namespace ControlErrors {
@@ -125,8 +134,10 @@ namespace ControlErrors {
  * into the horizon position estimate at small measurement intervals. The
  * averaged first derivative still accounts for horizon motion in the control
  * error. The timescale
- * in the smoothing `TimescaleTuner` is then updated using the difference
- * between the averaged and un-averaged coefficient (and its time derivative).
+ * in the smoothing `TimescaleTuner` is then updated using only the difference
+ * between the averaged and un-averaged coefficient. This experimental policy
+ * prevents bounded horizon-position jitter from shortening smoothing merely
+ * because its finite-difference derivative grows at shorter cadence.
  *
  * In addition to calculating the control error, if the
  * `control_system::Tags::WriteDataToDisk` tag inside the
@@ -511,22 +522,16 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
 
     // Only for the first few measurements will this not have a value
     if (LIKELY(averaged_horizon_coef_at_average_time.has_value())) {
-      // Retain the estimates at the averaged time. Extrapolating the coefficient
-      // with its time derivative feeds horizon finder noise into the position
-      // estimate when the control-system measurement interval becomes small.
+      // Retain the estimates at the averaged time. Extrapolating the
+      // coefficient with its time derivative feeds horizon finder noise into
+      // the position estimate when the control-system measurement interval
+      // becomes small.
       horizon_00 = averaged_horizon_coef_at_average_time.value()[0][0];
       dt_horizon_00 = averaged_horizon_coef_at_average_time.value()[1][0];
 
-      // The "control error" for the averaged horizon coefficients is just the
-      // averaged coefs minus the actual coef and time derivative from
-      // apparent_horizon and time_deriv_apparent_horizon
-      smoother_tuner_.update_timescale(
-          std::array{
-              DataVector{averaged_horizon_coef_at_average_time.value()[0][0]},
-              DataVector{averaged_horizon_coef_at_average_time.value()[1][0]}} -
-          std::array{
-              DataVector{apparent_horizon.coefficients()[0]},
-              DataVector{time_deriv_apparent_horizon.coefficients()[0]}});
+      size::update_horizon_smoothing_timescale(
+          make_not_null(&smoother_tuner_), horizon_00,
+          apparent_horizon.coefficients()[0]);
     }
 
     // This is needed because the horizon_00 (and dt) are spherepack coefs, not
