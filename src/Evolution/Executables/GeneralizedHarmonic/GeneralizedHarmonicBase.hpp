@@ -139,6 +139,7 @@
 #include "Time/TimeSteppers/TimeStepper.hpp"
 #include "Time/Triggers/TimeTriggers.hpp"
 #include "Time/UpdateU.hpp"
+#include "Time/UpdateLtsStepperError.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/Functional.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
@@ -403,6 +404,7 @@ struct GeneralizedHarmonicTemplateBase {
       Actions::MutateApply<UpdateU<system>>,
       evolution::dg::Actions::ApplyLtsBoundaryCorrections<
           volume_dim, use_dg_element_collection>,
+      Actions::MutateApply<UpdateLtsStepperError<system>>,
       Actions::MutateApply<ChangeTimeStepperOrder<system>>,
       Actions::MutateApply<CleanHistory<system>>,
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,

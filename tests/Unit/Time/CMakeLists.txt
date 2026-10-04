@@ -28,6 +28,7 @@ set(LIBRARY_SOURCES
   Test_TimeStepRequest.cpp
   Test_TimeStepRequestProcessor.cpp
   Test_UpdateU.cpp
+  Test_UpdateLtsStepperError.cpp
   )
 
 add_subdirectory(Actions)
