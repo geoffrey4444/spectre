@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -34,6 +35,8 @@
 #include "IO/Importers/ElementDataReader.hpp"
 #include "IO/Importers/Tags.hpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
+#include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
+#include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
 #include "Parallel/ArrayComponentId.hpp"
 #include "Parallel/ArrayIndex.hpp"
@@ -54,6 +57,85 @@ struct TensorTag : db::SimpleTag {
 };
 
 using import_tags_list = tmpl::list<VectorTag, TensorTag>;
+
+template <size_t Dim>
+Mesh<Dim> spherical_mesh(const size_t radial_points, const size_t l_max) {
+  if constexpr (Dim == 2) {
+    return Mesh<2>{
+        {{l_max + 1, 2 * l_max + 1}},
+        {{Spectral::Basis::SphericalHarmonic,
+          Spectral::Basis::SphericalHarmonic}},
+        {{Spectral::Quadrature::Gauss, Spectral::Quadrature::Equiangular}}};
+  } else {
+    return Mesh<3>{
+        {{radial_points, l_max + 1, 2 * l_max + 1}},
+        {{Spectral::Basis::Legendre, Spectral::Basis::SphericalHarmonic,
+          Spectral::Basis::SphericalHarmonic}},
+        {{Spectral::Quadrature::GaussLobatto, Spectral::Quadrature::Gauss,
+          Spectral::Quadrature::Equiangular}}};
+  }
+}
+
+template <size_t Dim>
+auto spherical_data(const Mesh<Dim>& mesh, const bool include_high_mode) {
+  const auto coordinates = logical_coordinates(mesh);
+  const auto& theta = coordinates.get(Dim - 2);
+  const auto& phi = coordinates.get(Dim - 1);
+  DataVector radial_factor(mesh.number_of_grid_points(), 1.0);
+  if constexpr (Dim == 3) {
+    radial_factor += get<0>(coordinates) + square(get<0>(coordinates));
+  }
+  // These low angular modes are representable on every mesh in this test.
+  const DataVector low_modes =
+      radial_factor * (1.0 + cos(theta) + sin(theta) * cos(phi) +
+                       square(sin(theta)) * sin(2.0 * phi));
+  // A pure real l=m=5 mode must be discarded when restricting to l_max=4.
+  const DataVector high_mode =
+      radial_factor * pow(sin(theta), 5) * cos(5.0 * phi);
+  tuples::tagged_tuple_from_typelist<import_tags_list> data{};
+  for (size_t i = 0; i < get<VectorTag>(data).size(); ++i) {
+    get<VectorTag>(data)[i] = static_cast<double>(i + 1) * low_modes;
+  }
+  for (size_t i = 0; i < get<TensorTag>(data).size(); ++i) {
+    get<TensorTag>(data)[i] = static_cast<double>(i + 3) * low_modes;
+    if (include_high_mode) {
+      get<TensorTag>(data)[i] += static_cast<double>(i + 1) * high_mode;
+    }
+  }
+  return data;
+}
+
+template <size_t Dim>
+void test_spherical_interpolation() {
+  const auto source_mesh = spherical_mesh<Dim>(4, 6);
+  const auto source_data = spherical_data(source_mesh, true);
+  for (const size_t target_l : {4_st, 6_st, 8_st}) {
+    for (const size_t radial_points : {4_st, 6_st}) {
+      const auto target_mesh = spherical_mesh<Dim>(radial_points, target_l);
+      CAPTURE(source_mesh, target_mesh);
+      const auto expected = spherical_data(target_mesh, target_l >= 5);
+      for (const bool select_vector : {false, true}) {
+        CAPTURE(select_vector);
+        tuples::tagged_tuple_from_typelist<import_tags_list> result{};
+        get<VectorTag>(result) = tnsr::I<DataVector, 2>{1, -77.0};
+        const tuples::tagged_tuple_from_typelist<
+            db::wrap_tags_in<importers::Tags::Selected, import_tags_list>>
+            selected{select_vector ? std::optional<std::string>{"V"}
+                                   : std::nullopt,
+                     std::optional<std::string>{"T"}};
+        importers::detail::interpolate_selected_fields<import_tags_list>(
+            make_not_null(&result), source_data, source_mesh, target_mesh,
+            selected);
+        CHECK_ITERABLE_APPROX(get<TensorTag>(result), get<TensorTag>(expected));
+        if (select_vector) {
+          CHECK_ITERABLE_APPROX(get<VectorTag>(result), get<VectorTag>(expected));
+        } else {
+          CHECK((get<VectorTag>(result) == tnsr::I<DataVector, 2>{1, -77.0}));
+        }
+      }
+    }
+  }
+}
 
 struct TestVolumeData {};
 
@@ -301,6 +383,11 @@ void test_actions(const std::variant<double, importers::ObservationSelector>&
   }
 }
 }  // namespace
+
+SPECTRE_TEST_CASE("Unit.IO.Importers.SphericalInterpolation", "[Unit][IO]") {
+  test_spherical_interpolation<2>();
+  test_spherical_interpolation<3>();
+}
 
 // [[TimeOut, 30]]
 SPECTRE_TEST_CASE("Unit.IO.Importers.VolumeDataReaderActions", "[Unit][IO]") {
