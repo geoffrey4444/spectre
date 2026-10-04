@@ -113,6 +113,7 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<VolumeDim> {
             ::domain::Tags::InitialRefinementLevels<volume_dim>,
             evolution::dg::Tags::Quadrature,
             Tags::StepperErrors<typename system::variables_tag>,
+            Tags::UnfilteredLtsPredictor<typename system::variables_tag>,
             SelfStart::Tags::InitialValue<typename system::variables_tag>,
             SelfStart::Tags::InitialValue<Tags::TimeStep>>,
         ::amr::projectors::CopyFromCreatorOrLeaveAsIs<
