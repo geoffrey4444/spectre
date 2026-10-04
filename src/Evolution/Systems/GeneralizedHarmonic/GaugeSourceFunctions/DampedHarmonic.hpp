@@ -33,7 +33,11 @@ namespace gauges {
  * (`damped_harmonic_rollon`), and a "non-rollon" version (`damped_harmonic`).
  * In the non-rollon version the rollon function \f$R(t)=1\f$.
  *
- * \warning Only the non-rollon version can be used with a moving mesh.
+ * \warning For roll-on with a moving mesh, the initial gauge and its inertial
+ * derivatives must be evaluated at the current inertial coordinates.
+ * Freezing initial values on moving grid points is not valid. The
+ * `DampedHarmonicRollOn` condition performs this evaluation for a stationary
+ * analytic initial gauge.
  *
  * The covariant form of the source function \f$H_a\f$ is written as:
  *

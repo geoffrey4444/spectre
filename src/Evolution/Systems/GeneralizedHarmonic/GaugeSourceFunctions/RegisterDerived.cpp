@@ -25,7 +25,6 @@ void register_derived_with_charm() {
   impl<1>();
   impl<2>();
   impl<3>();
-  register_classes_with_charm(
-      tmpl::list<AnalyticChristoffel, DampedHarmonic, Harmonic>{});
+  register_classes_with_charm(all_gauges{});
 }
 }  // namespace gh::gauges

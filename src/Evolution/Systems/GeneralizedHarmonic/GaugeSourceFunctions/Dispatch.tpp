@@ -9,6 +9,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/AnalyticChristoffel.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonic.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonicRollOn.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/Gauges.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/Harmonic.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
@@ -46,6 +47,14 @@ void dispatch(
         gauge_h, d4_gauge_h, lapse, shift, sqrt_det_spatial_metric,
         inverse_spatial_metric, d4_spacetime_metric, half_pi_two_normals,
         half_phi_two_normals, spacetime_metric, phi, time, inertial_coords);
+  } else if (const auto* rollon_gauge =
+                 dynamic_cast<const DampedHarmonicRollOn*>(&gauge_condition);
+             rollon_gauge != nullptr) {
+    rollon_gauge->gauge_and_spacetime_derivative(
+        gauge_h, d4_gauge_h, lapse, shift, sqrt_det_spatial_metric,
+        inverse_spatial_metric, d4_spacetime_metric, half_pi_two_normals,
+        half_phi_two_normals, spacetime_metric, phi, mesh, time,
+        inertial_coords, inverse_jacobian, AllSolutionsForChristoffelAnalytic{});
   } else if (const auto* analytic_gauge =
                  dynamic_cast<const AnalyticChristoffel*>(&gauge_condition);
              analytic_gauge != nullptr) {
@@ -55,7 +64,8 @@ void dispatch(
   } else {
     // LCOV_EXCL_START
     ERROR(
-        "Failed to dispatch to Harmonic, DampedHarmonic, or Analytic gauge "
+        "Failed to dispatch to Harmonic, DampedHarmonic, DampedHarmonicRollOn, "
+        "or Analytic gauge "
         "condition.");
     // LCOV_EXCL_STOP
   }

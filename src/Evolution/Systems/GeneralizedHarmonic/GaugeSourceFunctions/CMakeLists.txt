@@ -6,6 +6,7 @@ spectre_target_sources(
   PRIVATE
   AnalyticChristoffel.cpp
   DampedHarmonic.cpp
+  DampedHarmonicRollOn.cpp
   DampedWaveHelpers.cpp
   DhGaugeParameters.cpp
   Dispatch.cpp
@@ -22,6 +23,7 @@ spectre_target_headers(
   HEADERS
   AnalyticChristoffel.hpp
   DampedHarmonic.hpp
+  DampedHarmonicRollOn.hpp
   DampedWaveHelpers.hpp
   DhGaugeParameters.hpp
   Dispatch.hpp
