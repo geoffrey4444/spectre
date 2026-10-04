@@ -168,7 +168,9 @@ void AveragedUpwindPenalty<Dim>::dg_boundary_terms(
   }
   auto& constraint_gamma2 = get<::Tags::TempScalar<6>>(buffer);
   get(constraint_gamma2) =
-      0.5 * (get(constraint_gamma2_int) + get(constraint_gamma2_ext));
+      // Campaign diagnostic: retain bulk damping, but halve the interface
+      // metric-jump coupling. This is not the standard bulk upwind matrix.
+      0.25 * (get(constraint_gamma2_int) + get(constraint_gamma2_ext));
 
   auto& incoming_char_speed_0 = get<::Tags::TempScalar<7>>(buffer);
   tenex::evaluate(make_not_null(&incoming_char_speed_0),

@@ -97,6 +97,12 @@ namespace gh::BoundaryCorrections {
  *       0 & \text{otherwise.}
  *     \end{cases}
  * \f}
+ *
+ * \note Experimental campaign variant: the gamma2 in this boundary
+ * correction is half the averaged bulk gamma2. The volume equations and
+ * damping are unchanged. This tests interface metric-jump forcing and is
+ * not the standard upwind matrix of the bulk principal system. Metric
+ * continuity and broader constraints must be checked alongside local C3.
  */
 template <size_t Dim>
 class AveragedUpwindPenalty final : public evolution::BoundaryCorrection {

@@ -228,10 +228,15 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
                    gh::Tags::VPlus<DataVector, Dim, Frame::Inertial>,
                    gh::Tags::VMinus<DataVector, Dim, Frame::Inertial>>>;
 
+    // Independent characteristic-basis reconstruction of the diagnostic
+    // interface matrix. The original bulk gamma2 in average_fields is kept.
+    auto boundary_gamma2 = get<gh::Tags::ConstraintGamma2>(average_fields);
+    get(boundary_gamma2) *= 0.5;
+
     // Factor of 2.0 comes from (avg + delta) - (avg - delta) = 2 delta
     CharacteristicFields characteristic_correction =
         2.0 * gh::characteristic_fields(
-                  get<gh::Tags::ConstraintGamma2>(average_fields),
+                  boundary_gamma2,
                   inverse_spatial_metric,
                   get<gr::Tags::SpacetimeMetric<DataVector, Dim>>(delta_fields),
                   get<gh::Tags::Pi<DataVector, Dim>>(delta_fields),
@@ -262,7 +267,7 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
 
     const auto expected_correction =
         gh::evolved_fields_from_characteristic_fields(
-            get<gh::Tags::ConstraintGamma2>(average_fields),
+            boundary_gamma2,
             get<gh::Tags::VSpacetimeMetric<DataVector, Dim, Frame::Inertial>>(
                 characteristic_correction),
             get<gh::Tags::VZero<DataVector, Dim, Frame::Inertial>>(
