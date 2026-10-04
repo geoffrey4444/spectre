@@ -46,9 +46,12 @@
 #include "Evolution/DiscontinuousGalerkin/UsingSubcell.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Formulation.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/MortarHelpers.hpp"
+#include "NumericalAlgorithms/DiscontinuousGalerkin/ProjectToBoundary.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Tags/Formulation.hpp"
 #include "NumericalAlgorithms/LinearOperators/Divergence.hpp"
+#include "NumericalAlgorithms/LinearOperators/Filters/Filter.hpp"
+#include "NumericalAlgorithms/LinearOperators/Filters/Tag.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/BoundaryInterpolationMatrices.hpp"
@@ -61,6 +64,7 @@
 #include "Parallel/Invoke.hpp"
 #include "Time/BoundaryHistory.hpp"
 #include "Time/ChangeStepSize.hpp"
+#include "Time/Tags/StepNumberWithinSlab.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -879,6 +883,40 @@ void ComputeTimeDerivative<Dim, EvolutionSystem, DgStepChoosers,
   }
 
   if (not mortar_history_directions.empty()) {
+    // A cached LTS coupling may be first requested by dense output or by a
+    // later step. Store the filter decision and its moving-frame geometry at
+    // the same time as the local packaged fields, so every request computes
+    // the same coupling for a given pair of history records.
+    bool boundary_filter_active = false;
+    DirectionMap<Dim, Jacobian<DataVector, Dim, Frame::Grid, Frame::Inertial>>
+        filter_face_jacobians{};
+    DirectionMap<
+        Dim, InverseJacobian<DataVector, Dim, Frame::Grid, Frame::Inertial>>
+        filter_face_inverse_jacobians{};
+    using FilterTag =
+        Filters::Tags::SpectralFilter<Dim, typename VariablesTag::tags_list>;
+    if constexpr (db::tag_is_retrievable_v<FilterTag, db::DataBox<DbTagsList>>) {
+      const auto& filter = db::get<FilterTag>(*box);
+      boundary_filter_active =
+          filter.apply_boundary_filter_on_substep() or
+          filter.apply_boundary_filter_on_this_step(
+              db::get<::Tags::StepNumberWithinSlab>(*box));
+      if (boundary_filter_active and filter.need_jacobians()) {
+        const auto& jacobian = db::get<
+            domain::Tags::Jacobian<Dim, Frame::Grid, Frame::Inertial>>(*box);
+        const auto& inverse_jacobian = db::get<
+            domain::Tags::InverseJacobian<Dim, Frame::Grid, Frame::Inertial>>(
+            *box);
+        for (const auto& [direction, unused] : mortar_history_directions) {
+          filter_face_jacobians[direction] =
+              ::dg::project_tensor_to_boundary(jacobian, volume_mesh,
+                                               direction);
+          filter_face_inverse_jacobians[direction] =
+              ::dg::project_tensor_to_boundary(inverse_jacobian, volume_mesh,
+                                               direction);
+        }
+      }
+    }
     // Need volume Jacobian for any face whose normal direction uses Gauss
     // points. This means mixed-quadrature non-hypercube elements (e.g.
     // full_cylinder) where some directions have collocated face points and
@@ -910,7 +948,8 @@ void ComputeTimeDerivative<Dim, EvolutionSystem, DgStepChoosers,
                evolution::dg::Tags::MortarDataHistory<Dim>>(
         [&element, integration_order, &mortar_history_directions, &mortar_info,
          &time_step_id, any_direction_uses_gauss, &volume_det_inv_jacobian,
-         &volume_mesh](
+         &volume_mesh, boundary_filter_active, &filter_face_jacobians,
+         &filter_face_inverse_jacobians](
             const gsl::not_null<
                 DirectionalIdMap<Dim, evolution::dg::MortarDataHolder<Dim>>*>
                 mortar_data,
@@ -983,6 +1022,16 @@ void ComputeTimeDerivative<Dim, EvolutionSystem, DgStepChoosers,
               }
               auto& local_mortar_data = mortar_data->at(mortar_id).local();
               local_mortar_data.face_normal_magnitude = face_normal_magnitude;
+              local_mortar_data.boundary_filter_active = boundary_filter_active;
+              if (filter_face_jacobians.contains(direction)) {
+                local_mortar_data.face_jac_grid_to_inertial =
+                    filter_face_jacobians.at(direction);
+                local_mortar_data.face_inv_jac_grid_to_inertial =
+                    filter_face_inverse_jacobians.at(direction);
+              } else {
+                local_mortar_data.face_jac_grid_to_inertial.reset();
+                local_mortar_data.face_inv_jac_grid_to_inertial.reset();
+              }
               if (volume_mesh.quadrature(direction.dimension()) ==
                   Spectral::Quadrature::Gauss) {
                 local_mortar_data.volume_mesh = volume_mesh;

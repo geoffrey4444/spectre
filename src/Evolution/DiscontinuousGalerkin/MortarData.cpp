@@ -30,6 +30,9 @@ void MortarData<Dim>::pup(PUP::er& p) {
   p | mortar_mesh;
   p | face_mesh;
   p | volume_mesh;
+  p | boundary_filter_active;
+  p | face_jac_grid_to_inertial;
+  p | face_inv_jac_grid_to_inertial;
 }
 
 template <size_t Dim>
@@ -49,6 +52,16 @@ bool p_project_geometric_data(
           DataVector& det_j = get(mortar_data->face_det_jacobian.value());
           det_j = Spectral::project(det_j, old_face_mesh, new_face_mesh, full,
                                     full);
+        }
+        if (mortar_data->face_jac_grid_to_inertial.has_value()) {
+          for (auto& component : *mortar_data->face_jac_grid_to_inertial) {
+            component = Spectral::project(component, old_face_mesh,
+                                          new_face_mesh, full, full);
+          }
+          for (auto& component : *mortar_data->face_inv_jac_grid_to_inertial) {
+            component = Spectral::project(component, old_face_mesh,
+                                          new_face_mesh, full, full);
+          }
         }
         mortar_data->face_mesh = new_face_mesh;
         changed = true;
@@ -99,7 +112,10 @@ bool operator==(const MortarData<Dim>& lhs, const MortarData<Dim>& rhs) {
          lhs.face_det_jacobian == rhs.face_det_jacobian and
          lhs.volume_det_inv_jacobian == rhs.volume_det_inv_jacobian and
          lhs.mortar_mesh == rhs.mortar_mesh and
-         lhs.face_mesh == rhs.face_mesh and lhs.volume_mesh == rhs.volume_mesh;
+         lhs.face_mesh == rhs.face_mesh and lhs.volume_mesh == rhs.volume_mesh and
+         lhs.boundary_filter_active == rhs.boundary_filter_active and
+         lhs.face_jac_grid_to_inertial == rhs.face_jac_grid_to_inertial and
+         lhs.face_inv_jac_grid_to_inertial == rhs.face_inv_jac_grid_to_inertial;
 }
 
 template <size_t Dim>
@@ -116,6 +132,13 @@ std::ostream& operator<<(std::ostream& os, const MortarData<Dim>& mortar_data) {
   os << "Face mesh: " << mortar_data.face_mesh << "\n";
   os << "Volume det(invJ): " << mortar_data.volume_det_inv_jacobian << "\n";
   os << "Volume mesh: " << mortar_data.volume_mesh << "\n";
+  if (mortar_data.boundary_filter_active) {
+    os << "Boundary filter active: true\n";
+    os << "Filter face Grid-to-Inertial Jacobian: "
+       << mortar_data.face_jac_grid_to_inertial << "\n";
+    os << "Filter face Grid-to-Inertial inverse Jacobian: "
+       << mortar_data.face_inv_jac_grid_to_inertial << "\n";
+  }
   return os;
 }
 
