@@ -129,9 +129,11 @@ class SphericalShells : public DomainCreator<3> {
    * \brief Initial number of radial grid points
    */
   struct InitialNumberOfRadialGridPoints {
-    using type = size_t;
+    using type = std::variant<size_t, std::vector<size_t>>;
     static constexpr Options::String help = {
-        "Initial number of radial grid points."};
+        "Initial number of radial grid points, either uniform or a vector "
+        "with one entry per block from inside to outside. For a filled "
+        "sphere the innermost block's extent is set by angular resolution."};
   };
 
   /*!
@@ -235,7 +237,8 @@ class SphericalShells : public DomainCreator<3> {
   SphericalShells(
       double inner_radius, double outer_radius,
       size_t initial_radial_refinement,
-      size_t initial_number_of_radial_grid_points,
+      const typename InitialNumberOfRadialGridPoints::type&
+          initial_number_of_radial_grid_points,
       size_t initial_spherical_harmonic_l,
       std::vector<double> radial_partitioning = {},
       const typename RadialDistribution::type& radial_distribution =
@@ -288,7 +291,7 @@ class SphericalShells : public DomainCreator<3> {
   double inner_radius_{};
   double outer_radius_{};
   size_t initial_radial_refinement_{};
-  size_t initial_number_of_radial_grid_points_{};
+  std::vector<size_t> initial_number_of_radial_grid_points_{};
   bool excise_center_{};
   size_t initial_spherical_harmonic_l_{};
   std::vector<double> radial_partitioning_{};
