@@ -180,17 +180,20 @@ void AveragedUpwindPenalty<Dim>::dg_boundary_terms(
   auto& incoming_char_speed_minus = get<::Tags::TempScalar<9>>(buffer);
   get(incoming_char_speed_minus) = get(incoming_char_speed_0) - get(lapse);
 
+  // Determine the metric speed before clipping v^0. For gamma1 < -1,
+  // multiplying by (1 + gamma1) reverses which fields are incoming.
+  auto& incoming_char_speed_g = get<::Tags::TempScalar<10>>(buffer);
+  get(incoming_char_speed_g) =
+      (1.0 + 0.5 * (get(constraint_gamma1_int) + get(constraint_gamma1_ext))) *
+      get(incoming_char_speed_0);
+
   // Zero out the outgoing (average) speeds
   get(incoming_char_speed_0) *= step_function(-get(incoming_char_speed_0));
   get(incoming_char_speed_plus) *=
       step_function(-get(incoming_char_speed_plus));
   get(incoming_char_speed_minus) *=
       step_function(-get(incoming_char_speed_minus));
-
-  auto& incoming_char_speed_g = get<::Tags::TempScalar<10>>(buffer);
-  get(incoming_char_speed_g) =
-      (1.0 + 0.5 * (get(constraint_gamma1_int) + get(constraint_gamma1_ext))) *
-      get(incoming_char_speed_0);
+  get(incoming_char_speed_g) *= step_function(-get(incoming_char_speed_g));
 
   // lapse no longer needed, but scoping it to here would be hard, so
   // just have to be careful.
