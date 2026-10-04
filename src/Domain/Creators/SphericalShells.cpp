@@ -39,7 +39,8 @@ namespace domain::creators {
 SphericalShells::SphericalShells(
     const double inner_radius, const double outer_radius,
     const size_t initial_radial_refinement,
-    const size_t initial_number_of_radial_grid_points,
+    const typename InitialNumberOfRadialGridPoints::type&
+        initial_number_of_radial_grid_points,
     const size_t initial_spherical_harmonic_l,
     std::vector<double> radial_partitioning,
     const typename RadialDistribution::type& radial_distribution,
@@ -53,8 +54,6 @@ SphericalShells::SphericalShells(
     : inner_radius_(inner_radius),
       outer_radius_(outer_radius),
       initial_radial_refinement_(initial_radial_refinement),
-      initial_number_of_radial_grid_points_(
-          initial_number_of_radial_grid_points),
       initial_spherical_harmonic_l_(initial_spherical_harmonic_l),
       radial_partitioning_(std::move(radial_partitioning)),
       time_dependent_options_(std::move(time_dependent_options)),
@@ -74,6 +73,22 @@ SphericalShells::SphericalShells(
       make_not_null(&num_blocks_), make_not_null(&radial_distribution_),
       radial_partitioning_, radial_distribution, inner_radius_, outer_radius_,
       "inner", "outer", context);
+  if (std::holds_alternative<size_t>(initial_number_of_radial_grid_points)) {
+    initial_number_of_radial_grid_points_.assign(
+        num_blocks_, std::get<size_t>(initial_number_of_radial_grid_points));
+  } else {
+    initial_number_of_radial_grid_points_ =
+        std::get<std::vector<size_t>>(initial_number_of_radial_grid_points);
+    if (initial_number_of_radial_grid_points_.size() != num_blocks_) {
+      PARSE_ERROR(
+          context,
+          "InitialNumberOfRadialGridPoints must have one entry per "
+          "block. Expected " +
+              std::to_string(num_blocks_) + " entries, got " +
+              std::to_string(initial_number_of_radial_grid_points_.size()) +
+              ".");
+    }
+  }
   excise_center_ = inner_radius_ != 0.0;
   if (not excise_center_) {
     block_names_.emplace_back("FilledSphere");
@@ -263,9 +278,11 @@ SphericalShells::external_boundary_conditions() const {
 
 std::vector<std::array<size_t, 3>> SphericalShells::initial_extents() const {
   std::vector<std::array<size_t, 3>> extents{
-      num_blocks_, std::array{initial_number_of_radial_grid_points_,
-                              initial_spherical_harmonic_l_ + 1,
+      num_blocks_, std::array{size_t{0}, initial_spherical_harmonic_l_ + 1,
                               2 * initial_spherical_harmonic_l_ + 1}};
+  for (size_t block = 0; block < num_blocks_; ++block) {
+    extents[block][0] = initial_number_of_radial_grid_points_[block];
+  }
   if (not excise_center_) {
     // setting B3's number of r points based on minimizing the spectral space
     // restriction inequality: l_max < 2 * n_r - 1
