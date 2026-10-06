@@ -241,6 +241,7 @@ void report_gh_error(const ConstUntypedHistory<T>& history, const T& errors,
         winner % points, reported_error, maximum, values[winner], errors[winner],
         tolerances.absolute, tolerances.relative, term, terms[0], terms[1],
         terms[2], terms[3], terms[4], terms[5], terms[6], terms[7]);
+    std::fflush(stdout);
   }
 }
 
