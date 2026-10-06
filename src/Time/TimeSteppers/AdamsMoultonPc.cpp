@@ -22,6 +22,7 @@
 #include "Time/EvolutionOrdering.hpp"
 #include "Time/History.hpp"
 #include "Time/LargestStepperError.hpp"
+#include "Time/GhStepperErrorComparison.hpp"
 #include "Time/SelfStart.hpp"
 #include "Time/StepperErrorEstimate.hpp"
 #include "Time/StepperErrorTolerances.hpp"
@@ -232,6 +233,9 @@ void report_gh_error(const ConstUntypedHistory<T>& history, const T& errors,
       ++entry;
     }
     const size_t points = errors.size() / 50;
+    gh_stepper_error_comparison::record_volume(
+        values, errors, tolerances, time, step, coefficients.size() - 1,
+        reported_error, winner);
     std::fprintf(stdout,
         "[AMPC_GH_ERROR] t=%.17g h=%.17g q=%zu n=%zu component=%zu point=%zu "
         "E=%.17g checked_E=%.17g value=%.17g defect=%.17g atol=%.17g rtol=%.17g "
@@ -269,6 +273,7 @@ double evaluate_error(
     ++history_entry;
   }
 
+  const gh_stepper_error_comparison::VolumeScope volume_scope{};
   const double error =
       largest_stepper_error(*history.back().value, *scratch, tolerances);
   report_gh_error(history, *scratch, tolerances, error_coefficients, error);
