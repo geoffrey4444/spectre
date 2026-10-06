@@ -474,6 +474,11 @@ void test_RotScaleTrans() {
     } else {
       check_transition_maps_inverse(point_xi);
     }
+    // With no outer transition a domain can use the inner map at any radius.
+    // The affine inner / outer maps must invert their own forward map even
+    // outside the radii at which the transition map changes its formula.
+    check_inner_maps_inverse(point_xi);
+    check_outer_maps_inverse(point_xi);
     check_all_maps_frame_velocity(point_xi);
     check_all_maps_jacobian(point_xi);
     check_all_maps_jacobian(point_xi_dv);
@@ -483,6 +488,8 @@ void test_RotScaleTrans() {
     } else {
       check_outer_maps_inverse(far_point_xi);
     }
+    check_inner_maps_inverse(far_point_xi);
+    check_outer_maps_inverse(far_point_xi);
     check_all_maps_frame_velocity(far_point_xi);
     check_all_maps_jacobian(far_point_xi);
 
