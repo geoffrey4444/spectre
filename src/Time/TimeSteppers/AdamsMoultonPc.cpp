@@ -4,11 +4,17 @@
 #include "Time/TimeSteppers/AdamsMoultonPc.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
 #include <optional>
 #include <pup.h>
+#include <type_traits>
 
+#include "DataStructures/DataVector.hpp"
 #include "DataStructures/TaggedVariant.hpp"
 #include "Options/Context.hpp"
 #include "Options/ParseError.hpp"
@@ -173,6 +179,71 @@ void AdamsMoultonPc<Monotonic>::pup(PUP::er& p) {
 }
 
 namespace {
+// Campaign-only diagnostics. Disabled unless a finite window is supplied as
+// SPECTRE_AMPC_DIAGNOSTICS="start,end,max_abs_step". This does not alter the
+// estimator, its arithmetic, the history or the selected step. The 50-component
+// layout is specific to the GH executable used in this investigation.
+template <typename T>
+void report_gh_error(const ConstUntypedHistory<T>& history, const T& errors,
+                     const StepperErrorTolerances& tolerances,
+                     const adams_coefficients::OrderVector<double>& coefficients,
+                     const double reported_error) {
+  if constexpr (std::is_same_v<T, DataVector>) {
+    static const auto window = []() {
+      std::array<double, 3> result{{0., -1., 0.}};
+      const char* specification = std::getenv("SPECTRE_AMPC_DIAGNOSTICS");
+      if (specification != nullptr) {
+        std::array<double, 3> parsed{};
+        if (std::sscanf(specification, "%lf,%lf,%lf", &parsed[0], &parsed[1],
+                        &parsed[2]) == 3 and
+            std::all_of(parsed.begin(), parsed.end(),
+                        [](double x) { return std::isfinite(x); }) and
+            parsed[1] >= parsed[0] and parsed[2] > 0.) {
+          result = parsed;
+        }
+      }
+      return result;
+    }();
+    const double time = history.back().time_step_id.step_time().value();
+    const double step = history.substeps().front().time_step_id.step_size().value();
+    if (time < window[0] or time > window[1] or std::abs(step) > window[2] or
+        errors.empty() or errors.size() % 50 != 0) {
+      return;
+    }
+    const auto& values = *history.back().value;
+    size_t winner = 0;
+    double maximum = -1.;
+    for (size_t i = 0; i < errors.size(); ++i) {
+      const double denominator = tolerances.absolute + tolerances.relative *
+          std::max(std::abs(values[i]), std::abs(values[i] + errors[i]));
+      const double normalized = std::abs(errors[i]) / denominator;
+      if (normalized > maximum) {
+        maximum = normalized;
+        winner = i;
+      }
+    }
+    std::array<double, 8> terms{};
+    auto coefficient = coefficients.rbegin();
+    terms[0] = *coefficient++ * history.substeps().front().derivative[winner];
+    auto entry = history.rbegin();
+    size_t term = 1;
+    while (coefficient != coefficients.rend()) {
+      terms[term++] = *coefficient++ * entry->derivative[winner];
+      ++entry;
+    }
+    const size_t points = errors.size() / 50;
+    std::fprintf(stdout,
+        "[AMPC_GH_ERROR] t=%.17g h=%.17g q=%zu n=%zu component=%zu point=%zu "
+        "E=%.17g checked_E=%.17g value=%.17g defect=%.17g atol=%.17g rtol=%.17g "
+        "terms=%zu c0=%.17g c1=%.17g c2=%.17g c3=%.17g c4=%.17g c5=%.17g "
+        "c6=%.17g c7=%.17g\n",
+        time, step, coefficients.size() - 1, points, winner / points,
+        winner % points, reported_error, maximum, values[winner], errors[winner],
+        tolerances.absolute, tolerances.relative, term, terms[0], terms[1],
+        terms[2], terms[3], terms[4], terms[5], terms[6], terms[7]);
+  }
+}
+
 template <typename T>
 double evaluate_error(
     const gsl::not_null<T*> scratch, const ConstUntypedHistory<T>& history,
@@ -197,7 +268,10 @@ double evaluate_error(
     ++history_entry;
   }
 
-  return largest_stepper_error(*history.back().value, *scratch, tolerances);
+  const double error =
+      largest_stepper_error(*history.back().value, *scratch, tolerances);
+  report_gh_error(history, *scratch, tolerances, error_coefficients, error);
+  return error;
 }
 }  // namespace
 
