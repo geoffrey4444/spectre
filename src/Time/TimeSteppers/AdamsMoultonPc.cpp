@@ -207,7 +207,7 @@ void report_gh_error(const ConstUntypedHistory<T>& history, const T& errors,
     const double time = history.back().time_step_id.step_time().value();
     const double step = history.substeps().front().time_step_id.step_size().value();
     if (time < window[0] or time > window[1] or std::abs(step) > window[2] or
-        errors.empty() or errors.size() % 50 != 0) {
+        errors.size() == 0 or errors.size() % 50 != 0) {
       return;
     }
     const auto& values = *history.back().value;
