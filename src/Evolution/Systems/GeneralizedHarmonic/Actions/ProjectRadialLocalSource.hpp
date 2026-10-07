@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
 #include "Domain/CoordinateMaps/Tags.hpp"
 #include "Domain/FunctionsOfTime/Tags.hpp"
@@ -85,8 +86,9 @@ struct ProjectRadialLocalSource {
                                               Frame::Inertial>>(box),
         db::get<domain::Tags::MeshVelocity<3, Frame::Inertial>>(box),
         Parallel::get<gh::gauges::Tags::GaugeCondition>(cache), preserve_inner);
-    db::mutate<::Tags::dt<VariablesTag>>(
-        [&increment](const gsl::not_null<typename VariablesTag::type*> dt) {
+    using DtTag = db::add_tag_prefix<::Tags::dt, VariablesTag>;
+    db::mutate<DtTag>(
+        [&increment](const gsl::not_null<typename DtTag::type*> dt) {
           for (size_t i = 0; i < increment.size(); ++i) {
             dt->data()[i] += increment[i];
           }

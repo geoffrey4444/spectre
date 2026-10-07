@@ -20,7 +20,8 @@
 namespace {
 using VarsTag = typename gh::System<3>::variables_tag;
 using Vars = typename VarsTag::type;
-using DtTag = ::Tags::dt<VarsTag>;
+using DtTag = db::add_tag_prefix<::Tags::dt, VarsTag>;
+using DtVars = typename DtTag::type;
 using GridMapTag = domain::CoordinateMaps::Tags::CoordinateMap<3, Frame::Grid,
                                                                Frame::Inertial>;
 using SimpleTags = tmpl::list<
@@ -59,7 +60,7 @@ void test_skip(
   using Component = ElementArray<Metavariables>;
   ActionTesting::MockRuntimeSystem<Metavariables> runner{
       {settings, std::unique_ptr<gh::gauges::GaugeCondition>{}}};
-  const Vars original_rhs(1, 3.125);
+  const DtVars original_rhs(1, 3.125);
   ActionTesting::emplace_component_and_initialize<Component>(
       &runner, 0,
       {Vars(1, 9.0), original_rhs, Element<3>{ElementId<3>{0}, {}},
@@ -112,7 +113,7 @@ void test_enabled_flat_source() {
   for (size_t i = 1; i < 4; ++i) {
     metric.get(i, i) = 1.;
   }
-  const Vars original_rhs(mesh.number_of_grid_points(), 3.125);
+  const DtVars original_rhs(mesh.number_of_grid_points(), 3.125);
   ActionTesting::emplace_component_and_initialize<Component>(
       &runner, 0,
       {state, original_rhs, Element<3>{id, {}},
