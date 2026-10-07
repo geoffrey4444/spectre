@@ -13,6 +13,7 @@ spectre_target_sources(
   Constraints.cpp
   Equations.cpp
   RadialSourceProjection.cpp
+  RadialProjectionLocalSource.cpp
   SpectralFilter.cpp
   SphericalShellPowerMonitor.cpp
   TensorYlmTransforms.cpp
@@ -30,6 +31,7 @@ spectre_target_headers(
   Equations.hpp
   Initialize.hpp
   RadialSourceProjection.hpp
+  RadialProjectionLocalSource.hpp
   SpectralFilter.hpp
   SphericalShellPowerMonitor.hpp
   System.hpp
