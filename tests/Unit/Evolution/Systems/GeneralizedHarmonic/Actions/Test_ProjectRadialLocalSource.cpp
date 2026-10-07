@@ -6,10 +6,13 @@
 #include <memory>
 #include <optional>
 
+#include "Domain/CoordinateMaps/CoordinateMap.tpp"
 #include "Domain/CoordinateMaps/Identity.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/SphericalShells.hpp"
 #include "Domain/Domain.hpp"
+#include "Domain/Structure/Neighbors.hpp"
+#include "Domain/Structure/OrientationMap.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/ProjectRadialLocalSource.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonic.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/RegisterDerived.hpp"
@@ -100,11 +103,11 @@ void test_enabled_flat_source() {
         Spectral::Quadrature::Equiangular}}};
   const domain::creators::SphericalShells creator{
       2.,
-      3.,
+      4.,
       0,
       size_t{4},
       2,
-      {},
+      {3.},
       domain::CoordinateMaps::Distribution::Linear};
   const auto domain = creator.create_domain();
   const ElementId<3> id{0};
@@ -119,7 +122,11 @@ void test_enabled_flat_source() {
   const DtVars original_rhs(mesh.number_of_grid_points(), 3.125);
   ActionTesting::emplace_component_and_initialize<Component>(
       &runner, 0,
-      {state, original_rhs, Element<3>{id, {}},
+      {state, original_rhs,
+       Element<3>{id,
+                  {{Direction<3>::upper_xi(),
+                    Neighbors<3>{{ElementId<3>{1}},
+                                 OrientationMap<3>::create_aligned()}}}},
        Scalar<DataVector>(mesh.number_of_grid_points(), -1.), mesh, 0.0,
        logical, ElementMap<3, Frame::Grid>{id, domain.blocks()[0]},
        domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(

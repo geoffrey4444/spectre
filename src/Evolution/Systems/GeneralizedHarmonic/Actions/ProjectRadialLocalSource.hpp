@@ -51,6 +51,15 @@ struct ProjectRadialLocalSource {
                                element.id().block_id())) {
       return {Parallel::AlgorithmExecution::Continue, std::nullopt};
     }
+    // ComputeTimeDerivative has already applied external boundary conditions.
+    // Changing the outer-boundary source would require recomputing its
+    // RHS-dependent boundary condition. Keep this prototype on inner shells.
+    if (element.external_boundaries().contains(Direction<3>::upper_xi())) {
+      ERROR(
+          "Experimental source projection cannot select an outer-boundary "
+          "element: "
+          << element.id());
+    }
     const auto& gamma1 = get(db::get<gh::Tags::ConstraintGamma1>(box));
     if (not std::all_of(gamma1.begin(), gamma1.end(),
                         [](const double x) { return x == -1.0; })) {
