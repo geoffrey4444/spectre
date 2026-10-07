@@ -389,25 +389,29 @@ struct GeneralizedHarmonicTemplateBase {
                  Parallel::Phase::Evolve,
                  Parallel::Phase::Exit};
 
-  template <typename DerivedMetavars, typename ControlSystems>
-  using step_actions = tmpl::list<
-      evolution::dg::Actions::ComputeTimeDerivative<
-          volume_dim, system, AllStepChoosers, use_dg_element_collection>,
-      evolution::dg::Actions::ApplyBoundaryCorrectionsToTimeDerivative<
-          volume_dim, use_dg_element_collection>,
-      Actions::MutateApply<RecordTimeStepperData<system>>,
-      evolution::Actions::RunEventsAndDenseTriggers<tmpl::list<
-          ::domain::CheckFunctionsOfTimeAreReadyPostprocessor<volume_dim>,
-          evolution::dg::ApplyLtsDenseBoundaryCorrections<DerivedMetavars>>>,
-      control_system::Actions::LimitTimeStep<ControlSystems>,
-      Actions::MutateApply<UpdateU<system>>,
-      evolution::dg::Actions::ApplyLtsBoundaryCorrections<
-          volume_dim, use_dg_element_collection>,
-      Actions::MutateApply<ChangeTimeStepperOrder<system>>,
-      Actions::MutateApply<CleanHistory<system>>,
-      Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
-      dg::Actions::SpectralFilter<volume_dim,
-                                  typename system::variables_tag::tags_list>>;
+  template <typename DerivedMetavars, typename ControlSystems,
+            typename ExtraVolumeActions = tmpl::list<>>
+  using step_actions = tmpl::append<
+      tmpl::list<evolution::dg::Actions::ComputeTimeDerivative<
+          volume_dim, system, AllStepChoosers, use_dg_element_collection>>,
+      ExtraVolumeActions,
+      tmpl::list<
+          evolution::dg::Actions::ApplyBoundaryCorrectionsToTimeDerivative<
+              volume_dim, use_dg_element_collection>,
+          Actions::MutateApply<RecordTimeStepperData<system>>,
+          evolution::Actions::RunEventsAndDenseTriggers<tmpl::list<
+              ::domain::CheckFunctionsOfTimeAreReadyPostprocessor<volume_dim>,
+              evolution::dg::ApplyLtsDenseBoundaryCorrections<
+                  DerivedMetavars>>>,
+          control_system::Actions::LimitTimeStep<ControlSystems>,
+          Actions::MutateApply<UpdateU<system>>,
+          evolution::dg::Actions::ApplyLtsBoundaryCorrections<
+              volume_dim, use_dg_element_collection>,
+          Actions::MutateApply<ChangeTimeStepperOrder<system>>,
+          Actions::MutateApply<CleanHistory<system>>,
+          Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
+          dg::Actions::SpectralFilter<
+              volume_dim, typename system::variables_tag::tags_list>>>;
 
   template <typename DerivedMetavars, bool UseControlSystems>
   using initialization_actions = tmpl::list<

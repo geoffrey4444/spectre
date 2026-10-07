@@ -7,6 +7,7 @@ add_subdirectory(Python)
 set(LIBRARY "Test_GeneralizedHarmonic")
 
 set(LIBRARY_SOURCES
+  Actions/Test_ProjectRadialLocalSource.cpp
   Actions/Test_SetInitialData.cpp
   BoundaryConditions/Test_Bjorhus.cpp
   BoundaryConditions/Test_BjorhusImpl.cpp

@@ -26,6 +26,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/Deadlock.hpp"
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/Actions/ProjectRadialLocalSource.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Characteristics.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/InitialShapeFromFile.hpp"
@@ -224,7 +225,9 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
                    control_system::size::States::factory_creatable_states>>;
   };
 
-  using typename gh_base::const_global_cache_tags;
+  using const_global_cache_tags =
+      tmpl::push_back<typename gh_base::const_global_cache_tags,
+                      gh::Tags::RadialSourceProjection>;
 
   using observed_reduction_data_tags =
       observers::collect_reduction_data_tags<tmpl::push_back<
@@ -233,9 +236,9 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
 
   using dg_registration_list = typename gh_base::dg_registration_list;
 
-  using step_actions =
-      typename gh_base::template step_actions<EvolutionMetavars,
-                                              control_systems>;
+  using step_actions = typename gh_base::template step_actions<
+      EvolutionMetavars, control_systems,
+      tmpl::list<gh::Actions::ProjectRadialLocalSource>>;
 
   using initialization_actions = tmpl::push_back<
       tmpl::pop_back<typename gh_base::template initialization_actions<
