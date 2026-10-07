@@ -12,6 +12,7 @@ spectre_target_sources(
   Characteristics.cpp
   Constraints.cpp
   Equations.cpp
+  RadialSourceProjection.cpp
   SpectralFilter.cpp
   SphericalShellPowerMonitor.cpp
   TensorYlmTransforms.cpp
@@ -28,6 +29,7 @@ spectre_target_headers(
   DuDtTempTags.hpp
   Equations.hpp
   Initialize.hpp
+  RadialSourceProjection.hpp
   SpectralFilter.hpp
   SphericalShellPowerMonitor.hpp
   System.hpp
