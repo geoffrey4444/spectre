@@ -7,15 +7,18 @@
 #include <optional>
 
 #include "Domain/CoordinateMaps/Identity.hpp"
+#include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/SphericalShells.hpp"
 #include "Domain/Domain.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/ProjectRadialLocalSource.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/DampedHarmonic.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/RegisterDerived.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
 #include "Options/ParseOptions.hpp"
 #include "Parallel/Phase.hpp"
+#include "Utilities/Serialization/RegisterDerivedClassesWithCharm.hpp"
 
 namespace {
 using VarsTag = typename gh::System<3>::variables_tag;
@@ -155,6 +158,10 @@ void test_options() {
 
 SPECTRE_TEST_CASE("Unit.Evolution.Systems.Gh.ProjectRadialLocalSource",
                   "[Unit][Evolution]") {
+  gh::gauges::register_derived_with_charm();
+  domain::creators::register_derived_with_charm();
+  register_classes_with_charm<domain::CoordinateMap<
+      Frame::Grid, Frame::Inertial, domain::CoordinateMaps::Identity<3>>>();
   test_options();
   test_skip(std::nullopt);
   test_skip(gh::RadialSourceProjectionOptions{32, {1}, true});
