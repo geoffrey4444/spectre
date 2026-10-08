@@ -1296,6 +1296,32 @@ void constraint_energy(
     double gauge_constraint_multiplier, double two_index_constraint_multiplier,
     double three_index_constraint_multiplier,
     double four_index_constraint_multiplier) {
+  // The stored curl uses the flat Levi-Civita symbol. In three dimensions,
+  // contracting the full antisymmetric tensor gives twice the cofactor of
+  // the inverse spatial metric, rather than det(gamma) times gamma^{ij}.
+  auto four_index_weight =
+      make_with_value<tnsr::II<DataType, SpatialDim, Frame>>(
+          inverse_spatial_metric, 0.0);
+  for (size_t i = 0; i < SpatialDim; ++i) {
+    for (size_t j = i; j < SpatialDim; ++j) {
+      if constexpr (SpatialDim == 3) {
+        const size_t k = (i + 1) % 3;
+        const size_t l = (i + 2) % 3;
+        const size_t m = (j + 1) % 3;
+        const size_t n = (j + 2) % 3;
+        four_index_weight.get(i, j) =
+            inverse_spatial_metric.get(k, m) *
+                inverse_spatial_metric.get(l, n) -
+            inverse_spatial_metric.get(k, n) *
+                inverse_spatial_metric.get(l, m);
+      } else {
+        // The compressed four-index constraint is only defined in 3D.
+        // Preserve the existing lower-dimensional energy interface.
+        four_index_weight.get(i, j) = get(spatial_metric_determinant) *
+                                      inverse_spatial_metric.get(i, j);
+      }
+    }
+  }
   get(*energy) = gauge_constraint_multiplier * square(gauge_constraint.get(0)) +
                  two_index_constraint_multiplier * square(f_constraint.get(0));
   for (size_t a = 1; a < SpatialDim + 1; ++a) {
@@ -1317,10 +1343,9 @@ void constraint_energy(
                               three_index_constraint.get(j, a, b) *
                               inverse_spatial_metric.get(i, j) +
                           2.0 * four_index_constraint_multiplier *
-                              get(spatial_metric_determinant) *
                               four_index_constraint.get(i, a, b) *
                               four_index_constraint.get(j, a, b) *
-                              inverse_spatial_metric.get(i, j);
+                              four_index_weight.get(i, j);
         }
       }
     }
