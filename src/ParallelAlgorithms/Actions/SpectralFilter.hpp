@@ -18,7 +18,9 @@
 #include "NumericalAlgorithms/LinearOperators/Filters/Tag.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Time/Tags/TimeStepId.hpp"
 #include "Time/Tags/StepNumberWithinSlab.hpp"
+#include "Time/TimeStepId.hpp"
 #include "Utilities/Gsl.hpp"
 
 /// \cond
@@ -40,8 +42,12 @@ namespace dg::Actions {
  *
  * The filter is skipped when:
  * - the filter is `Filters::None` (explicit no-op), or
- * - both `apply_volume_filter_on_substep()` and
- *   `apply_volume_filter_on_this_step(step_number)` return `false`.
+ * - filtering on substeps is disabled, and the updated state is either an
+ *   intermediate substep or a full step on which filtering is disabled.
+ *
+ * This action follows `UpdateU`, so `Tags::Next<Tags::TimeStepId>` identifies
+ * the state being filtered. The current time-step ID still identifies the
+ * state whose derivative was used by `UpdateU`.
  *
  * The grid-to-inertial Jacobian and its inverse are only retrieved from the
  * DataBox when `Filters::Filter::need_jacobians()` returns `true`; otherwise
@@ -56,6 +62,7 @@ namespace dg::Actions {
  * - DataBox:
  *   - `Filters::Tags::SpectralFilter<Dim, TagList>`
  *   - `Tags::StepNumberWithinSlab`
+ *   - `Tags::Next<Tags::TimeStepId>`
  *   - `domain::Tags::Mesh<Dim>`
  *   - `domain::Tags::InverseJacobian<Dim, Frame::Grid, Frame::Inertial>`
  *     (only when `need_jacobians()` is `true`)
@@ -99,8 +106,11 @@ struct SpectralFilter {
 
     const auto step_number =
         static_cast<size_t>(db::get<::Tags::StepNumberWithinSlab>(box));
+    const bool at_full_step =
+        db::get<::Tags::Next<::Tags::TimeStepId>>(box).substep() == 0;
     if (not(filter.apply_volume_filter_on_substep() or
-            filter.apply_volume_filter_on_this_step(step_number))) {
+            (at_full_step and
+             filter.apply_volume_filter_on_this_step(step_number)))) {
       return {Parallel::AlgorithmExecution::Continue, std::nullopt};
     }
 
