@@ -6,8 +6,10 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <random>
+#include <vector>
 
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/SimpleSparseMatrix.hpp"
 #include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -22,9 +24,52 @@
 #include "NumericalAlgorithms/TensorYlm/TensorYlm.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/Literals.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace ylm::TensorYlm {
+
+// Changing angular resolution must rebuild every cached matrix, including when
+// all of the filter options stay unchanged. Compare matrix actions instead of
+// individual sparse entries to exercise the complete index layout.
+template <typename VarsList>
+void test_filter_cache() {
+  MAKE_GENERATOR(generator);
+  std::uniform_real_distribution<double> dist{-1.0, 1.0};
+  FilterMatrixHolder reused;
+  for (const size_t ell_max : {5_st, 6_st, 5_st}) {
+    CAPTURE(ell_max);
+    FilterMatrixHolder fresh;
+    for (auto* holder : {&reused, &fresh}) {
+      fill_tensor_ylm_filters<VarsList>(holder, ell_max, 2, std::nullopt,
+                                        CoefficientNormalization::Spherepack);
+    }
+    const size_t size =
+        18 * ::ylm::get_spherepack_cache(ell_max).spectral_size();
+    std::vector<double> source(size);
+    for (auto& value : source) {
+      value = dist(generator);
+    }
+    for (const auto member :
+         {&FilterMatrixHolder::scalar, &FilterMatrixHolder::i,
+          &FilterMatrixHolder::ii, &FilterMatrixHolder::ij,
+          &FilterMatrixHolder::kii}) {
+      const auto& reused_matrix = reused.*member;
+      const auto& fresh_matrix = fresh.*member;
+      REQUIRE(reused_matrix.has_value() == fresh_matrix.has_value());
+      if (fresh_matrix.has_value()) {
+        REQUIRE(reused_matrix->size() == fresh_matrix->size());
+        std::vector<double> actual(size, 0.0);
+        std::vector<double> expected(size, 0.0);
+        reused_matrix->increment_multiply_on_right(make_not_null(&actual), 0, 1,
+                                                   source, 0, 1);
+        fresh_matrix->increment_multiply_on_right(make_not_null(&expected), 0,
+                                                  1, source, 0, 1);
+        CHECK_ITERABLE_APPROX(actual, expected);
+      }
+    }
+  }
+}
 
 template <typename VarsList>
 void test_apply_filter(const size_t num_to_kill) {

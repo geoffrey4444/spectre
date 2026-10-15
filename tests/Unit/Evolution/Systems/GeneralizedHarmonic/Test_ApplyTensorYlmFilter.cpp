@@ -173,6 +173,7 @@ SPECTRE_TEST_CASE(
   test_break_spacetime_vars_into_spatial_pieces();
   test_transform_spatial_tensors_to_different_frame();
   test_modal_nodal_invertibility();
+  test_filter_cache<filter_detail::gh_spacetime_vars_list>();
   test_apply_filter<filter_detail::gh_spacetime_vars_list>(0);
   test_apply_filter<filter_detail::gh_spacetime_vars_list>(5);
 }
