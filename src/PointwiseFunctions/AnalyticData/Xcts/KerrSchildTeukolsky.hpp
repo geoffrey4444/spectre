@@ -5,9 +5,10 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <pup.h>
+#include <type_traits>
+#include <utility>
 
 #include "DataStructures/CachedTempBuffer.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
@@ -18,6 +19,7 @@
 #include "NumericalAlgorithms/LinearOperators/Divergence.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
+#include "Options/Context.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/AnalyticData/Xcts/CommonVariables.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
@@ -38,7 +40,7 @@ class er;
 /// \endcond
 
 namespace Xcts::AnalyticData {
-namespace detail {
+namespace KerrSchildTeukolsky_detail {
 
 template <typename DataType>
 using KerrSchildTeukolskyVariablesCache =
@@ -154,7 +156,7 @@ struct KerrSchildTeukolskyVariables
                                       0> /*meta*/) const;
 };
 
-}  // namespace detail
+}  // namespace KerrSchildTeukolsky_detail
 
 /*!
  * \brief Kerr-Schild plus a Teukolsky perturbation in the conformal
@@ -164,9 +166,13 @@ struct KerrSchildTeukolskyVariables
  * intended for supplying the free data and Dirichlet boundary conditions
  * needed to solve the XCTS equations for initial data containing a
  * Kerr-Schild black hole plus a gravitational-wave pulse.
+ * The Kerr-Schild black hole must be stationary; boosted backgrounds are not
+ * supported by this free-data prescription.
  * In this solution, the Kerr-Schild solution supplies the lapse, shift, and
  * trace of the extrinsic curvature, while the Teukolsky wave at \f$t=0\f$ is
  * added only to the conformal spatial metric and its time derivative. The
+ * time derivative is trace-free projected with respect to the combined
+ * conformal metric and supplied as the XCTS free datum \f$\bar{u}^{ij}\f$. The
  * spatial derivative of the conformal spatial metric is computed using
  * numerical partial derivatives.
  */
@@ -177,7 +183,8 @@ class KerrSchildTeukolsky : public elliptic::analytic_data::Background,
 
   template <typename DataType>
   using tags =
-      typename detail::KerrSchildTeukolskyVariablesCache<DataType>::tags_list;
+      typename KerrSchildTeukolsky_detail::KerrSchildTeukolskyVariablesCache<
+          DataType>::tags_list;
 
   struct KerrSchild {
     using type = gr::Solutions::KerrSchild;
@@ -202,10 +209,16 @@ class KerrSchildTeukolsky : public elliptic::analytic_data::Background,
   KerrSchildTeukolsky& operator=(KerrSchildTeukolsky&&) = default;
   ~KerrSchildTeukolsky() override = default;
 
+  /// Construct the XCTS free data from a stationary Kerr-Schild black hole and
+  /// a Teukolsky perturbation.
   KerrSchildTeukolsky(gr::Solutions::KerrSchild kerr_schild,
-                      const gr::Solutions::TeukolskyWave& teukolsky_wave);
+                      const gr::Solutions::TeukolskyWave& teukolsky_wave,
+                      const Options::Context& context = {});
 
+  /// The stationary Kerr-Schild background.
   const gr::Solutions::KerrSchild& kerr_schild() const { return kerr_schild_; }
+
+  /// The Teukolsky perturbation, without a Minkowski background.
   const gr::Solutions::TeukolskyWave& teukolsky_wave() const {
     return teukolsky_wave_;
   }
@@ -251,7 +264,8 @@ class KerrSchildTeukolsky : public elliptic::analytic_data::Background,
           DataType, Dim, Frame::ElementLogical, Frame::Inertial>>>
           inv_jacobian,
       tmpl::list<RequestedTags...> /*meta*/) const {
-    using VarsComputer = detail::KerrSchildTeukolskyVariables<DataType>;
+    using VarsComputer =
+        KerrSchildTeukolsky_detail::KerrSchildTeukolskyVariables<DataType>;
     const auto kerr_schild_vars = kerr_schild_.variables(
         x, 0., typename VarsComputer::kerr_schild_tags{});
     const auto teukolsky_vars = teukolsky_wave_.variables(
