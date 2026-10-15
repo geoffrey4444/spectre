@@ -124,7 +124,8 @@ struct MockHorizonComponent {
   using component_being_mocked =
       ah::Component<Metavariables, MockHorizonMetavars>;
   using const_global_cache_tags =
-      tmpl::list<domain::Tags::Domain<3>, ah::Tags::BlocksForHorizonFind>;
+      tmpl::list<domain::Tags::Domain<3>, ah::Tags::BlocksForHorizonFind,
+                 ah::Tags::ApparentHorizonOptions<MockHorizonMetavars>>;
   using mutable_global_cache_tags =
       tmpl::list<ah::Tags::PreviousSurface<MockHorizonMetavars>>;
 
@@ -169,10 +170,13 @@ void common_horizon_event() {
   const ::domain::creators::Brick brick{
       {0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}, {0, 0, 0}, {5, 5, 5}};
   const auto block_names = brick.block_names();
+  ah::HorizonOptions<Frame::Grid> horizon_options{};
+  horizon_options.element_send_policy = ah::ElementSendPolicy::All;
   ActionTesting::MockRuntimeSystem<metavars> runner{
       {brick.create_domain(),
        std::unordered_map<std::string, std::unordered_set<std::string>>{
-           {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}}},
+           {"MockHorizonMetavars", {block_names.begin(), block_names.end()}}},
+       std::move(horizon_options)},
       {ah::Storage::LockedPreviousSurface<Frame::Grid>{}}};
   ActionTesting::set_phase(make_not_null(&runner),
                            Parallel::Phase::Initialization);

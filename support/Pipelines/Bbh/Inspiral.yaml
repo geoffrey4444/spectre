@@ -683,6 +683,7 @@ ApparentHorizons:
     BlocksForHorizonFind:
       - InnerSphereA
   {% endif %}
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhB: &AhB
     Criteria:
       - Residual:
@@ -709,6 +710,7 @@ ApparentHorizons:
     BlocksForHorizonFind:
       - InnerSphereB
   {% endif %}
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ObservationAhC:
     Criteria:
     InitialGuess:
@@ -731,6 +733,7 @@ ApparentHorizons:
       - InnerSphereA
       - InnerSphereB
     {% endif %}
+    ElementSendPolicy: PreviousSurfaceNeighbors
   ControlSystemAhA: *AhA
   ControlSystemAhB: *AhB
   ControlSystemCharSpeedAhA: *AhA

@@ -266,6 +266,7 @@ ApparentHorizons:
     Verbosity: Verbose
     MaxComputeCoordsRetries: 3
     BlocksForHorizonFind: All
+    ElementSendPolicy: PreviousSurfaceNeighbors
 
 InterpolationTargets:
   BondiSachsInterpolation:

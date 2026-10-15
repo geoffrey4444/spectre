@@ -53,7 +53,8 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.Initialization",
       expected_fast_flow,
       ::Verbosity::Debug,
       3,
-      std::nullopt};
+      std::nullopt,
+      ah::ElementSendPolicy::PreviousSurfaceNeighbors};
 
   std::optional<size_t> current_resolution_l{4};
   ::Verbosity verbosity{};
