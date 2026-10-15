@@ -26,6 +26,7 @@
 #include "ParallelAlgorithms/Interpolation/ComputeExcisionBoundaryVolumeQuantities.tpp"
 #include "ParallelAlgorithms/Interpolation/Protocols/ComputeVarsToInterpolate.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/ConstraintDampingTags.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Phi.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Pi.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeMetric.hpp"
@@ -364,6 +365,21 @@ void test_compute_excision_boundary_volume_quantities() {
         gr::spacetime_metric(lapse, shift_inertial, lower_metric_inertial);
   }
 
+  if constexpr (tmpl::list_contains_v<SrcTags, gh::Tags::ConstraintGamma1>) {
+    get(get<gh::Tags::ConstraintGamma1>(src_vars)) =
+        -0.5 + 0.2 * get<0>(logical_coords);
+  }
+  using inertial_coords_tag = domain::Tags::Coordinates<3, Frame::Inertial>;
+  if constexpr (tmpl::list_contains_v<SrcTags, inertial_coords_tag>) {
+    // Distinct coordinates ensure the pass-through does not transform them
+    // when the destination fields are in the Grid or Distorted frame.
+    auto& inertial_coords = get<inertial_coords_tag>(src_vars);
+    for (size_t i = 0; i < 3; ++i) {
+      inertial_coords.get(i) =
+          logical_coords.get(i) + static_cast<double>(i + 1);
+    }
+  }
+
   // Compute dest_vars
   Variables<DestTags> dest_vars(mesh.number_of_grid_points());
   if constexpr (is_time_dependent) {
@@ -379,6 +395,14 @@ void test_compute_excision_boundary_volume_quantities() {
   }
 
   // Now make sure that dest vars are correct.
+  if constexpr (tmpl::list_contains_v<DestTags, gh::Tags::ConstraintGamma1>) {
+    CHECK_ITERABLE_APPROX(get<gh::Tags::ConstraintGamma1>(dest_vars),
+                          get<gh::Tags::ConstraintGamma1>(src_vars));
+  }
+  if constexpr (tmpl::list_contains_v<DestTags, inertial_coords_tag>) {
+    CHECK_ITERABLE_APPROX(get<inertial_coords_tag>(dest_vars),
+                          get<inertial_coords_tag>(src_vars));
+  }
   if constexpr (tmpl::list_contains_v<
                     DestTags,
                     gr::Tags::SpatialMetric<DataVector, 3, TargetFrame>>) {
@@ -513,7 +537,9 @@ SPECTRE_TEST_CASE(
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
                  Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
-                             Frame::Inertial>>,
+                             Frame::Inertial>,
+                 gh::Tags::ConstraintGamma1,
+                 domain::Tags::Coordinates<3, Frame::Inertial>>,
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gr::Tags::SpatialMetric<DataVector, 3>,
                  gr::Tags::Lapse<DataVector>,
@@ -524,7 +550,9 @@ SPECTRE_TEST_CASE(
                                tmpl::size_t<3>, Frame::Inertial>,
                  domain::Tags::InverseJacobian<3, Frame::Grid, Frame::Inertial>,
                  gr::Tags::SpatialChristoffelSecondKind<DataVector, 3,
-                                                        Frame::Inertial>>>();
+                                                        Frame::Inertial>,
+                 gh::Tags::ConstraintGamma1,
+                 domain::Tags::Coordinates<3, Frame::Inertial>>>();
 
   // Leave out a few tags.
   test_compute_excision_boundary_volume_quantities<
@@ -558,19 +586,22 @@ SPECTRE_TEST_CASE(
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
                  Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
-                             Frame::Inertial>>,
-      tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
-                 gr::Tags::SpatialMetric<DataVector, 3>,
-                 gr::Tags::Lapse<DataVector>,
-                 ::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<3>,
-                               Frame::Grid>,
-                 gr::Tags::Shift<DataVector, 3>,
-                 gr::Tags::Shift<DataVector, 3, Frame::Grid>,
-                 ::Tags::deriv<gr::Tags::Shift<DataVector, 3, Frame::Grid>,
-                               tmpl::size_t<3>, Frame::Grid>,
-                 domain::Tags::InverseJacobian<3, Frame::Grid, Frame::Grid>,
-                 gr::Tags::SpatialChristoffelSecondKind<DataVector, 3,
-                                                        Frame::Grid>>>();
+                             Frame::Inertial>,
+                 gh::Tags::ConstraintGamma1,
+                 domain::Tags::Coordinates<3, Frame::Inertial>>,
+      tmpl::list<
+          gr::Tags::SpacetimeMetric<DataVector, 3>,
+          gr::Tags::SpatialMetric<DataVector, 3>, gr::Tags::Lapse<DataVector>,
+          ::Tags::deriv<gr::Tags::Lapse<DataVector>, tmpl::size_t<3>,
+                        Frame::Grid>,
+          gr::Tags::Shift<DataVector, 3>,
+          gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+          ::Tags::deriv<gr::Tags::Shift<DataVector, 3, Frame::Grid>,
+                        tmpl::size_t<3>, Frame::Grid>,
+          domain::Tags::InverseJacobian<3, Frame::Grid, Frame::Grid>,
+          gr::Tags::SpatialChristoffelSecondKind<DataVector, 3, Frame::Grid>,
+          gh::Tags::ConstraintGamma1,
+          domain::Tags::Coordinates<3, Frame::Inertial>>>();
 
   // Distorted frame.
   test_compute_excision_boundary_volume_quantities<
@@ -578,7 +609,9 @@ SPECTRE_TEST_CASE(
       tmpl::list<gr::Tags::SpacetimeMetric<DataVector, 3>,
                  gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
                  Tags::deriv<gh::Tags::Phi<DataVector, 3>, tmpl::size_t<3>,
-                             Frame::Inertial>>,
+                             Frame::Inertial>,
+                 gh::Tags::ConstraintGamma1,
+                 domain::Tags::Coordinates<3, Frame::Inertial>>,
       tmpl::list<
           gr::Tags::SpacetimeMetric<DataVector, 3, Frame::Distorted>,
           gr::Tags::SpatialMetric<DataVector, 3, Frame::Distorted>,
@@ -591,7 +624,9 @@ SPECTRE_TEST_CASE(
                         tmpl::size_t<3>, Frame::Distorted>,
           domain::Tags::InverseJacobian<3, Frame::Grid, Frame::Distorted>,
           gr::Tags::SpatialChristoffelSecondKind<DataVector, 3,
-                                                 Frame::Distorted>>>();
+                                                 Frame::Distorted>,
+          gh::Tags::ConstraintGamma1,
+          domain::Tags::Coordinates<3, Frame::Inertial>>>();
 
   // Leave out a few tags.
   test_compute_excision_boundary_volume_quantities<

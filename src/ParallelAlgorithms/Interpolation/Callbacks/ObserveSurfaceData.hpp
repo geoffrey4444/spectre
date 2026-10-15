@@ -10,6 +10,7 @@
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/TagName.hpp"
+#include "Domain/Tags.hpp"
 #include "IO/H5/TensorData.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
 #include "IO/Observer/ReductionActions.hpp"
@@ -45,7 +46,7 @@ namespace callbacks {
 /// - Metavariables
 ///   - `temporal_id`
 /// - DataBox:
-///   - `TagsToObserve` (each tag must be a Scalar<DataVector>)
+///   - `TagsToObserve` (each tag must hold a tensor of `DataVector`s)
 ///
 /// Conforms to the intrp::protocols::PostInterpolationCallback protocol
 ///
@@ -105,15 +106,21 @@ struct ObserveSurfaceData
           {"InertialCoordinates_y"s, get<1>(inertial_strahlkorper_coords)});
       tensor_components.push_back(
           {"InertialCoordinates_z"s, get<2>(inertial_strahlkorper_coords)});
+    } else if constexpr (db::tag_is_retrievable_v<
+                             domain::Tags::Coordinates<3, ::Frame::Inertial>,
+                             db::DataBox<DbTags>>) {
+      const auto& inertial_strahlkorper_coords =
+          get<domain::Tags::Coordinates<3, ::Frame::Inertial>>(box);
+      tensor_components.push_back(
+          {"InertialCoordinates_x"s, get<0>(inertial_strahlkorper_coords)});
+      tensor_components.push_back(
+          {"InertialCoordinates_y"s, get<1>(inertial_strahlkorper_coords)});
+      tensor_components.push_back(
+          {"InertialCoordinates_z"s, get<2>(inertial_strahlkorper_coords)});
     }
 
-    // Output each tag if it is a scalar. Otherwise, throw a compile-time
-    // error. This could be generalized to handle tensors of nonzero rank by
-    // looping over the components, so each component could be visualized
-    // separately as a scalar. But in practice, this generalization is
-    // probably unnecessary, because Strahlkorpers are typically only
-    // visualized with scalar quantities (used set the color at different
-    // points on the surface).
+    // Output every component of each tag so each pointwise quantity can be
+    // visualized on the surface.
     tmpl::for_each<TagsToObserve>([&box, &tensor_components](auto tag_v) {
       using Tag = tmpl::type_from<decltype(tag_v)>;
       const auto tag_name = db::tag_name<Tag>();

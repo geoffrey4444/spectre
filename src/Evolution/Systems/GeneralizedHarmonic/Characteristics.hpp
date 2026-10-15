@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 
 #include "DataStructures/DataBox/Tag.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -393,6 +394,49 @@ struct CharacteristicSpeedsOnStrahlkorperCompute
     for (size_t i = 0; i < 4; ++i) {
       (*result)[i] = array_char_speeds[i];
     }
+  }
+};
+
+/*!
+ * \brief One characteristic speed on a Strahlkorper, exposed as a scalar.
+ *
+ * `CharacteristicIndex` selects the metric, zero, plus, or minus characteristic
+ * field for indices 0, 1, 2, or 3, respectively. The scalar tags have distinct
+ * names so visualization tools do not interpret the four eigenvalues as vector
+ * components. They retain the normal convention of
+ * `CharacteristicSpeedsOnStrahlkorper`: the normal points away from the center
+ * of the surface, so negative physical speeds on an excision surface indicate
+ * propagation into the hole.
+ */
+template <typename Frame, size_t CharacteristicIndex>
+struct CharacteristicSpeedOnStrahlkorper : db::SimpleTag {
+  static_assert(CharacteristicIndex < 4);
+  using type = Scalar<DataVector>;
+  static std::string name() {
+    if constexpr (CharacteristicIndex == 0) {
+      return "CharacteristicSpeedMetric";
+    } else if constexpr (CharacteristicIndex == 1) {
+      return "CharacteristicSpeedZero";
+    } else if constexpr (CharacteristicIndex == 2) {
+      return "CharacteristicSpeedPlus";
+    } else {
+      return "CharacteristicSpeedMinus";
+    }
+  }
+};
+
+/// Extract one scalar eigenvalue from `CharacteristicSpeedsOnStrahlkorper`.
+template <typename Frame, size_t CharacteristicIndex>
+struct CharacteristicSpeedOnStrahlkorperCompute
+    : CharacteristicSpeedOnStrahlkorper<Frame, CharacteristicIndex>,
+      db::ComputeTag {
+  using base = CharacteristicSpeedOnStrahlkorper<Frame, CharacteristicIndex>;
+  using return_type = typename base::type;
+  using argument_tags = tmpl::list<CharacteristicSpeedsOnStrahlkorper<Frame>>;
+
+  static void function(const gsl::not_null<return_type*> result,
+                       const tnsr::a<DataVector, 3, Frame>& speeds) {
+    get(*result) = get<CharacteristicIndex>(speeds);
   }
 };
 

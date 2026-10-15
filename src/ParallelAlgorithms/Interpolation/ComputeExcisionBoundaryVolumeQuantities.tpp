@@ -120,6 +120,16 @@ void ComputeExcisionBoundaryVolumeQuantities::apply(
       *(get<spatial_christoffel_tag>(target_vars, make_not_null(&buffer)));
 
   // Actual computation starts here
+  if constexpr (tmpl::list_contains_v<DestTagList,
+                                      gh::Tags::ConstraintGamma1>) {
+    get<gh::Tags::ConstraintGamma1>(*target_vars) =
+        get<gh::Tags::ConstraintGamma1>(src_vars);
+  }
+  using inertial_coords_tag = domain::Tags::Coordinates<3, Frame::Inertial>;
+  if constexpr (tmpl::list_contains_v<DestTagList, inertial_coords_tag>) {
+    get<inertial_coords_tag>(*target_vars) = get<inertial_coords_tag>(src_vars);
+  }
+
   const auto& src_spacetime_metric =
       get<gr::Tags::SpacetimeMetric<DataVector, 3>>(src_vars);
   const auto& phi = get<gh::Tags::Phi<DataVector, 3>>(src_vars);
@@ -259,6 +269,16 @@ void ComputeExcisionBoundaryVolumeQuantities::apply(
       *(get<target_phi_tag>(target_vars, make_not_null(&buffer)));
 
   // Actual computation starts here
+
+  if constexpr (tmpl::list_contains_v<DestTagList,
+                                      gh::Tags::ConstraintGamma1>) {
+    get<gh::Tags::ConstraintGamma1>(*target_vars) =
+        get<gh::Tags::ConstraintGamma1>(src_vars);
+  }
+  using inertial_coords_tag = domain::Tags::Coordinates<3, Frame::Inertial>;
+  if constexpr (tmpl::list_contains_v<DestTagList, inertial_coords_tag>) {
+    get<inertial_coords_tag>(*target_vars) = get<inertial_coords_tag>(src_vars);
+  }
 
   using invjac_grid_to_target_tag =
       domain::Tags::InverseJacobian<3, Frame::Grid, TargetFrame>;
