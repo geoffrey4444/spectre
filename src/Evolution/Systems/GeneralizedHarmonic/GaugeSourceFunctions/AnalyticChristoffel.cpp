@@ -17,6 +17,7 @@
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Factory.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Christoffel.hpp"
+#include "PointwiseFunctions/GeneralRelativity/InverseSpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalVector.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
@@ -90,10 +91,13 @@ void AnalyticChristoffel::gauge_and_spacetime_derivative_impl(
     determinant_and_inverse(make_not_null(&det_buffer),
                             make_not_null(&inverse_spatial_metric),
                             spatial_metric);
-    determinant_and_inverse(make_not_null(&det_buffer),
-                            make_not_null(&inverse_spacetime_metric),
-                            spacetime_metric);
   }
+  // The leading 2x2 block of a nonsingular Lorentzian metric can be singular
+  // or poorly conditioned. Avoid the block inversion used by the generic
+  // 4x4 routine: the spatial metric is positive definite, and lapse and shift
+  // already provide the stable 3+1 inverse.
+  gr::inverse_spacetime_metric(make_not_null(&inverse_spacetime_metric), lapse,
+                               shift, inverse_spatial_metric);
   gr::spacetime_normal_one_form(make_not_null(&spacetime_normal_one_form),
                                 lapse);
   gr::spacetime_normal_vector(make_not_null(&spacetime_normal_vector), lapse,

@@ -3,6 +3,8 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -32,6 +34,7 @@
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Christoffel.hpp"
+#include "PointwiseFunctions/GeneralRelativity/InverseSpacetimeMetric.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Lapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Shift.hpp"
 #include "PointwiseFunctions/GeneralRelativity/SpacetimeNormalOneForm.hpp"
@@ -167,7 +170,7 @@ void test_ks(const Mesh<3>& mesh) {
   const auto spacetime_normal_vector =
       gr::spacetime_normal_vector(lapse, shift);
   const auto inverse_spacetime_metric =
-      determinant_and_inverse(spacetime_metric).second;
+      gr::inverse_spacetime_metric(lapse, shift, inverse_spatial_metric);
   auto expected_gauge_h = gh::trace_christoffel(
       spacetime_normal_one_form, spacetime_normal_vector,
       inverse_spatial_metric, inverse_spacetime_metric, pi, phi);
@@ -241,12 +244,65 @@ void test_with_noise_unwrapping(const Mesh<Dim>& mesh) {
   CHECK_ITERABLE_APPROX(gauge_h_plain, gauge_h_noisy);
   CHECK_ITERABLE_APPROX(d4_gauge_h_plain, d4_gauge_h_noisy);
 }
+
+void test_near_singular_metric_block() {
+  const Mesh<3> mesh{3, Spectral::Basis::Legendre,
+                     Spectral::Quadrature::GaussLobatto};
+  const auto logical = logical_coordinates(mesh);
+  const size_t n = mesh.number_of_grid_points();
+  tnsr::I<DataVector, 3> coords{n};
+  InverseJacobian<DataVector, 3, Frame::ElementLogical, Frame::Inertial>
+      inv_jac{n, 0.};
+  // This small Cartesian patch contains a well-conditioned Kerr metric
+  // (condition number <7) whose leading 2x2 determinant is about -2.7e-6.
+  // The generic unpivoted block inverse loses several decimal places here.
+  const std::array<double, 3> center{
+      {-0.8857528470528458, 0.3116555117151543, 1.0557824379803098}};
+  for (size_t i = 0; i < 3; ++i) {
+    coords.get(i) = center[i] + 1.e-5 * logical.get(i);
+    inv_jac.get(i, i) = 1.e5;
+  }
+  using Solution = gh::Solutions::WrappedGr<gr::Solutions::KerrSchild>;
+  const Solution solution{1., {0., 0., 0.994}, {0., 0., 0.}};
+  const gh::gauges::AnalyticChristoffel gauge{solution.get_clone()};
+  tnsr::a<DataVector, 3> h{n};
+  tnsr::ab<DataVector, 3> dh{n};
+  gh::gauges::dispatch<gh::Solutions::all_solutions<3>>(
+      make_not_null(&h), make_not_null(&dh), {}, {}, {}, {}, {}, {}, {}, {}, {},
+      mesh, 0., coords, inv_jac, gauge);
+  const auto vars = solution.variables(
+      coords, 0.,
+      tmpl::list<gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>,
+                 gr::Tags::Lapse<DataVector>, gr::Tags::Shift<DataVector, 3>,
+                 gr::Tags::SpatialMetric<DataVector, 3>>{});
+  const auto& lapse = get<gr::Tags::Lapse<DataVector>>(vars);
+  const auto& shift = get<gr::Tags::Shift<DataVector, 3>>(vars);
+  const auto inverse_spatial_metric =
+      determinant_and_inverse(get<gr::Tags::SpatialMetric<DataVector, 3>>(vars))
+          .second;
+  auto expected = gh::trace_christoffel(
+      gr::spacetime_normal_one_form<DataVector, 3, Frame::Inertial>(lapse),
+      gr::spacetime_normal_vector(lapse, shift), inverse_spatial_metric,
+      gr::inverse_spacetime_metric(lapse, shift, inverse_spatial_metric),
+      get<gh::Tags::Pi<DataVector, 3>>(vars),
+      get<gh::Tags::Phi<DataVector, 3>>(vars));
+  for (auto& component : expected) {
+    component *= -1.;
+  }
+  CHECK_ITERABLE_APPROX(h, expected);
+  for (const auto& component : dh) {
+    for (const double value : component) {
+      CHECK(std::isfinite(value));
+    }
+  }
+}
 }  // namespace
 
 SPECTRE_TEST_CASE(
     "Unit.Evolution.Systems.GeneralizedHarmonic.Gauge.AnalyticChristoffel",
     "[Unit][Evolution]") {
   gh::gauges::register_derived_with_charm();
+  test_near_singular_metric_block();
   for (const auto& basis_and_quadrature :
        {std::pair{Spectral::Basis::Legendre,
                   Spectral::Quadrature::GaussLobatto},
