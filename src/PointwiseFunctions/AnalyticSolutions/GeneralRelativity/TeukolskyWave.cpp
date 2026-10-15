@@ -44,12 +44,13 @@ constexpr double axis_limit_offset = 1.0e-8;
 template <typename DataType>
 std::pair<tnsr::ii<DataType, 3, Frame::Inertial>,
           tnsr::ii<DataType, 3, Frame::Inertial>>
-perturbation_and_dt_perturbation(const DataType& centered_x,
-                                 const DataType& centered_y,
-                                 const DataType& centered_z, const double t,
-                                 const double amplitude, const int mode,
-                                 const bool even_parity, const bool ingoing,
-                                 const double radius, const double width) {
+perturbation_and_dt_perturbation(
+    const DataType& centered_x, const DataType& centered_y,
+    const DataType& centered_z, const double t, const double amplitude,
+    const int mode, const bool even_parity, const bool ingoing,
+    const double radius, const double width,
+    const gr::Solutions::AzimuthalSense azimuthal_sense, const double frequency,
+    const double phase) {
   const DataType radius_from_center =
       sqrt(square(centered_x) + square(centered_y) + square(centered_z));
   const DataType cylindrical_radius =
@@ -71,22 +72,61 @@ perturbation_and_dt_perturbation(const DataType& centered_x,
   const DataType y_profile = radius_from_center - radius + (ingoing ? t : -t);
   const double minus_two_over_width_squared = -2.0 / square(width);
   std::array<DataType, 6> cosine_profile_derivatives{};
-  cosine_profile_derivatives[0] =
-      amplitude * exp(-square(y_profile) / square(width));
-  cosine_profile_derivatives[1] =
-      minus_two_over_width_squared * y_profile * cosine_profile_derivatives[0];
-  cosine_profile_derivatives[2] = minus_two_over_width_squared *
-                                  (cosine_profile_derivatives[0] +
-                                   y_profile * cosine_profile_derivatives[1]);
-  cosine_profile_derivatives[3] = minus_two_over_width_squared *
-                                  (2.0 * cosine_profile_derivatives[1] +
-                                   y_profile * cosine_profile_derivatives[2]);
-  cosine_profile_derivatives[4] = minus_two_over_width_squared *
-                                  (3.0 * cosine_profile_derivatives[2] +
-                                   y_profile * cosine_profile_derivatives[3]);
-  cosine_profile_derivatives[5] = minus_two_over_width_squared *
-                                  (4.0 * cosine_profile_derivatives[3] +
-                                   y_profile * cosine_profile_derivatives[4]);
+  std::array<DataType, 6> sine_profile_derivatives{};
+  if (azimuthal_sense == gr::Solutions::AzimuthalSense::None) {
+    cosine_profile_derivatives[0] =
+        amplitude * exp(-square(y_profile) / square(width));
+    cosine_profile_derivatives[1] = minus_two_over_width_squared * y_profile *
+                                    cosine_profile_derivatives[0];
+    cosine_profile_derivatives[2] = minus_two_over_width_squared *
+                                    (cosine_profile_derivatives[0] +
+                                     y_profile * cosine_profile_derivatives[1]);
+    cosine_profile_derivatives[3] = minus_two_over_width_squared *
+                                    (2.0 * cosine_profile_derivatives[1] +
+                                     y_profile * cosine_profile_derivatives[2]);
+    cosine_profile_derivatives[4] = minus_two_over_width_squared *
+                                    (3.0 * cosine_profile_derivatives[2] +
+                                     y_profile * cosine_profile_derivatives[3]);
+    cosine_profile_derivatives[5] = minus_two_over_width_squared *
+                                    (4.0 * cosine_profile_derivatives[3] +
+                                     y_profile * cosine_profile_derivatives[4]);
+  } else {
+    const DataType envelope =
+        amplitude * exp(-square(y_profile) / square(width));
+    const DataType carrier_phase = frequency * y_profile + phase;
+    cosine_profile_derivatives[0] = envelope * cos(carrier_phase);
+    sine_profile_derivatives[0] = envelope * sin(carrier_phase);
+    const DataType logarithmic_envelope_derivative =
+        minus_two_over_width_squared * y_profile;
+    cosine_profile_derivatives[1] =
+        logarithmic_envelope_derivative * cosine_profile_derivatives[0] -
+        frequency * sine_profile_derivatives[0];
+    sine_profile_derivatives[1] =
+        logarithmic_envelope_derivative * sine_profile_derivatives[0] +
+        frequency * cosine_profile_derivatives[0];
+    for (size_t derivative_order = 1; derivative_order < 5;
+         ++derivative_order) {
+      cosine_profile_derivatives[derivative_order + 1] =
+          logarithmic_envelope_derivative *
+              cosine_profile_derivatives[derivative_order] -
+          frequency * sine_profile_derivatives[derivative_order] +
+          static_cast<double>(derivative_order) * minus_two_over_width_squared *
+              cosine_profile_derivatives[derivative_order - 1];
+      sine_profile_derivatives[derivative_order + 1] =
+          logarithmic_envelope_derivative *
+              sine_profile_derivatives[derivative_order] +
+          frequency * cosine_profile_derivatives[derivative_order] +
+          static_cast<double>(derivative_order) * minus_two_over_width_squared *
+              sine_profile_derivatives[derivative_order - 1];
+    }
+    const double propagation_sign = ingoing ? 1.0 : -1.0;
+    const double azimuthal_sign =
+        azimuthal_sense == gr::Solutions::AzimuthalSense::PositiveM ? 1.0
+                                                                    : -1.0;
+    for (auto& derivative : sine_profile_derivatives) {
+      derivative *= propagation_sign * azimuthal_sign;
+    }
+  }
 
   auto spherical_metric =
       make_with_value<tnsr::ii<DataType, 3, Frame::NoFrame>>(centered_x, 0.0);
@@ -341,6 +381,9 @@ perturbation_and_dt_perturbation(const DataType& centered_x,
   };
 
   add_mode(mode, cosine_profile_derivatives);
+  if (azimuthal_sense != gr::Solutions::AzimuthalSense::None) {
+    add_mode(-mode, sine_profile_derivatives);
+  }
 
   // Jacobian dx^{spherical}/dx^{Cartesian} used by to_different_frame.
   Jacobian<DataType, 3, Frame::Inertial, Frame::NoFrame> jacobian =
@@ -365,13 +408,13 @@ perturbation_and_dt_perturbation(const DataType& centered_x,
 template <typename DataType>
 std::pair<tnsr::ii<DataType, 3, Frame::Inertial>,
           tnsr::ii<DataType, 3, Frame::Inertial>>
-metric_and_dt_spatial_metric(const DataType& x, const DataType& y,
-                             const DataType& z, const double t,
-                             const double amplitude, const int mode,
-                             const bool even_parity, const bool ingoing,
-                             const std::array<double, 3>& center,
-                             const double radius, const double width,
-                             const bool include_minkowski_background) {
+metric_and_dt_spatial_metric(
+    const DataType& x, const DataType& y, const DataType& z, const double t,
+    const double amplitude, const int mode, const bool even_parity,
+    const bool ingoing, const std::array<double, 3>& center,
+    const double radius, const double width,
+    const gr::Solutions::AzimuthalSense azimuthal_sense, const double frequency,
+    const double phase, const bool include_minkowski_background) {
   auto spatial_metric =
       make_with_value<tnsr::ii<DataType, 3, Frame::Inertial>>(x, 0.0);
   auto dt_spatial_metric =
@@ -407,17 +450,19 @@ metric_and_dt_spatial_metric(const DataType& x, const DataType& y,
 
   const auto perturbation_and_dt = perturbation_and_dt_perturbation(
       centered_x, centered_y, centered_z, t, amplitude, mode, even_parity,
-      ingoing, radius, width);
+      ingoing, radius, width, azimuthal_sense, frequency, phase);
   // On the axis, evaluate the smooth Cartesian limit by approaching from two
   // orthogonal transverse directions instead of fixing an arbitrary azimuth.
   const auto axis_limit_perturbation_and_dt_x =
       perturbation_and_dt_perturbation(centered_x_axis_limit, centered_y,
                                        centered_z, t, amplitude, mode,
-                                       even_parity, ingoing, radius, width);
+                                       even_parity, ingoing, radius, width,
+                                       azimuthal_sense, frequency, phase);
   const auto axis_limit_perturbation_and_dt_y =
       perturbation_and_dt_perturbation(centered_x, centered_y_axis_limit,
                                        centered_z, t, amplitude, mode,
-                                       even_parity, ingoing, radius, width);
+                                       even_parity, ingoing, radius, width,
+                                       azimuthal_sense, frequency, phase);
 
   for (size_t i = 0; i < 3; ++i) {
     for (size_t j = i; j < 3; ++j) {
@@ -451,12 +496,33 @@ TeukolskyWave::TeukolskyWave(double amplitude, const int mode,
                              const double width,
                              const Options::Context& context)
     : TeukolskyWave(amplitude, mode, std::move(parity), std::move(direction),
-                    center, radius, width, true, context) {}
+                    center, radius, width, std::nullopt, true, context) {}
 
 TeukolskyWave::TeukolskyWave(double amplitude, const int mode,
                              std::string parity, std::string direction,
                              std::array<double, 3> center, const double radius,
                              const double width,
+                             std::optional<RotatingMode> rotating_mode,
+                             const Options::Context& context)
+    : TeukolskyWave(amplitude, mode, std::move(parity), std::move(direction),
+                    center, radius, width, std::move(rotating_mode), true,
+                    context) {}
+
+TeukolskyWave::TeukolskyWave(double amplitude, const int mode,
+                             std::string parity, std::string direction,
+                             std::array<double, 3> center, const double radius,
+                             const double width,
+                             const bool include_minkowski_background,
+                             const Options::Context& context)
+    : TeukolskyWave(amplitude, mode, std::move(parity), std::move(direction),
+                    center, radius, width, std::nullopt,
+                    include_minkowski_background, context) {}
+
+TeukolskyWave::TeukolskyWave(double amplitude, const int mode,
+                             std::string parity, std::string direction,
+                             std::array<double, 3> center, const double radius,
+                             const double width,
+                             std::optional<RotatingMode> rotating_mode,
                              const bool include_minkowski_background,
                              const Options::Context& context)
     : amplitude_(amplitude),
@@ -479,6 +545,31 @@ TeukolskyWave::TeukolskyWave(double amplitude, const int mode,
   if (width_ <= 0.0) {
     PARSE_ERROR(context, "Width must be greater than 0.");
   }
+  if (rotating_mode.has_value()) {
+    if (mode_ <= 0) {
+      PARSE_ERROR(context,
+                  "Mode must be 1 or 2 when AzimuthalSense is PositiveM or "
+                  "NegativeM.");
+    }
+    if (std::holds_alternative<PositiveM>(*rotating_mode)) {
+      azimuthal_sense_ = AzimuthalSense::PositiveM;
+      frequency_ = std::get<PositiveM>(*rotating_mode).frequency;
+      phase_ = std::get<PositiveM>(*rotating_mode).phase;
+    } else {
+      azimuthal_sense_ = AzimuthalSense::NegativeM;
+      frequency_ = std::get<NegativeM>(*rotating_mode).frequency;
+      phase_ = std::get<NegativeM>(*rotating_mode).phase;
+    }
+    if (not std::isfinite(frequency_) or frequency_ <= 0.0) {
+      PARSE_ERROR(context,
+                  "Frequency must be finite and greater than 0 for a rotating "
+                  "Teukolsky wave.");
+    }
+    if (not std::isfinite(phase_)) {
+      PARSE_ERROR(context,
+                  "Phase must be finite for a rotating Teukolsky wave.");
+    }
+  }
 }
 
 void TeukolskyWave::pup(PUP::er& p) {
@@ -489,6 +580,9 @@ void TeukolskyWave::pup(PUP::er& p) {
   p | center_;
   p | radius_;
   p | width_;
+  p | azimuthal_sense_;
+  p | frequency_;
+  p | phase_;
   p | include_minkowski_background_;
 }
 
@@ -549,7 +643,8 @@ auto TeukolskyWave::variables(
   return metric_and_dt_spatial_metric(get<0>(x), get<1>(x), get<2>(x), t,
                                       amplitude_, mode_, parity_ == "even",
                                       direction_ == "ingoing", center_, radius_,
-                                      width_, include_minkowski_background_)
+                                      width_, azimuthal_sense_, frequency_,
+                                      phase_, include_minkowski_background_)
       .first;
 }
 
@@ -563,7 +658,8 @@ auto TeukolskyWave::variables(
   return metric_and_dt_spatial_metric(get<0>(x), get<1>(x), get<2>(x), t,
                                       amplitude_, mode_, parity_ == "even",
                                       direction_ == "ingoing", center_, radius_,
-                                      width_, include_minkowski_background_)
+                                      width_, azimuthal_sense_, frequency_,
+                                      phase_, include_minkowski_background_)
       .second;
 }
 
@@ -636,6 +732,8 @@ bool operator==(const TeukolskyWave& lhs, const TeukolskyWave& rhs) {
          lhs.parity() == rhs.parity() and lhs.direction() == rhs.direction() and
          lhs.center() == rhs.center() and lhs.radius() == rhs.radius() and
          lhs.width() == rhs.width() and
+         lhs.azimuthal_sense() == rhs.azimuthal_sense() and
+         lhs.frequency() == rhs.frequency() and lhs.phase() == rhs.phase() and
          lhs.include_minkowski_background() ==
              rhs.include_minkowski_background();
 }

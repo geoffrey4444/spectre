@@ -6,10 +6,13 @@
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <string>
+#include <variant>
 
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Options/Auto.hpp"
 #include "Options/Context.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/AnalyticSolution.hpp"
@@ -28,6 +31,9 @@ struct dt;
 
 namespace gr::Solutions {
 
+/// The signed complex azimuthal mode represented by a rotating real wave.
+enum class AzimuthalSense { None, PositiveM, NegativeM };
+
 /*!
  * \brief A perturbative Teukolsky wave (optionally plus Minkowski).
  *
@@ -41,8 +47,25 @@ namespace gr::Solutions {
  * See Eqs. (5) -- (10) of \cite Teukolsky1982nz for the equations in
  * spherical coordinates of the perturbed metric implemented here. Those
  * equations contain a freely specifiable radial profile; this implementation
- * chooses a Gaussian in \f$r - R_0 \pm t\f$, where \f$R_0\f$ is the
- * `Radius` parameter, with `Width` setting the pulse width.
+ * chooses a Gaussian in \f$y=r - R_0 + p t\f$, where \f$p=+1\f$ for an
+ * ingoing wave and \f$p=-1\f$ for an outgoing wave, and \f$R_0\f$ is the
+ * `Radius` parameter, with `Width` setting the pulse width. With
+ * `AzimuthalSense: None`, `Mode` selects one member of the existing real
+ * azimuthal basis. A `PositiveM` or `NegativeM` azimuthal sense instead
+ * combines the `Mode: |m|` cosine-like basis member with the `Mode: -|m|`
+ * sine-like member. Their profiles are in quadrature, so the wave represents
+ * a single signed complex azimuthal mode while the metric remains real.
+ * Specifically, let \f$q=+1\f$ for `PositiveM` and \f$q=-1\f$ for
+ * `NegativeM`. The two real profiles are
+ *
+ * \f[
+ * F_c(y) = A e^{-y^2/W^2}\cos(\omega y + \phi_0), \qquad
+ * F_s(y) = p q A e^{-y^2/W^2}\sin(\omega y + \phi_0).
+ * \f]
+ *
+ * The factor of \f$p\f$ makes the physical azimuthal sense independent of the
+ * propagation direction. The signed mode is defined with respect to the
+ * global Cartesian \f$+z\f$ axis.
  *
  * \note The implementation evaluates spherical-coordinate expressions, so it
  * must not be used too close to the origin about `Center`, where those
@@ -78,7 +101,8 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
   struct Mode {
     using type = int;
     static constexpr Options::String help{
-        "Azimuthal mode m of the l=2 Teukolsky wave"};
+        "Real-basis mode for AzimuthalSense None, or positive |m| for a "
+        "rotating l=2 Teukolsky wave"};
     static type lower_bound() { return -2; }
     static type upper_bound() { return 2; }
   };
@@ -114,8 +138,88 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
     static type lower_bound() { return 0.0; }
   };
 
-  using options =
-      tmpl::list<Amplitude, Mode, Parity, Direction, Center, Radius, Width>;
+  struct Frequency {
+    using type = double;
+    static constexpr Options::String help{
+        "Angular frequency of the rotating carrier"};
+    static type lower_bound() { return 0.0; }
+  };
+
+  struct Phase {
+    using type = double;
+    static constexpr Options::String help{
+        "Phase of the rotating carrier in radians"};
+  };
+
+  struct Carrier {
+    using options = tmpl::list<Frequency, Phase>;
+    static constexpr Options::String help{
+        "Frequency and phase of the rotating carrier"};
+
+    Carrier() = default;
+    Carrier(double frequency_in, double phase_in)
+        : frequency(frequency_in), phase(phase_in) {}
+
+    double frequency{std::numeric_limits<double>::signaling_NaN()};
+    double phase{std::numeric_limits<double>::signaling_NaN()};
+  };
+
+  struct PositiveM {
+    struct CarrierOptions {
+      using type = Carrier;
+      static std::string name() { return "PositiveM"; }
+      static constexpr Options::String help{"Carrier for a positive-m wave"};
+    };
+
+    using options = tmpl::list<CarrierOptions>;
+    static constexpr Options::String help{
+        "A rotating wave with positive azimuthal mode number"};
+
+    PositiveM() = default;
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    PositiveM(Carrier carrier)
+        : frequency(carrier.frequency), phase(carrier.phase) {}
+    PositiveM(double frequency_in, double phase_in)
+        : frequency(frequency_in), phase(phase_in) {}
+
+    double frequency{std::numeric_limits<double>::signaling_NaN()};
+    double phase{std::numeric_limits<double>::signaling_NaN()};
+  };
+
+  struct NegativeM {
+    struct CarrierOptions {
+      using type = Carrier;
+      static std::string name() { return "NegativeM"; }
+      static constexpr Options::String help{"Carrier for a negative-m wave"};
+    };
+
+    using options = tmpl::list<CarrierOptions>;
+    static constexpr Options::String help{
+        "A rotating wave with negative azimuthal mode number"};
+
+    NegativeM() = default;
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    NegativeM(Carrier carrier)
+        : frequency(carrier.frequency), phase(carrier.phase) {}
+    NegativeM(double frequency_in, double phase_in)
+        : frequency(frequency_in), phase(phase_in) {}
+
+    double frequency{std::numeric_limits<double>::signaling_NaN()};
+    double phase{std::numeric_limits<double>::signaling_NaN()};
+  };
+
+  using RotatingMode = std::variant<PositiveM, NegativeM>;
+
+  struct AzimuthalSenseOptions {
+    using type = Options::Auto<RotatingMode, Options::AutoLabel::None>;
+    static std::string name() { return "AzimuthalSense"; }
+    static constexpr Options::String help{
+        "Specify None for an existing real mode, or PositiveM / NegativeM "
+        "with Frequency and Phase for a rotating signed-m wave"};
+  };
+
+  using options = tmpl::list<Amplitude, Mode, Parity, Direction, Center, Radius,
+                             Width, AzimuthalSenseOptions>;
   static constexpr Options::String help{
       "A perturbative Teukolsky wave in Cartesian inertial coordinates"};
 
@@ -138,7 +242,20 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
 
   TeukolskyWave(double amplitude, int mode, std::string parity,
                 std::string direction, std::array<double, 3> center,
+                double radius, double width,
+                std::optional<RotatingMode> rotating_mode,
+                const Options::Context& context = {});
+
+  TeukolskyWave(double amplitude, int mode, std::string parity,
+                std::string direction, std::array<double, 3> center,
                 double radius, double width, bool include_minkowski_background,
+                const Options::Context& context = {});
+
+  TeukolskyWave(double amplitude, int mode, std::string parity,
+                std::string direction, std::array<double, 3> center,
+                double radius, double width,
+                std::optional<RotatingMode> rotating_mode,
+                bool include_minkowski_background,
                 const Options::Context& context = {});
 
   TeukolskyWave() = default;
@@ -178,6 +295,9 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
   const std::array<double, 3>& center() const { return center_; }
   double radius() const { return radius_; }
   double width() const { return width_; }
+  AzimuthalSense azimuthal_sense() const { return azimuthal_sense_; }
+  double frequency() const { return frequency_; }
+  double phase() const { return phase_; }
   bool include_minkowski_background() const {
     return include_minkowski_background_;
   }
@@ -260,6 +380,9 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
   std::array<double, 3> center_{};
   double radius_{std::numeric_limits<double>::signaling_NaN()};
   double width_{std::numeric_limits<double>::signaling_NaN()};
+  AzimuthalSense azimuthal_sense_{AzimuthalSense::None};
+  double frequency_{0.0};
+  double phase_{0.0};
   bool include_minkowski_background_{false};
 };
 

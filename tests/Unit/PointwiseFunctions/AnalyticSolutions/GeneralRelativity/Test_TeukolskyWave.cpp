@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -28,6 +29,18 @@
 namespace {
 
 using TeukolskyWave = gr::Solutions::TeukolskyWave;
+
+std::optional<TeukolskyWave::RotatingMode> positive_m(const double frequency,
+                                                      const double phase) {
+  return TeukolskyWave::RotatingMode{
+      TeukolskyWave::PositiveM{frequency, phase}};
+}
+
+std::optional<TeukolskyWave::RotatingMode> negative_m(const double frequency,
+                                                      const double phase) {
+  return TeukolskyWave::RotatingMode{
+      TeukolskyWave::NegativeM{frequency, phase}};
+}
 
 template <typename DataType>
 using WithoutBackgroundTags = tmpl::list<
@@ -490,9 +503,159 @@ void test_construct_from_options() {
       "Direction: outgoing\n"
       "Center: [0.0, 0.0, 0.0]\n"
       "Radius: 8.0\n"
-      "Width: 1.5");
+      "Width: 1.5\n"
+      "AzimuthalSense: None");
   CHECK(created_solution == TeukolskyWave(1.0e-4, 2, "even", "outgoing",
                                           {{0.0, 0.0, 0.0}}, 8.0, 1.5, true));
+
+  const auto rotating_solution = TestHelpers::test_creation<TeukolskyWave>(
+      "Amplitude: 2e-4\n"
+      "Mode: 2\n"
+      "Parity: odd\n"
+      "Direction: ingoing\n"
+      "Center: [0.1, -0.2, 0.3]\n"
+      "Radius: 9.0\n"
+      "Width: 2.5\n"
+      "AzimuthalSense:\n"
+      "  PositiveM:\n"
+      "    Frequency: 0.4\n"
+      "    Phase: 0.7");
+  CHECK(rotating_solution.azimuthal_sense() ==
+        gr::Solutions::AzimuthalSense::PositiveM);
+  CHECK(rotating_solution.frequency() == 0.4);
+  CHECK(rotating_solution.phase() == 0.7);
+  CHECK(rotating_solution == TeukolskyWave(2.0e-4, 2, "odd", "ingoing",
+                                           {{0.1, -0.2, 0.3}}, 9.0, 2.5,
+                                           positive_m(0.4, 0.7), true));
+  test_serialization(rotating_solution);
+}
+
+void test_rotating_time_derivative() {
+  tnsr::I<double, 3, Frame::Inertial> x{};
+  get<0>(x) = 8.2;
+  get<1>(x) = -3.1;
+  get<2>(x) = 2.4;
+  constexpr double time = 0.6;
+  constexpr double time_step = 1.0e-5;
+  const auto derivative_approx = approx.custom().epsilon(1.0e-6).margin(1.0e-9);
+
+  const std::array<TeukolskyWave, 4> solutions{
+      TeukolskyWave{0.02,
+                    2,
+                    "even",
+                    "ingoing",
+                    {{0., 0., 0.}},
+                    9.0,
+                    3.0,
+                    positive_m(0.7, 0.3),
+                    false},
+      TeukolskyWave{0.02,
+                    2,
+                    "odd",
+                    "ingoing",
+                    {{0., 0., 0.}},
+                    9.0,
+                    3.0,
+                    negative_m(0.7, -0.4),
+                    false},
+      TeukolskyWave{0.02,
+                    1,
+                    "even",
+                    "outgoing",
+                    {{0., 0., 0.}},
+                    9.0,
+                    3.0,
+                    negative_m(0.7, 0.8),
+                    false},
+      TeukolskyWave{0.02,
+                    1,
+                    "odd",
+                    "outgoing",
+                    {{0., 0., 0.}},
+                    9.0,
+                    3.0,
+                    positive_m(0.7, -0.2),
+                    false}};
+  for (const auto& solution : solutions) {
+    const auto metric_plus = get<gr::Tags::SpatialMetric<double, 3>>(
+        solution.variable<gr::Tags::SpatialMetric<double, 3>>(
+            x, time + time_step));
+    const auto metric_minus = get<gr::Tags::SpatialMetric<double, 3>>(
+        solution.variable<gr::Tags::SpatialMetric<double, 3>>(
+            x, time - time_step));
+    const auto dt_metric = get<Tags::dt<gr::Tags::SpatialMetric<double, 3>>>(
+        solution.variable<Tags::dt<gr::Tags::SpatialMetric<double, 3>>>(x,
+                                                                        time));
+    for (size_t i = 0; i < 3; ++i) {
+      for (size_t j = i; j < 3; ++j) {
+        const double numerical_dt =
+            (metric_plus.get(i, j) - metric_minus.get(i, j)) /
+            (2.0 * time_step);
+        CHECK(numerical_dt == derivative_approx(dt_metric.get(i, j)));
+      }
+    }
+  }
+}
+
+void test_rotating_phase_is_spatial_rotation() {
+  constexpr double phase_shift = 0.73;
+  const std::array<double, 3> center{{0.2, -0.4, 0.1}};
+  tnsr::I<double, 3, Frame::Inertial> x{};
+  get<0>(x) = center[0] + 7.3;
+  get<1>(x) = center[1] - 2.1;
+  get<2>(x) = center[2] + 3.4;
+
+  for (const bool positive : {false, true}) {
+    for (const bool ingoing : {false, true}) {
+      const double propagation_sign = ingoing ? 1.0 : -1.0;
+      const double azimuthal_sign = positive ? 1.0 : -1.0;
+      const double rotation_angle =
+          propagation_sign * azimuthal_sign * phase_shift / 2.0;
+      const double cosine = cos(rotation_angle);
+      const double sine = sin(rotation_angle);
+      const std::array<std::array<double, 3>, 3> rotation{
+          {{{cosine, -sine, 0.}}, {{sine, cosine, 0.}}, {{0., 0., 1.}}}};
+      auto inverse_rotated_x = x;
+      get<0>(inverse_rotated_x) = center[0] + cosine * (get<0>(x) - center[0]) +
+                                  sine * (get<1>(x) - center[1]);
+      get<1>(inverse_rotated_x) = center[1] - sine * (get<0>(x) - center[0]) +
+                                  cosine * (get<1>(x) - center[1]);
+
+      const auto make_options = [positive](const double phase) {
+        return positive ? positive_m(0.6, phase) : negative_m(0.6, phase);
+      };
+      const TeukolskyWave base{
+          0.02,   2,   "even", ingoing ? "ingoing" : "outgoing",
+          center, 8.0, 2.7,    make_options(0.2),
+          false};
+      const TeukolskyWave phase_shifted{
+          0.02,   2,   "even", ingoing ? "ingoing" : "outgoing",
+          center, 8.0, 2.7,    make_options(0.2 + phase_shift),
+          false};
+      using tags = tmpl::list<gr::Tags::SpatialMetric<double, 3>,
+                              Tags::dt<gr::Tags::SpatialMetric<double, 3>>>;
+      const auto base_vars = base.variables(inverse_rotated_x, 0.4, tags{});
+      const auto shifted_vars = phase_shifted.variables(x, 0.4, tags{});
+      tmpl::for_each<tags>([&base_vars, &shifted_vars, &rotation](auto tag_v) {
+        using tag = tmpl::type_from<decltype(tag_v)>;
+        const auto& base_tensor = get<tag>(base_vars);
+        const auto& shifted_tensor = get<tag>(shifted_vars);
+        for (size_t i = 0; i < 3; ++i) {
+          for (size_t j = i; j < 3; ++j) {
+            double rotated_component = 0.0;
+            for (size_t a = 0; a < 3; ++a) {
+              for (size_t b = 0; b < 3; ++b) {
+                rotated_component +=
+                    rotation[i][a] * rotation[j][b] * base_tensor.get(a, b);
+              }
+            }
+            CHECK(shifted_tensor.get(i, j) ==
+                  approx(rotated_component).epsilon(1.0e-11).margin(1.0e-12));
+          }
+        }
+      });
+    }
+  }
 }
 
 void test_background_false_errors() {
@@ -558,6 +721,22 @@ void test_invalid_construction_throws() {
       }(),
       Catch::Matchers::ContainsSubstring(
           "Direction must be either 'outgoing' or 'ingoing'"));
+  CHECK_THROWS_WITH(
+      []() {
+        const TeukolskyWave bad_solution(1.0e-4, -2, "even", "outgoing",
+                                         {{0.0, 0.0, 0.0}}, 8.0, 1.5,
+                                         positive_m(0.4, 0.0), true);
+      }(),
+      Catch::Matchers::ContainsSubstring(
+          "Mode must be 1 or 2 when AzimuthalSense"));
+  CHECK_THROWS_WITH(
+      []() {
+        const TeukolskyWave bad_solution(1.0e-4, 2, "even", "outgoing",
+                                         {{0.0, 0.0, 0.0}}, 8.0, 1.5,
+                                         negative_m(0.0, 0.0), true);
+      }(),
+      Catch::Matchers::ContainsSubstring(
+          "Frequency must be finite and greater than 0"));
 }
 
 void test_serialize_and_copy(gsl::not_null<std::mt19937*> generator) {
@@ -609,6 +788,8 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.AnalyticSolutions.Gr.TeukolskyWave",
   test_axis_regularization(make_not_null(&generator));
   test_spec_pointwise_agreement();
   test_construct_from_options();
+  test_rotating_time_derivative();
+  test_rotating_phase_is_spatial_rotation();
   test_background_false_errors();
   test_invalid_construction_throws();
   test_serialize_and_copy(make_not_null(&generator));
