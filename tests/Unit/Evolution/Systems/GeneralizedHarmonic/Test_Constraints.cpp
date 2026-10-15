@@ -595,6 +595,77 @@ void test_constraint_energy_random(const DataType& used_for_size) {
       "Constraints", "constraint_energy", {{{-1.0, 1.0}}}, used_for_size);
 }
 
+// Check the compressed curl against its full antisymmetric contraction.
+// The previous formula agrees for a flat metric but fails this non-flat case.
+template <typename DataType, typename Frame>
+void test_four_index_energy_full_contraction(const DataType& used_for_size) {
+  auto inverse = make_with_value<tnsr::II<DataType, 3, Frame>>(used_for_size, 0.0);
+  inverse.get(0, 0) = 0.5;
+  inverse.get(1, 1) = 1.0 / 3.0;
+  inverse.get(2, 2) = 0.2;
+  auto determinant = make_with_value<Scalar<DataType>>(used_for_size, 30.0);
+  auto derivative =
+      make_with_value<tnsr::ijaa<DataType, 3, Frame>>(used_for_size, 0.0);
+  derivative.get(1, 2, 0, 0) = 1.0;
+  const auto zero_one =
+      make_with_value<tnsr::a<DataType, 3, Frame>>(used_for_size, 0.0);
+  const auto zero_two =
+      make_with_value<tnsr::ia<DataType, 3, Frame>>(used_for_size, 0.0);
+  const auto zero_three =
+      make_with_value<tnsr::iaa<DataType, 3, Frame>>(used_for_size, 0.0);
+  CHECK_ITERABLE_APPROX(
+      get(gh::constraint_energy(zero_one, zero_one, zero_two, zero_three,
+                                gh::four_index_constraint(derivative), inverse,
+                                determinant)),
+      make_with_value<DataType>(used_for_size, 2.0 / 15.0));
+
+  // Include nonzero off-diagonal metric entries and every tensor component.
+  inverse.get(0, 0) = 1.4;
+  inverse.get(1, 1) = 1.1;
+  inverse.get(2, 2) = 1.3;
+  inverse.get(0, 1) = 0.2;
+  inverse.get(0, 2) = 0.1;
+  inverse.get(1, 2) = 0.3;
+  get(determinant) =
+      1.0 / get(determinant_and_inverse(inverse).first);
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 3; ++j) {
+      for (size_t a = 0; a < 4; ++a) {
+        for (size_t b = a; b < 4; ++b) {
+          derivative.get(i, j, a, b) =
+              1.0 + 0.2 * static_cast<double>(i) +
+              0.3 * static_cast<double>(j) +
+              0.5 * static_cast<double>(a) +
+              0.7 * static_cast<double>(b);
+        }
+      }
+    }
+  }
+  auto expected = make_with_value<DataType>(used_for_size, 0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 3; ++j) {
+      for (size_t k = 0; k < 3; ++k) {
+        for (size_t l = 0; l < 3; ++l) {
+          for (size_t a = 0; a < 4; ++a) {
+            for (size_t b = 0; b < 4; ++b) {
+              expected += inverse.get(i, k) * inverse.get(j, l) *
+                          (derivative.get(i, j, a, b) -
+                           derivative.get(j, i, a, b)) *
+                          (derivative.get(k, l, a, b) -
+                           derivative.get(l, k, a, b));
+            }
+          }
+        }
+      }
+    }
+  }
+  CHECK_ITERABLE_APPROX(
+      get(gh::constraint_energy(zero_one, zero_one, zero_two, zero_three,
+                                gh::four_index_constraint(derivative), inverse,
+                                determinant, 1.0, 1.0, 1.0, 3.25)),
+      3.25 * expected);
+}
+
 // Test the return-by-reference constraint energy
 // by comparing to a time-independent analytic solution (e.g. Kerr-Schild)
 template <typename Solution>
@@ -1349,6 +1420,12 @@ void constraint_energy() {
       std::numeric_limits<double>::signaling_NaN());
   test_constraint_energy_random<double, 3, Frame::Inertial>(
       std::numeric_limits<double>::signaling_NaN());
+  test_four_index_energy_full_contraction<double, Frame::Grid>(0.0);
+  test_four_index_energy_full_contraction<double, Frame::Inertial>(0.0);
+  test_four_index_energy_full_contraction<DataVector, Frame::Grid>(
+      DataVector(4, 0.0));
+  test_four_index_energy_full_contraction<DataVector, Frame::Inertial>(
+      DataVector(4, 0.0));
 }
 
 void constraint_energy_normalization() {

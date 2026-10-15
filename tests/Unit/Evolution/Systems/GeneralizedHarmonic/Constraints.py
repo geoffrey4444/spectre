@@ -1001,17 +1001,30 @@ def constraint_energy(
         three_index_constraint,
         inverse_spatial_metric,
     )
-    energy += (
-        2.0
-        * four_index_constraint_multiplier
-        * spatial_metric_determinant
-        * np.einsum(
-            "iab,jab,ij",
-            four_index_constraint,
-            four_index_constraint,
+    if inverse_spatial_metric.shape[0] == 3:
+        epsilon = np.zeros((3, 3, 3))
+        epsilon[0, 1, 2] = epsilon[1, 2, 0] = epsilon[2, 0, 1] = 1.0
+        epsilon[0, 2, 1] = epsilon[1, 0, 2] = epsilon[2, 1, 0] = -1.0
+        full_curl = np.einsum("mij,mab->ijab", epsilon, four_index_constraint)
+        energy += four_index_constraint_multiplier * np.einsum(
+            "ik,jl,ijab,klab",
             inverse_spatial_metric,
+            inverse_spatial_metric,
+            full_curl,
+            full_curl,
         )
-    )
+    else:
+        energy += (
+            2.0
+            * four_index_constraint_multiplier
+            * spatial_metric_determinant
+            * np.einsum(
+                "iab,jab,ij",
+                four_index_constraint,
+                four_index_constraint,
+                inverse_spatial_metric,
+            )
+        )
     return energy
 
 
