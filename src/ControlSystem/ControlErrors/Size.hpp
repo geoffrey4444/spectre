@@ -344,6 +344,10 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
    */
   bool discontinuous_change_has_occurred() const;
 
+  /// Acknowledge a discontinuous change when rebuilding the averager, without
+  /// clearing the timescale suggestion awaiting the next tuner update.
+  void acknowledge_discontinuous_change();
+
   /*!
    * \brief Reset the internal `control_system::size::Info` using
    * `control_system::size::Info::reset`.

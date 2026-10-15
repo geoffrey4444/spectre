@@ -53,7 +53,12 @@ struct Info {
   bool discontinuous_change_has_occurred;
 
   /// Reset `discontinuous_change_has_occurred` and `suggested_time_scale`
+  /// after the timescale tuner has consumed the suggestion.
   void reset();
+
+  /// Acknowledge rebuilding the averager after a discontinuity, retaining
+  /// `suggested_time_scale` for the next timescale-tuner update.
+  void acknowledge_discontinuous_change();
 
   friend bool operator==(const Info& lhs, const Info& rhs);
   friend bool operator!=(const Info& lhs, const Info& rhs);

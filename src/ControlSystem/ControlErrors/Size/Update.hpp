@@ -43,7 +43,7 @@ void update_averager(
     const DataVector& current_timescale,
     const std::string& function_of_time_name, const int current_measurement) {
   if (control_error->discontinuous_change_has_occurred()) {
-    control_error->reset();
+    control_error->acknowledge_discontinuous_change();
     averager->clear();
 
     const std::deque<std::pair<double, double>> control_error_history =
