@@ -40,9 +40,10 @@ struct Metavariables {
   };
 };
 
-FastFlow::IterInfo make_iter_info(double residual_ylm) {
+FastFlow::IterInfo make_iter_info(double residual_mesh) {
   FastFlow::IterInfo info{};
-  info.residual_ylm = residual_ylm;
+  info.residual_mesh = residual_mesh;
+  info.residual_ylm = residual_mesh;
   return info;
 }
 
@@ -56,9 +57,9 @@ void test_criterion_evaluation(
     const std::unique_ptr<ah::Criterion>& criterion,
     const ObservationBox<tmpl::list<>, db::DataBox<tmpl::list<>>>& box,
     Parallel::GlobalCache<Metavariables<Frame::Inertial>>& cache, size_t l_max,
-    double residual_ylm, size_t expected_new_l_max) {
+    double residual_mesh, size_t expected_new_l_max) {
   const ylm::Strahlkorper<Fr> strahlkorper = make_strahlkorper<Fr>(l_max);
-  const FastFlow::IterInfo iter_info = make_iter_info(residual_ylm);
+  const FastFlow::IterInfo iter_info = make_iter_info(residual_mesh);
   const size_t new_l_max =
       criterion->evaluate(box, cache, strahlkorper, iter_info);
   CHECK(new_l_max == expected_new_l_max);
@@ -89,6 +90,32 @@ void test_residual() {
 
   Parallel::GlobalCache<Metavariables<Frame::Inertial>> cache{
       tuples::TaggedTuple<ah::Tags::LMax>{max_resolution_l}};
+
+  // A converged FastFlow solve can have a small projected residual while the
+  // prolonged mesh still resolves substantial angular truncation error. Such
+  // a surface needs refinement, including when it is at the minimum L.
+  {
+    FastFlow::IterInfo converged_info = make_iter_info(2.0 * max_residual);
+    converged_info.residual_ylm = 1.0e-12;
+    CHECK(criterion->evaluate(box, cache,
+                             make_strahlkorper<Frame::Inertial>(mid_l),
+                             converged_info) == mid_l + 1);
+    CHECK(criterion->evaluate(
+              box, cache,
+              make_strahlkorper<Frame::Inertial>(min_resolution_l),
+              converged_info) == min_resolution_l + 1);
+    CHECK(criterion->evaluate(
+              box, cache,
+              make_strahlkorper<Frame::Inertial>(max_resolution_l),
+              converged_info) == max_resolution_l);
+
+    // Iterating the projected residual to roundoff must not cause
+    // derefinement when the mesh residual is already in the target range.
+    converged_info.residual_mesh = 0.5 * max_residual;
+    CHECK(criterion->evaluate(box, cache,
+                             make_strahlkorper<Frame::Inertial>(mid_l),
+                             converged_info) == mid_l);
+  }
 
   // Normal case - decrease resolution when residual is low
   test_criterion_evaluation<Frame::Inertial>(criterion, box, cache, mid_l,

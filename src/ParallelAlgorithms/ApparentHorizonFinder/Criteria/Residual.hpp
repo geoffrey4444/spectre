@@ -38,8 +38,11 @@ namespace ah::Criteria {
  * - If $L < L_{\rm max}$ and $\delta > \delta_{\rm max}$, then
  * $L_{\rm new} = L + 1$
  * - Otherwise, $L_{\rm new} = L$
- * Note that the residual is obtained from the provided FastFlow::IterInfo. The
- * residual is the gr::surfaces::expansion weighted by the FastFlow weights.
+ * The residual is `FastFlow::IterInfo::residual_mesh`, the norm of the
+ * gr::surfaces::expansion weighted by the FastFlow weights on the prolonged
+ * angular mesh. It retains the unresolved angular content. The projected
+ * `residual_ylm` instead measures iteration convergence in the current surface
+ * basis and can approach zero even when that basis is underresolved.
  */
 class Residual : public Criterion {
  public:
@@ -114,11 +117,11 @@ size_t Residual::operator()(const Parallel::GlobalCache<Metavariables>& cache,
     return strahlkorper.l_max();
   }
   if (strahlkorper.l_max() > min_resolution_l_ and
-      info.residual_ylm < min_residual_ and strahlkorper.l_max() > 0) {
+      info.residual_mesh < min_residual_ and strahlkorper.l_max() > 0) {
     return strahlkorper.l_max() - 1;
   }
   if (strahlkorper.l_max() < max_resolution_l and
-      info.residual_ylm > max_residual_) {
+      info.residual_mesh > max_residual_) {
     return strahlkorper.l_max() + 1;
   }
   return strahlkorper.l_max();
