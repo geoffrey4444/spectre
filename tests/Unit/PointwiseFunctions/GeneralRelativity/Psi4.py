@@ -50,24 +50,39 @@ def psi_4(
 
     x_coord = np.zeros((3))
     x_coord[0] = 1
-    x_component = np.einsum("a,b,ab", x_coord, r_hat, spatial_metric)
-    x_hat = x_coord - (x_component * r_hat)
-    magnitude_x = math.sqrt(np.einsum("a,b,ab", x_hat, x_hat, spatial_metric))
-    if magnitude_x != 0.0:
-        x_hat = np.einsum("a", x_hat / magnitude_x)
-    else:
-        x_hat = np.einsum("a", x_hat * 0.0)
     y_coord = np.zeros((3))
     y_coord[1] = 1
-    y_component = np.einsum("a,b,ab", y_coord, r_hat, spatial_metric)
-    y_hat = y_coord - (y_component * r_hat)
-    y_component = np.einsum("a,b,ab", y_coord, x_hat, spatial_metric)
-    y_hat = y_hat - (y_component * x_hat)
-    magnitude_y = math.sqrt(np.einsum("a,b,ab", y_hat, y_hat, spatial_metric))
-    if magnitude_y != 0.0:
-        y_hat = np.einsum("a", y_hat / magnitude_y)
+
+    def metric_cross(a, b):
+        return math.sqrt(np.linalg.det(spatial_metric)) * np.linalg.solve(
+            spatial_metric, np.cross(a, b)
+        )
+
+    if magnitude_inertial == 0.0:
+        x_hat = x_coord / math.sqrt(spatial_metric[0, 0])
+        y_hat = (
+            y_coord
+            - np.einsum("a,b,ab", y_coord, x_hat, spatial_metric) * x_hat
+        )
+        y_hat /= math.sqrt(np.einsum("a,b,ab", y_hat, y_hat, spatial_metric))
     else:
-        y_hat = np.einsum("a", y_hat * 0.0)
+        y_hat = metric_cross(r_hat, x_coord)
+        magnitude_y = math.sqrt(
+            np.einsum("a,b,ab", y_hat, y_hat, spatial_metric)
+        )
+        minimum_magnitude = (
+            100.0 * np.finfo(float).eps * math.sqrt(spatial_metric[0, 0])
+        )
+        use_x_direction = magnitude_y > minimum_magnitude
+        if not use_x_direction:
+            y_hat = metric_cross(r_hat, y_coord)
+            magnitude_y = math.sqrt(
+                np.einsum("a,b,ab", y_hat, y_hat, spatial_metric)
+            )
+        y_hat /= magnitude_y
+        x_hat = metric_cross(y_hat, r_hat)
+        if use_x_direction and inertial_coords[2] < 0.0:
+            y_hat *= -1.0
     m_bar = x_hat - (y_hat * complex(0.0, 1.0))
 
     return -0.5 * np.einsum("ab,a,b", u8_plus, m_bar, m_bar)
