@@ -199,8 +199,33 @@ std::optional<std::array<double, Dim>> RotScaleTrans<Dim>::inverse(
   // source coords after the inverse expansion and translation have been done.
   std::array<double, Dim> pre_rotation_result = result;
 
-  // Inverse translation without expansion
-  if (trans_f_of_t_.has_value() and not scale_f_of_t_a_.has_value()) {
+  // The inner and outer maps use constant translation / expansion factors
+  // throughout their blocks. Their inverse must use the selected block region,
+  // even if the point lies outside the transition radii (e.g. when the entire
+  // domain uses the inner map). Only the transition map selects factors by
+  // radius.
+  if (region_ != BlockRegion::Transition) {
+    if (trans_f_of_t_.has_value() and region_ == BlockRegion::Inner) {
+      const DataVector translation =
+          functions_of_time.at(trans_f_of_t_.value())->func(time)[0];
+      ASSERT(translation.size() == Dim,
+             "The translation function of time has the wrong dimension.");
+      for (size_t i = 0; i < Dim; ++i) {
+        gsl::at(pre_rotation_result, i) -= gsl::at(translation, i);
+      }
+    }
+    if (scale_f_of_t_a_.has_value()) {
+      const double scale =
+          functions_of_time
+              .at(region_ == BlockRegion::Inner ? scale_f_of_t_a_.value()
+                                               : scale_f_of_t_b_.value())
+              ->func(time)[0][0];
+      ASSERT(scale != 0.0, "The expansion map value must be nonzero.");
+      pre_rotation_result /= scale;
+    }
+  }
+  // Inverse translation without expansion in the transition region
+  else if (trans_f_of_t_.has_value() and not scale_f_of_t_a_.has_value()) {
     const DataVector trans_func_of_time =
         functions_of_time.at(trans_f_of_t_.value())->func(time)[0];
     ASSERT(trans_func_of_time.size() == Dim,
