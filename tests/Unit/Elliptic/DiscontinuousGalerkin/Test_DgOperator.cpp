@@ -487,8 +487,7 @@ void test_dg_operator(
   using PrimalFluxesVars = typename primal_fluxes_vars_tag::type;
   using OperatorAppliedToVars = typename operator_applied_to_vars_tag::type;
 
-  register_dg_operator_factory_classes<System, Linearized,
-                                       AnalyticSolution>();
+  register_dg_operator_factory_classes<System, Linearized, AnalyticSolution>();
 
   // Get a list of all elements in the domain
   auto domain = domain_creator.create_domain();
