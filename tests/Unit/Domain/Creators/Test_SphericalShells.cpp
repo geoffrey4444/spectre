@@ -873,6 +873,31 @@ void test_filled_sphere(const gsl::not_null<Generator*> gen) {
         spherical_shells, false);
   }
 }
+void test_radial_extents_per_block() {
+  const domain::creators::SphericalShells shells{
+      1.0, 60.0, 4, std::vector<size_t>{18, 14, 10}, 32, {2.0, 10.0}};
+  CHECK(shells.initial_extents() ==
+        std::vector<std::array<size_t, 3>>{
+            {18, 33, 65}, {14, 33, 65}, {10, 33, 65}});
+  CHECK(shells.initial_refinement_levels() ==
+        std::vector<std::array<size_t, 3>>(3, {4, 0, 0}));
+  auto options = option_string(1.0, 60.0, 4, 14, 32, {2.0, 10.0},
+                               {domain::CoordinateMaps::Distribution::Linear},
+                               false, false, false);
+  const std::string scalar_option = "InitialNumberOfRadialGridPoints: 14";
+  options.replace(options.find(scalar_option), scalar_option.size(),
+                  "InitialNumberOfRadialGridPoints: [18, 14, 10]");
+  TestHelpers::domain::creators::test_creation(options, shells, false);
+
+  const domain::creators::SphericalShells filled{
+      0.0, 10.0, 2, std::vector<size_t>{18, 14}, 32, {2.0}};
+  CHECK(filled.initial_extents() ==
+        std::vector<std::array<size_t, 3>>{{17, 33, 65}, {14, 33, 65}});
+  CHECK_THROWS_WITH(
+      domain::creators::SphericalShells(
+          1.0, 60.0, 4, std::vector<size_t>{18, 14}, 32, {2.0, 10.0}),
+      Catch::Matchers::ContainsSubstring("Expected 3 entries, got 2"));
+}
 }  // namespace
 
 // [[TimeOut, 15]]
@@ -884,4 +909,5 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.SphericalShells", "[Domain][Unit]") {
   test_filled_sphere(make_not_null(&gen));
   test_number_of_radial_shells_with_shape_map();
   test_shape_distortion();
+  test_radial_extents_per_block();
 }
