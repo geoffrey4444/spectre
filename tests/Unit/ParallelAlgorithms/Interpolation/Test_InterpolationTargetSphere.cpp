@@ -11,14 +11,24 @@
 #include <limits>
 #include <random>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Domain/Block.hpp"
 #include "Domain/BlockLogicalCoordinates.hpp"
+#include "Domain/CoordinateMaps/CoordinateMap.hpp"
+#include "Domain/CoordinateMaps/CoordinateMap.tpp"
+#include "Domain/CoordinateMaps/Identity.hpp"
+#include "Domain/CoordinateMaps/Interval.hpp"
+#include "Domain/CoordinateMaps/ProductMaps.hpp"
+#include "Domain/CoordinateMaps/ProductMaps.tpp"
+#include "Domain/CoordinateMaps/SphericalToCartesianPfaffian.hpp"
 #include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/Creators/Sphere.hpp"
 #include "Domain/Domain.hpp"
+#include "Domain/Structure/Topology.hpp"
 #include "Framework/TestCreation.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "Helpers/DataStructures/DataBox/TestHelpers.hpp"
@@ -179,6 +189,65 @@ void test_interpolation_target_sphere(
       created_opts, expected_block_coord_holders);
 }
 
+void test_sphere_on_excision_boundary() {
+  // A constant sphere on the boundary of a thin logarithmic shell must have
+  // every target point assigned. A physical-to-spectral round trip of the
+  // constant radius can add enough error to lose points at this boundary.
+  constexpr size_t l_max = 28;
+  constexpr double radius = 1.01;
+  using metavars = InterpTargetTestHelpers::MockMetavars<SphereTag, 3>;
+  using target_component =
+      InterpTargetTestHelpers::mock_interpolation_target<metavars, SphereTag>;
+
+  for (const auto angular_ordering :
+       {ylm::AngularOrdering::Strahlkorper, ylm::AngularOrdering::Cce}) {
+    CAPTURE(angular_ordering);
+    // This is the map and topology used for a SphericalShells block.
+    std::vector<Block<3>> blocks;
+    blocks.emplace_back(
+        domain::make_coordinate_map_base<Frame::BlockLogical, Frame::Inertial>(
+            domain::CoordinateMaps::ProductOf2Maps<
+                domain::CoordinateMaps::Interval,
+                domain::CoordinateMaps::Identity<2>>{
+                domain::CoordinateMaps::Interval{
+                    -1.0, 1.0, radius, 1.0765580818594012,
+                    domain::CoordinateMaps::Distribution::Logarithmic, 0.0},
+                domain::CoordinateMaps::Identity<2>{}},
+            domain::CoordinateMaps::SphericalToCartesianPfaffian{}),
+        0, DirectionMap<3, BlockNeighbors<3>>{}, "Shell0",
+        domain::topologies::spherical_shell);
+    ActionTesting::MockRuntimeSystem<metavars> runner{
+        {intrp::OptionHolders::Sphere{
+             l_max, {0.0, 0.0, 0.0}, radius, angular_ordering},
+         Domain<3>{std::move(blocks)}, ::Verbosity::Silent}};
+    ActionTesting::set_phase(make_not_null(&runner),
+                             Parallel::Phase::Initialization);
+    ActionTesting::emplace_component<target_component>(&runner, 0);
+    for (size_t i = 0; i < 2; ++i) {
+      ActionTesting::next_action<target_component>(make_not_null(&runner), 0);
+    }
+    ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
+    auto& target_box =
+        ActionTesting::get_databox<target_component>(make_not_null(&runner), 0);
+    const auto& cache = ActionTesting::cache<target_component>(runner, 0_st);
+    const Slab slab{0.0, 1.0};
+    const TimeStepId temporal_id{true, 0, ::Time{slab, 0}};
+    const auto block_coord_holders =
+        intrp::InterpolationTarget_detail::block_logical_coords<SphereTag>(
+            target_box, cache, temporal_id);
+
+    REQUIRE(block_coord_holders.size() == (l_max + 1) * (2 * l_max + 1));
+    REQUIRE(
+        std::count_if(block_coord_holders.begin(), block_coord_holders.end(),
+                      [](const auto& point) { return point.has_value(); }) ==
+        static_cast<std::ptrdiff_t>(block_coord_holders.size()));
+    for (const auto& point : block_coord_holders) {
+      CHECK(point->id == domain::BlockId{0});
+      CHECK(get<0>(point->data) == approx(-1.0));
+    }
+  }
+}
+
 void test_sphere_errors() {
   CHECK_THROWS_WITH(
       ([]() {
@@ -219,6 +288,7 @@ SPECTRE_TEST_CASE("Unit.NumericalAlgorithms.InterpolationTarget.Sphere",
                   "[Unit]") {
   domain::creators::register_derived_with_charm();
   test_sphere_errors();
+  test_sphere_on_excision_boundary();
   MAKE_GENERATOR(gen);
   for (size_t num_spheres : {1_st, 2_st, 3_st}) {
     test_interpolation_target_sphere<InterpTargetTestHelpers::ValidPoints::All>(
