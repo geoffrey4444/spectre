@@ -70,250 +70,277 @@ perturbation_and_dt_perturbation(const DataType& centered_x,
 
   const DataType y_profile = radius_from_center - radius + (ingoing ? t : -t);
   const double minus_two_over_width_squared = -2.0 / square(width);
-  const DataType profile = amplitude * exp(-square(y_profile) / square(width));
-  const DataType profile_1 = minus_two_over_width_squared * y_profile * profile;
-  const DataType profile_2 =
-      minus_two_over_width_squared * (profile + y_profile * profile_1);
-  const DataType profile_3 =
-      minus_two_over_width_squared * (2.0 * profile_1 + y_profile * profile_2);
-  const DataType profile_4 =
-      minus_two_over_width_squared * (3.0 * profile_2 + y_profile * profile_3);
-  const DataType profile_5 =
-      minus_two_over_width_squared * (4.0 * profile_3 + y_profile * profile_4);
+  std::array<DataType, 6> cosine_profile_derivatives{};
+  cosine_profile_derivatives[0] =
+      amplitude * exp(-square(y_profile) / square(width));
+  cosine_profile_derivatives[1] =
+      minus_two_over_width_squared * y_profile * cosine_profile_derivatives[0];
+  cosine_profile_derivatives[2] = minus_two_over_width_squared *
+                                  (cosine_profile_derivatives[0] +
+                                   y_profile * cosine_profile_derivatives[1]);
+  cosine_profile_derivatives[3] = minus_two_over_width_squared *
+                                  (2.0 * cosine_profile_derivatives[1] +
+                                   y_profile * cosine_profile_derivatives[2]);
+  cosine_profile_derivatives[4] = minus_two_over_width_squared *
+                                  (3.0 * cosine_profile_derivatives[2] +
+                                   y_profile * cosine_profile_derivatives[3]);
+  cosine_profile_derivatives[5] = minus_two_over_width_squared *
+                                  (4.0 * cosine_profile_derivatives[3] +
+                                   y_profile * cosine_profile_derivatives[4]);
 
   auto spherical_metric =
       make_with_value<tnsr::ii<DataType, 3, Frame::NoFrame>>(centered_x, 0.0);
   auto dt_spherical_metric =
       make_with_value<tnsr::ii<DataType, 3, Frame::NoFrame>>(centered_x, 0.0);
 
-  if (even_parity) {
-    auto angular_rr = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_rtheta = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_rphi = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_thetaphi = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_theta_theta_1 = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_theta_theta_2 = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_phi_phi_1 = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_phi_phi_2 = make_with_value<DataType>(centered_x, 0.0);
-    switch (mode) {
-      case -2:
-        angular_rr = square(sin_theta) * sin_2phi;
-        angular_rtheta = sin_theta * cos_theta * sin_2phi;
-        angular_rphi = sin_theta * cos_2phi;
-        angular_theta_theta_1 = (1.0 + square(cos_theta)) * sin_2phi;
-        angular_theta_theta_2 = -sin_2phi;
-        angular_thetaphi = -cos_theta * cos_2phi;
-        angular_phi_phi_1 = -angular_theta_theta_1;
-        angular_phi_phi_2 = square(cos_theta) * sin_2phi;
-        break;
-      case -1:
-        angular_rr = 2.0 * sin_theta * cos_theta * sin_phi;
-        angular_rtheta = (square(cos_theta) - square(sin_theta)) * sin_phi;
-        angular_rphi = cos_theta * cos_phi;
-        angular_theta_theta_1 = -2.0 * sin_theta * cos_theta * sin_phi;
-        angular_thetaphi = sin_theta * cos_phi;
-        angular_phi_phi_1 = -angular_theta_theta_1;
-        angular_phi_phi_2 = -2.0 * sin_theta * cos_theta * sin_phi;
-        break;
-      case 0:
-        angular_rr = 2.0 - 3.0 * square(sin_theta);
-        angular_rtheta = -3.0 * sin_theta * cos_theta;
-        angular_theta_theta_1 = 3.0 * square(sin_theta);
-        angular_theta_theta_2 = -1.0;
-        angular_phi_phi_1 = -angular_theta_theta_1;
-        angular_phi_phi_2 = 3.0 * square(sin_theta) - 1.0;
-        break;
-      case 1:
-        angular_rr = 2.0 * sin_theta * cos_theta * cos_phi;
-        angular_rtheta = (square(cos_theta) - square(sin_theta)) * cos_phi;
-        angular_rphi = -cos_theta * sin_phi;
-        angular_theta_theta_1 = -2.0 * sin_theta * cos_theta * cos_phi;
-        angular_thetaphi = -sin_theta * sin_phi;
-        angular_phi_phi_1 = -angular_theta_theta_1;
-        angular_phi_phi_2 = -2.0 * sin_theta * cos_theta * cos_phi;
-        break;
-      case 2:
-        angular_rr = square(sin_theta) * cos_2phi;
-        angular_rtheta = sin_theta * cos_theta * cos_2phi;
-        angular_rphi = -sin_theta * sin_2phi;
-        angular_theta_theta_1 = (1.0 + square(cos_theta)) * cos_2phi;
-        angular_theta_theta_2 = -cos_2phi;
-        angular_thetaphi = cos_theta * sin_2phi;
-        angular_phi_phi_1 = -angular_theta_theta_1;
-        angular_phi_phi_2 = square(cos_theta) * cos_2phi;
-        break;
-      default:
-        ERROR("Unsupported Teukolsky mode");
-    }
+  const double propagation_sign = ingoing ? 1.0 : -1.0;
+  const auto add_mode = [&](const int active_mode,
+                            const std::array<DataType, 6>&
+                                profile_derivatives) {
+    const DataType& profile = profile_derivatives[0];
+    const DataType& profile_1 = profile_derivatives[1];
+    const DataType& profile_2 = profile_derivatives[2];
+    const DataType& profile_3 = profile_derivatives[3];
+    const DataType& profile_4 = profile_derivatives[4];
+    const DataType& profile_5 = profile_derivatives[5];
+    if (even_parity) {
+      auto angular_rr = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_rtheta = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_rphi = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_thetaphi = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_theta_theta_1 = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_theta_theta_2 = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_phi_phi_1 = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_phi_phi_2 = make_with_value<DataType>(centered_x, 0.0);
+      switch (active_mode) {
+        case -2:
+          angular_rr = square(sin_theta) * sin_2phi;
+          angular_rtheta = sin_theta * cos_theta * sin_2phi;
+          angular_rphi = sin_theta * cos_2phi;
+          angular_theta_theta_1 = (1.0 + square(cos_theta)) * sin_2phi;
+          angular_theta_theta_2 = -sin_2phi;
+          angular_thetaphi = -cos_theta * cos_2phi;
+          angular_phi_phi_1 = -angular_theta_theta_1;
+          angular_phi_phi_2 = square(cos_theta) * sin_2phi;
+          break;
+        case -1:
+          angular_rr = 2.0 * sin_theta * cos_theta * sin_phi;
+          angular_rtheta = (square(cos_theta) - square(sin_theta)) * sin_phi;
+          angular_rphi = cos_theta * cos_phi;
+          angular_theta_theta_1 = -2.0 * sin_theta * cos_theta * sin_phi;
+          angular_thetaphi = sin_theta * cos_phi;
+          angular_phi_phi_1 = -angular_theta_theta_1;
+          angular_phi_phi_2 = -2.0 * sin_theta * cos_theta * sin_phi;
+          break;
+        case 0:
+          angular_rr = 2.0 - 3.0 * square(sin_theta);
+          angular_rtheta = -3.0 * sin_theta * cos_theta;
+          angular_theta_theta_1 = 3.0 * square(sin_theta);
+          angular_theta_theta_2 = -1.0;
+          angular_phi_phi_1 = -angular_theta_theta_1;
+          angular_phi_phi_2 = 3.0 * square(sin_theta) - 1.0;
+          break;
+        case 1:
+          angular_rr = 2.0 * sin_theta * cos_theta * cos_phi;
+          angular_rtheta = (square(cos_theta) - square(sin_theta)) * cos_phi;
+          angular_rphi = -cos_theta * sin_phi;
+          angular_theta_theta_1 = -2.0 * sin_theta * cos_theta * cos_phi;
+          angular_thetaphi = -sin_theta * sin_phi;
+          angular_phi_phi_1 = -angular_theta_theta_1;
+          angular_phi_phi_2 = -2.0 * sin_theta * cos_theta * cos_phi;
+          break;
+        case 2:
+          angular_rr = square(sin_theta) * cos_2phi;
+          angular_rtheta = sin_theta * cos_theta * cos_2phi;
+          angular_rphi = -sin_theta * sin_2phi;
+          angular_theta_theta_1 = (1.0 + square(cos_theta)) * cos_2phi;
+          angular_theta_theta_2 = -cos_2phi;
+          angular_thetaphi = cos_theta * sin_2phi;
+          angular_phi_phi_1 = -angular_theta_theta_1;
+          angular_phi_phi_2 = square(cos_theta) * cos_2phi;
+          break;
+        default:
+          ERROR("Unsupported Teukolsky mode");
+      }
 
-    const DataType radial_a =
-        3.0 *
-        (profile_2 + (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
-                         radius_from_center) /
-        cube(radius_from_center);
-    const DataType radial_b =
-        -(-profile_3 + (3.0 * profile_2 + (-6.0 * profile_1 +
-                                           6.0 * profile / radius_from_center) /
-                                              radius_from_center) /
+      const DataType radial_a =
+          3.0 *
+          (profile_2 + (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
                            radius_from_center) /
-        square(radius_from_center);
-    const DataType radial_c =
-        0.25 *
-        (profile_4 + (-2.0 * profile_3 +
-                      (9.0 * profile_2 + (-21.0 * profile_1 +
-                                          21.0 * profile / radius_from_center) /
-                                             radius_from_center) /
-                          radius_from_center) /
-                         radius_from_center) /
-        radius_from_center;
-
-    get<0, 0>(spherical_metric) = radial_a * angular_rr;
-    get<0, 1>(spherical_metric) =
-        radius_from_center * radial_b * angular_rtheta;
-    get<0, 2>(spherical_metric) =
-        radius_from_center * radial_b * angular_rphi * sin_theta;
-    get<1, 1>(spherical_metric) =
-        square(radius_from_center) *
-        (radial_c * angular_theta_theta_1 + radial_a * angular_theta_theta_2);
-    get<1, 2>(spherical_metric) = square(radius_from_center) *
-                                  (radial_a - 2.0 * radial_c) *
-                                  angular_thetaphi * sin_theta;
-    get<2, 2>(spherical_metric) =
-        square(radius_from_center) *
-        (radial_c * angular_phi_phi_1 + radial_a * angular_phi_phi_2) *
-        square(sin_theta);
-
-    const double propagation_sign = ingoing ? 1.0 : -1.0;
-    const DataType dt_radial_a =
-        propagation_sign * 3.0 *
-        (profile_3 + (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
-                         radius_from_center) /
-        cube(radius_from_center);
-    const DataType dt_radial_b =
-        -propagation_sign *
-        (-profile_4 +
-         (3.0 * profile_3 +
-          (-6.0 * profile_2 + 6.0 * profile_1 / radius_from_center) /
-              radius_from_center) /
-             radius_from_center) /
-        square(radius_from_center);
-    const DataType dt_radial_c =
-        propagation_sign * 0.25 *
-        (profile_5 +
-         (-2.0 * profile_4 +
-          (9.0 * profile_3 +
-           (-21.0 * profile_2 + 21.0 * profile_1 / radius_from_center) /
+          cube(radius_from_center);
+      const DataType radial_b =
+          -(-profile_3 +
+            (3.0 * profile_2 +
+             (-6.0 * profile_1 + 6.0 * profile / radius_from_center) /
+                 radius_from_center) /
+                radius_from_center) /
+          square(radius_from_center);
+      const DataType radial_c =
+          0.25 *
+          (profile_4 +
+           (-2.0 * profile_3 +
+            (9.0 * profile_2 +
+             (-21.0 * profile_1 + 21.0 * profile / radius_from_center) /
+                 radius_from_center) /
+                radius_from_center) /
                radius_from_center) /
-              radius_from_center) /
-             radius_from_center) /
-        radius_from_center;
+          radius_from_center;
 
-    get<0, 0>(dt_spherical_metric) = dt_radial_a * angular_rr;
-    get<0, 1>(dt_spherical_metric) =
-        radius_from_center * dt_radial_b * angular_rtheta;
-    get<0, 2>(dt_spherical_metric) =
-        radius_from_center * dt_radial_b * angular_rphi * sin_theta;
-    get<1, 1>(dt_spherical_metric) =
-        square(radius_from_center) * (dt_radial_c * angular_theta_theta_1 +
-                                      dt_radial_a * angular_theta_theta_2);
-    get<1, 2>(dt_spherical_metric) = square(radius_from_center) *
-                                     (dt_radial_a - 2.0 * dt_radial_c) *
+      get<0, 0>(spherical_metric) += radial_a * angular_rr;
+      get<0, 1>(spherical_metric) +=
+          radius_from_center * radial_b * angular_rtheta;
+      get<0, 2>(spherical_metric) +=
+          radius_from_center * radial_b * angular_rphi * sin_theta;
+      get<1, 1>(spherical_metric) +=
+          square(radius_from_center) *
+          (radial_c * angular_theta_theta_1 + radial_a * angular_theta_theta_2);
+      get<1, 2>(spherical_metric) += square(radius_from_center) *
+                                     (radial_a - 2.0 * radial_c) *
                                      angular_thetaphi * sin_theta;
-    get<2, 2>(dt_spherical_metric) =
-        square(radius_from_center) *
-        (dt_radial_c * angular_phi_phi_1 + dt_radial_a * angular_phi_phi_2) *
-        square(sin_theta);
-  } else {
-    auto angular_rtheta = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_rphi = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_theta_theta = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_thetaphi = make_with_value<DataType>(centered_x, 0.0);
-    auto angular_phi_phi = make_with_value<DataType>(centered_x, 0.0);
-    switch (mode) {
-      case -2:
-        angular_rtheta = 4.0 * sin_theta * sin_2phi;
-        angular_rphi = 4.0 * sin_theta * cos_theta * cos_2phi;
-        angular_theta_theta = -2.0 * cos_theta * sin_2phi;
-        angular_thetaphi = -(2.0 - square(sin_theta)) * cos_2phi;
-        angular_phi_phi = 2.0 * cos_theta * sin_2phi;
-        break;
-      case -1:
-        angular_rtheta = -2.0 * cos_theta * sin_phi;
-        angular_rphi = -2.0 * (square(cos_theta) - square(sin_theta)) * cos_phi;
-        angular_theta_theta = -sin_theta * sin_phi;
-        angular_thetaphi = -cos_theta * sin_theta * cos_phi;
-        angular_phi_phi = sin_theta * sin_phi;
-        break;
-      case 0:
-        angular_rphi = -4.0 * cos_theta * sin_theta;
-        angular_thetaphi = -square(sin_theta);
-        break;
-      case 1:
-        angular_rtheta = -2.0 * cos_theta * cos_phi;
-        angular_rphi = 2.0 * (square(cos_theta) - square(sin_theta)) * sin_phi;
-        angular_theta_theta = -sin_theta * cos_phi;
-        angular_thetaphi = cos_theta * sin_theta * sin_phi;
-        angular_phi_phi = sin_theta * cos_phi;
-        break;
-      case 2:
-        angular_rtheta = 4.0 * sin_theta * cos_2phi;
-        angular_rphi = -4.0 * sin_theta * cos_theta * sin_2phi;
-        angular_theta_theta = -2.0 * cos_theta * cos_2phi;
-        angular_thetaphi = (2.0 - square(sin_theta)) * sin_2phi;
-        angular_phi_phi = 2.0 * cos_theta * cos_2phi;
-        break;
-      default:
-        ERROR("Unsupported Teukolsky mode");
-    }
+      get<2, 2>(spherical_metric) +=
+          square(radius_from_center) *
+          (radial_c * angular_phi_phi_1 + radial_a * angular_phi_phi_2) *
+          square(sin_theta);
 
-    const DataType radial_k =
-        (profile_2 + (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
-                         radius_from_center) /
-        square(radius_from_center);
-    const DataType radial_l =
-        (-profile_3 + (2.0 * profile_2 +
-                       (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
+      const DataType dt_radial_a =
+          propagation_sign * 3.0 *
+          (profile_3 +
+           (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
+               radius_from_center) /
+          cube(radius_from_center);
+      const DataType dt_radial_b =
+          -propagation_sign *
+          (-profile_4 +
+           (3.0 * profile_3 +
+            (-6.0 * profile_2 + 6.0 * profile_1 / radius_from_center) /
+                radius_from_center) /
+               radius_from_center) /
+          square(radius_from_center);
+      const DataType dt_radial_c =
+          propagation_sign * 0.25 *
+          (profile_5 +
+           (-2.0 * profile_4 +
+            (9.0 * profile_3 +
+             (-21.0 * profile_2 + 21.0 * profile_1 / radius_from_center) /
+                 radius_from_center) /
+                radius_from_center) /
+               radius_from_center) /
+          radius_from_center;
+
+      get<0, 0>(dt_spherical_metric) += dt_radial_a * angular_rr;
+      get<0, 1>(dt_spherical_metric) +=
+          radius_from_center * dt_radial_b * angular_rtheta;
+      get<0, 2>(dt_spherical_metric) +=
+          radius_from_center * dt_radial_b * angular_rphi * sin_theta;
+      get<1, 1>(dt_spherical_metric) +=
+          square(radius_from_center) * (dt_radial_c * angular_theta_theta_1 +
+                                        dt_radial_a * angular_theta_theta_2);
+      get<1, 2>(dt_spherical_metric) += square(radius_from_center) *
+                                        (dt_radial_a - 2.0 * dt_radial_c) *
+                                        angular_thetaphi * sin_theta;
+      get<2, 2>(dt_spherical_metric) +=
+          square(radius_from_center) *
+          (dt_radial_c * angular_phi_phi_1 + dt_radial_a * angular_phi_phi_2) *
+          square(sin_theta);
+    } else {
+      auto angular_rtheta = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_rphi = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_theta_theta = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_thetaphi = make_with_value<DataType>(centered_x, 0.0);
+      auto angular_phi_phi = make_with_value<DataType>(centered_x, 0.0);
+      switch (active_mode) {
+        case -2:
+          angular_rtheta = 4.0 * sin_theta * sin_2phi;
+          angular_rphi = 4.0 * sin_theta * cos_theta * cos_2phi;
+          angular_theta_theta = -2.0 * cos_theta * sin_2phi;
+          angular_thetaphi = -(2.0 - square(sin_theta)) * cos_2phi;
+          angular_phi_phi = 2.0 * cos_theta * sin_2phi;
+          break;
+        case -1:
+          angular_rtheta = -2.0 * cos_theta * sin_phi;
+          angular_rphi =
+              -2.0 * (square(cos_theta) - square(sin_theta)) * cos_phi;
+          angular_theta_theta = -sin_theta * sin_phi;
+          angular_thetaphi = -cos_theta * sin_theta * cos_phi;
+          angular_phi_phi = sin_theta * sin_phi;
+          break;
+        case 0:
+          angular_rphi = -4.0 * cos_theta * sin_theta;
+          angular_thetaphi = -square(sin_theta);
+          break;
+        case 1:
+          angular_rtheta = -2.0 * cos_theta * cos_phi;
+          angular_rphi =
+              2.0 * (square(cos_theta) - square(sin_theta)) * sin_phi;
+          angular_theta_theta = -sin_theta * cos_phi;
+          angular_thetaphi = cos_theta * sin_theta * sin_phi;
+          angular_phi_phi = sin_theta * cos_phi;
+          break;
+        case 2:
+          angular_rtheta = 4.0 * sin_theta * cos_2phi;
+          angular_rphi = -4.0 * sin_theta * cos_theta * sin_2phi;
+          angular_theta_theta = -2.0 * cos_theta * cos_2phi;
+          angular_thetaphi = (2.0 - square(sin_theta)) * sin_2phi;
+          angular_phi_phi = 2.0 * cos_theta * cos_2phi;
+          break;
+        default:
+          ERROR("Unsupported Teukolsky mode");
+      }
+
+      const DataType radial_k =
+          (profile_2 + (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
                            radius_from_center) /
-                          radius_from_center) /
-        radius_from_center;
+          square(radius_from_center);
+      const DataType radial_l =
+          (-profile_3 +
+           (2.0 * profile_2 +
+            (-3.0 * profile_1 + 3.0 * profile / radius_from_center) /
+                radius_from_center) /
+               radius_from_center) /
+          radius_from_center;
 
-    get<0, 1>(spherical_metric) =
-        radius_from_center * radial_k * angular_rtheta;
-    get<0, 2>(spherical_metric) =
-        radius_from_center * radial_k * angular_rphi * sin_theta;
-    get<1, 1>(spherical_metric) =
-        square(radius_from_center) * radial_l * angular_theta_theta;
-    get<1, 2>(spherical_metric) =
-        square(radius_from_center) * radial_l * angular_thetaphi * sin_theta;
-    get<2, 2>(spherical_metric) = square(radius_from_center) * radial_l *
-                                  angular_phi_phi * square(sin_theta);
-
-    const double propagation_sign = ingoing ? 1.0 : -1.0;
-    const DataType dt_radial_k =
-        propagation_sign *
-        (profile_3 + (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
-                         radius_from_center) /
-        square(radius_from_center);
-    const DataType dt_radial_l =
-        propagation_sign *
-        (-profile_4 +
-         (2.0 * profile_3 +
-          (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
-              radius_from_center) /
-             radius_from_center) /
-        radius_from_center;
-
-    get<0, 1>(dt_spherical_metric) =
-        radius_from_center * dt_radial_k * angular_rtheta;
-    get<0, 2>(dt_spherical_metric) =
-        radius_from_center * dt_radial_k * angular_rphi * sin_theta;
-    get<1, 1>(dt_spherical_metric) =
-        square(radius_from_center) * dt_radial_l * angular_theta_theta;
-    get<1, 2>(dt_spherical_metric) =
-        square(radius_from_center) * dt_radial_l * angular_thetaphi * sin_theta;
-    get<2, 2>(dt_spherical_metric) = square(radius_from_center) * dt_radial_l *
+      get<0, 1>(spherical_metric) +=
+          radius_from_center * radial_k * angular_rtheta;
+      get<0, 2>(spherical_metric) +=
+          radius_from_center * radial_k * angular_rphi * sin_theta;
+      get<1, 1>(spherical_metric) +=
+          square(radius_from_center) * radial_l * angular_theta_theta;
+      get<1, 2>(spherical_metric) +=
+          square(radius_from_center) * radial_l * angular_thetaphi * sin_theta;
+      get<2, 2>(spherical_metric) += square(radius_from_center) * radial_l *
                                      angular_phi_phi * square(sin_theta);
-  }
+
+      const DataType dt_radial_k =
+          propagation_sign *
+          (profile_3 +
+           (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
+               radius_from_center) /
+          square(radius_from_center);
+      const DataType dt_radial_l =
+          propagation_sign *
+          (-profile_4 +
+           (2.0 * profile_3 +
+            (-3.0 * profile_2 + 3.0 * profile_1 / radius_from_center) /
+                radius_from_center) /
+               radius_from_center) /
+          radius_from_center;
+
+      get<0, 1>(dt_spherical_metric) +=
+          radius_from_center * dt_radial_k * angular_rtheta;
+      get<0, 2>(dt_spherical_metric) +=
+          radius_from_center * dt_radial_k * angular_rphi * sin_theta;
+      get<1, 1>(dt_spherical_metric) +=
+          square(radius_from_center) * dt_radial_l * angular_theta_theta;
+      get<1, 2>(dt_spherical_metric) += square(radius_from_center) *
+                                        dt_radial_l * angular_thetaphi *
+                                        sin_theta;
+      get<2, 2>(dt_spherical_metric) += square(radius_from_center) *
+                                        dt_radial_l * angular_phi_phi *
+                                        square(sin_theta);
+    }
+  };
+
+  add_mode(mode, cosine_profile_derivatives);
 
   // Jacobian dx^{spherical}/dx^{Cartesian} used by to_different_frame.
   Jacobian<DataType, 3, Frame::Inertial, Frame::NoFrame> jacobian =
