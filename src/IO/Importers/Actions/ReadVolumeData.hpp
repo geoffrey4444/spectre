@@ -32,6 +32,7 @@
 #include "IO/Importers/Tags.hpp"
 #include "NumericalAlgorithms/Interpolation/RegularGridInterpolant.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
+#include "NumericalAlgorithms/Spectral/Projection.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/ArrayCollection/IsDgElementCollection.hpp"
 #include "Parallel/ArrayComponentId.hpp"
@@ -45,6 +46,7 @@
 #include "Utilities/FileSystem.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Literals.hpp"
+#include "Utilities/MakeArray.hpp"
 #include "Utilities/Overloader.hpp"
 #include "Utilities/Requires.hpp"
 #include "Utilities/Serialization/Serialize.hpp"
@@ -235,9 +237,19 @@ void interpolate_selected_fields(
     const Mesh<Dim>& source_mesh, const Mesh<Dim>& target_mesh,
     const tuples::tagged_tuple_from_typelist<
         db::wrap_tags_in<Tags::Selected, FieldTagsList>>& selected_fields) {
-  const intrp::RegularGrid<Dim> interpolator{source_mesh, target_mesh};
+  // The angular directions of a spherical-harmonic mesh form one coupled
+  // basis. RegularGrid interpolates each direction separately, which is not
+  // supported for this basis. Use spherical-harmonic prolongation/restriction
+  // (and radial projection in 3D) instead.
+  const bool spherical_harmonics =
+      source_mesh.basis(Dim - 1) == Spectral::Basis::SphericalHarmonic;
+  std::optional<intrp::RegularGrid<Dim>> interpolator{};
+  if (not spherical_harmonics) {
+    interpolator.emplace(source_mesh, target_mesh);
+  }
   tmpl::for_each<FieldTagsList>([&source_element_data, &target_element_data,
-                                 &interpolator,
+                                 &interpolator, &source_mesh, &target_mesh,
+                                 spherical_harmonics,
                                  &selected_fields](auto field_tag_v) {
     using field_tag = tmpl::type_from<decltype(field_tag_v)>;
     const auto& selection = get<Tags::Selected<field_tag>>(selected_fields);
@@ -251,8 +263,16 @@ void interpolate_selected_fields(
       const DataVector& source_tensor_component = source_tensor_data[i];
       DataVector& target_tensor_component = target_tensor_data[i];
       // Interpolate
-      interpolator.interpolate(make_not_null(&target_tensor_component),
-                               source_tensor_component);
+      if (spherical_harmonics) {
+        constexpr auto full_segments =
+            make_array<Dim>(Spectral::SegmentSize::Full);
+        Spectral::project(make_not_null(&target_tensor_component),
+                          source_tensor_component, source_mesh, target_mesh,
+                          full_segments, full_segments);
+      } else {
+        interpolator->interpolate(make_not_null(&target_tensor_component),
+                                  source_tensor_component);
+      }
     }
   });
 }
