@@ -96,10 +96,10 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
     // cross zero, staying in DeltaR mode will rescue the speed
     // automatically (since it drives char speed to comoving char
     // speed).  But we should decrease the timescale in any case.
-    info->suggested_time_scale = crossing_time_info.t_char_speed;
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (delta_radius_is_in_danger) {
-    info->suggested_time_scale = crossing_time_info.t_delta_radius;
+    info->suggest_timescale(crossing_time_info.t_delta_radius);
     ss << "Current state DeltaR. Delta radius in danger. Staying in DeltaR.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (update_args.min_comoving_char_speed > 0.0 and
@@ -109,8 +109,7 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
     // The value of 0.99 below was chosen arbitrarily in SpEC and never
     // needed to be changed.
     constexpr double delta_r_state_decrease_factor = 0.99;
-    info->suggested_time_scale =
-        info->damping_time * delta_r_state_decrease_factor;
+    info->suggest_timescale(info->damping_time * delta_r_state_decrease_factor);
     ss << "Current state DeltaR. Min comoving char speed "
        << update_args.min_comoving_char_speed
        << " > 0 and abs(control_error_delta_r) "
@@ -129,7 +128,7 @@ std::string DeltaR::update(const gsl::not_null<Info*> info,
           "Horizon too close to excision boundary. Switching to "
           "DeltaRDriftInward";
   } else if (inward_drift_limit_in_danger) {
-    info->suggested_time_scale = crossing_time_info.t_drift_limit_delta_radius;
+    info->suggest_timescale(crossing_time_info.t_drift_limit_delta_radius);
     ss << "Current state DeltaR. Inward drift limit in danger. Staying "
           "in DeltaR.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;

@@ -252,6 +252,86 @@ void test_transition_to_delta_r_inward(
                    test_params.avg_distorted_normal_dot_unit_coord_vector));
 }
 
+void test_suggested_timescale_latches_minimum() {
+  TestParams test_params{};
+  test_params.inward_drift_velocity = std::nullopt;
+  test_params.max_allowed_radial_distance = std::nullopt;
+  control_system::size::Info info{
+      std::make_unique<control_system::size::States::Initial>(),
+      test_params.damping_time,
+      test_params.original_target_char_speed,
+      0.001,
+      std::nullopt,
+      false};
+  const auto make_update_args = [&test_params]() {
+    return control_system::size::StateUpdateArgs{
+        test_params.min_char_speed,
+        test_params.min_comoving_char_speed,
+        test_params.horizon_00,
+        test_params.control_err_delta_r,
+        test_params.average_radial_distance,
+        test_params.max_allowed_radial_distance,
+        test_params.avg_distorted_normal_dot_unit_coord_vector,
+        test_params.inward_drift_velocity,
+        test_params.min_allowed_radial_distance,
+        test_params.min_allowed_char_speed,
+        test_params.comoving_char_speed_increasing_inward};
+  };
+
+  // A threatened horizon-excision crossing requests a short timescale while
+  // transitioning from Initial to DeltaR, with both drift states disabled.
+  static_cast<void>(control_system::size::States::Initial{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt, 0.01,
+                                             std::nullopt, std::nullopt}));
+  REQUIRE(info.state->number() ==
+          control_system::size::States::DeltaR{}.number());
+  REQUIRE(info.suggested_time_scale.has_value());
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // Acknowledging a discontinuity must leave the suggestion pending until the
+  // tuner updates after the last measurement in the batch.
+  info.acknowledge_discontinuous_change();
+  CHECK_FALSE(info.discontinuous_change_has_occurred);
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // A measurement with no recommendation leaves the urgent value pending.
+  test_params.min_comoving_char_speed = 0.02;
+  test_params.control_err_delta_r = 0.0;
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt,
+                                             std::nullopt, std::nullopt,
+                                             std::nullopt}));
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // Routine damping-time reduction must not overwrite an earlier, more urgent
+  // recommendation before the tuner consumes it.
+  test_params.control_err_delta_r = 0.03;
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt,
+                                             std::nullopt, std::nullopt,
+                                             std::nullopt}));
+  CHECK(info.suggested_time_scale.value() == approx(0.01));
+
+  // Once the tuner consumes the pending value, reset starts a new batch.
+  info.reset();
+  static_cast<void>(control_system::size::States::DeltaR{}.update(
+      make_not_null(&info), make_update_args(),
+      control_system::size::CrossingTimeInfo{std::nullopt, std::nullopt,
+                                             std::nullopt, std::nullopt,
+                                             std::nullopt}));
+  REQUIRE(info.suggested_time_scale.has_value());
+  CHECK(info.suggested_time_scale.value() ==
+        approx(0.99 * test_params.damping_time));
+
+  info.suggest_timescale(0.005);
+  CHECK(info.suggested_time_scale.value() == approx(0.005));
+  info.suggest_timescale(std::nullopt);
+  CHECK(info.suggested_time_scale.value() == approx(0.005));
+}
+
 void test_size_control_update() {
   TestParams test_params;  // With reasonable default values.
 
@@ -1123,6 +1203,7 @@ void test_name_and_number() {
 
 SPECTRE_TEST_CASE("Unit.ControlSystem.SizeControlStates", "[Domain][Unit]") {
   control_system::size::register_derived_with_charm();
+  test_suggested_timescale_latches_minimum();
   test_size_control_update();
   test_size_control_error();
   test_clone_and_serialization<control_system::size::States::Initial>();

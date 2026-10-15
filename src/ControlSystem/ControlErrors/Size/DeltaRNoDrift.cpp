@@ -77,10 +77,10 @@ std::string DeltaRNoDrift::update(
     // cross zero, staying in DeltaRNoDrift mode will rescue the speed
     // automatically (since it drives char speed to comoving char
     // speed).  But we should decrease the timescale in any case.
-    info->suggested_time_scale = crossing_time_info.t_char_speed;
+    info->suggest_timescale(crossing_time_info.t_char_speed);
     ss << " Suggested timescale = " << info->suggested_time_scale;
   } else if (delta_radius_is_in_danger) {
-    info->suggested_time_scale = crossing_time_info.t_delta_radius;
+    info->suggest_timescale(crossing_time_info.t_delta_radius);
     ss << "Current state DeltaRNoDrift. Delta radius in danger. Staying in "
           "DeltaRNoDrift.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
@@ -94,7 +94,7 @@ std::string DeltaRNoDrift::update(
                  info->damping_time and
              (update_args.min_allowed_char_speed.has_value() or
               update_args.min_allowed_radial_distance.has_value())) {
-    info->suggested_time_scale = crossing_time_info.t_drift_limit;
+    info->suggest_timescale(crossing_time_info.t_drift_limit);
     ss << "Current state DeltaRNoDrift. Inward drift limit in danger. Staying "
           "in DeltaRNoDrift.\n";
     ss << " Suggested timescale = " << info->suggested_time_scale;
