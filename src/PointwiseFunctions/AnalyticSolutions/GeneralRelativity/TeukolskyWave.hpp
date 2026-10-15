@@ -182,6 +182,9 @@ class TeukolskyWave : public MarkAsAnalyticSolution {
     return include_minkowski_background_;
   }
 
+  /// Return a copy that includes or excludes the Minkowski background.
+  TeukolskyWave with_minkowski_background(bool include_background) const;
+
  private:
   template <typename DataType>
   auto variables(const tnsr::I<DataType, volume_dim, Frame::Inertial>& x,
