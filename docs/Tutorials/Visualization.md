@@ -56,6 +56,29 @@ executable. Each volume data file will have its corresponding node
 number appended to its file name.  Visualization of the volume data
 will be described in the next sections.
 
+#### Visualizing incoming Weyl curvature
+
+Vacuum three-dimensional generalized-harmonic executables, including
+`EvolveGhSingleBlackHole` and `EvolveGhBinaryBlackHole`, can observe `Psi0Real`.
+Add it to `VariablesToObserve` in an existing `ObserveFields` event, for example
+alongside `Psi4Real`:
+
+```yaml
+VariablesToObserve:
+  - Psi0Real
+  - Psi4Real
+```
+
+`Psi0Real` is the real part of the incoming Weyl characteristic in the
+coordinate-based null tetrad described by `gr::psi_0_real`. It can help
+visualize incoming curvature during vacuum black-hole evolutions. Its value
+depends on the coordinates and polarization basis: it is not an invariant wave
+amplitude, energy, or flux. A nonzero value in a strong-field region alone does
+not establish incoming radiation. The basis can be discontinuous at coordinate
+singularities. Its finite extension at the coordinate origin has no radial
+tetrad interpretation. The calculation uses the vacuum Weyl expression and
+does not include matter corrections.
+
 ### Plotting data with Python
 
 See the tutorial on \ref tutorial_vis_python to learn how to load and visualize
