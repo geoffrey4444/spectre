@@ -633,7 +633,10 @@ struct ApplyBoundaryCorrections {
           ::Tags::TimeStepper<TimeStepperType>,
           evolution::Tags::BoundaryCorrection,
           tmpl::conditional_t<
-              DenseOutput, ::Tags::Time,
+              DenseOutput,
+              tmpl::list<::Tags::Time,
+                         Filters::Tags::SpectralFilter<volume_dim,
+                                                       FilterTagList>>,
               tmpl::list<
                   ::Tags::TimeStep,
                   Filters::Tags::SpectralFilter<volume_dim, FilterTagList>,
@@ -729,12 +732,14 @@ struct ApplyBoundaryCorrections {
           face_normal_covector_and_magnitude,
       const LtsTimeStepper& time_stepper,
       const evolution::BoundaryCorrection& boundary_correction,
-      const double dense_output_time, const VolumeArgs&... volume_args) {
+      const double dense_output_time,
+      const Filters::Filter<volume_dim, FilterTagList>& boundary_filter,
+      const VolumeArgs&... volume_args) {
     apply_impl(
         vars_to_update, mortar_data, volume_mesh, element, mortar_meshes,
         mortar_infos, dg_formulation, face_normal_covector_and_magnitude,
         time_stepper, boundary_correction, TimeDelta{}, dense_output_time,
-        nullptr, static_cast<uint64_t>(0),
+        &boundary_filter, static_cast<uint64_t>(0),
         Jacobian<DataVector, volume_dim, Frame::Grid, Frame::Inertial>{},
         InverseJacobian<DataVector, volume_dim, Frame::Grid, Frame::Inertial>{},
         {}, volume_args...);
@@ -806,7 +811,7 @@ struct ApplyBoundaryCorrections {
     // The auxiliary boundary correction is not filtered currently (see the
     // filter application below), so the auxiliary pass skips the
     // filter-activity check and the face-Jacobian setup it would trigger.
-    if constexpr (not DenseOutput and not ComputeAuxiliary) {
+    if constexpr (not local_time_stepping and not ComputeAuxiliary) {
       if (filter_ptr != nullptr and
           dynamic_cast<const Filters::None<volume_dim, FilterTagList>*>(
               filter_ptr) == nullptr) {
@@ -818,7 +823,7 @@ struct ApplyBoundaryCorrections {
     }
 
     const bool need_face_jacobians = [&]() {
-      if constexpr (DenseOutput) {
+      if constexpr (local_time_stepping) {
         return false;
       } else {
         return boundary_filter_active and filter_ptr != nullptr and
@@ -1124,10 +1129,14 @@ struct ApplyBoundaryCorrections {
                 return dt_boundary_correction_on_mortar;
               }();
               // The auxiliary boundary correction is not filtered currently
-              if constexpr (not DenseOutput and not ComputeAuxiliary) {
-                // Filter the boundary correction on the mortar before it is
+              if constexpr (not ComputeAuxiliary) {
+                // Filter the boundary correction on the face before it is
                 // lifted into the volume.
-                if (boundary_filter_active) {
+                const bool filter_this_coupling =
+                    local_time_stepping
+                        ? local_mortar_data.boundary_filter_active
+                        : boundary_filter_active;
+                if (filter_this_coupling) {
                   using BoundaryFilterVars = Variables<FilterTagList>;
                   auto boundary_filter_view =
                       dt_boundary_correction
@@ -1135,7 +1144,12 @@ struct ApplyBoundaryCorrections {
                               BoundaryFilterVars>();
                   filter_ptr->apply_on_boundary(
                       make_not_null(&boundary_filter_view), face_mesh,
-                      face_inv_jac_grid_to_inertial, face_jac_grid_to_inertial);
+                      local_time_stepping
+                          ? local_mortar_data.face_inv_jac_grid_to_inertial
+                          : face_inv_jac_grid_to_inertial,
+                      local_time_stepping
+                          ? local_mortar_data.face_jac_grid_to_inertial
+                          : face_jac_grid_to_inertial);
                 }
               } else {
                 (void)boundary_filter_active;

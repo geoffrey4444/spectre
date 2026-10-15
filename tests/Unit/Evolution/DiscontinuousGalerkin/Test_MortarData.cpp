@@ -355,7 +355,52 @@ void test_p_project() {
 }
 
 template <size_t Dim>
+void test_filter_history_geometry() {
+  const Mesh<Dim> old_volume_mesh{3, Spectral::Basis::Legendre,
+                                  Spectral::Quadrature::GaussLobatto};
+  const Mesh<Dim> new_volume_mesh{5, Spectral::Basis::Legendre,
+                                  Spectral::Quadrature::GaussLobatto};
+  const auto old_face_mesh = old_volume_mesh.slice_away(0);
+  const auto new_face_mesh = new_volume_mesh.slice_away(0);
+  MortarData<Dim> data{};
+  data.face_mesh = old_face_mesh;
+  data.face_normal_magnitude.emplace(old_face_mesh.number_of_grid_points(), 1.0);
+  data.boundary_filter_active = true;
+  data.face_jac_grid_to_inertial.emplace(old_face_mesh.number_of_grid_points(),
+                                        0.0);
+  data.face_inv_jac_grid_to_inertial.emplace(
+      old_face_mesh.number_of_grid_points(), 0.0);
+  for (size_t i = 0; i < Dim; ++i) {
+    data.face_jac_grid_to_inertial->get(i, i) = 2.0 + i;
+    data.face_inv_jac_grid_to_inertial->get(i, i) = 1.0 / (2.0 + i);
+  }
+  CHECK(serialize_and_deserialize(data) == data);
+  CHECK(p_project_geometric_data(make_not_null(&data), new_face_mesh,
+                                  new_volume_mesh) == (Dim > 1));
+  CHECK(data.boundary_filter_active);
+  for (size_t i = 0; i < Dim; ++i) {
+    CHECK_ITERABLE_APPROX(data.face_jac_grid_to_inertial->get(i, i),
+                         (DataVector{new_face_mesh.number_of_grid_points(),
+                                     2.0 + i}));
+    CHECK_ITERABLE_APPROX(data.face_inv_jac_grid_to_inertial->get(i, i),
+                         (DataVector{new_face_mesh.number_of_grid_points(),
+                                     1.0 / (2.0 + i)}));
+  }
+  CHECK(serialize_and_deserialize(data) == data);
+  auto changed = data;
+  changed.boundary_filter_active = false;
+  CHECK(changed != data);
+  changed = data;
+  get<0, 0>(*changed.face_jac_grid_to_inertial) += 1.0;
+  CHECK(changed != data);
+  changed = data;
+  get<0, 0>(*changed.face_inv_jac_grid_to_inertial) += 1.0;
+  CHECK(changed != data);
+}
+
+template <size_t Dim>
 void test() {
+  test_filter_history_geometry<Dim>();
   test_global_time_stepping_usage<Dim>();
   test_local_time_stepping_usage<Dim>(true);
   test_local_time_stepping_usage<Dim>(false);

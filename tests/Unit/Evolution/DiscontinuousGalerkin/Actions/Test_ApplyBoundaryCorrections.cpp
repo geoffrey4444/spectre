@@ -40,6 +40,7 @@
 #include "Evolution/DiscontinuousGalerkin/NormalVectorTags.hpp"
 #include "Evolution/Initialization/DgDomain.hpp"
 #include "Framework/ActionTesting.hpp"
+#include "Framework/TestHelpers.hpp"
 #include "Helpers/DataStructures/MakeWithRandomValues.hpp"
 #include "Helpers/Evolution/DiscontinuousGalerkin/Actions/SystemType.hpp"
 #include "NumericalAlgorithms/DiscontinuousGalerkin/Formulation.hpp"
@@ -65,6 +66,7 @@
 #include "Time/Time.hpp"
 #include "Time/TimeStepId.hpp"
 #include "Time/TimeSteppers/AdamsBashforth.hpp"
+#include "Time/TimeSteppers/AdamsMoultonPc.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeVector.hpp"
@@ -1845,7 +1847,7 @@ class MockBoundaryFilter
           Jacobian<DataVector, 1, Frame::Grid, Frame::Inertial>>&
       /*jac*/) const override {}
   void apply_on_boundary(
-      gsl::not_null<Variables<tmpl::list<Var1, Var2<1>>>*> /*vars*/,
+      gsl::not_null<Variables<tmpl::list<Var1, Var2<1>>>*> vars,
       const Mesh<0>& /*face_mesh*/,
       const std::optional<InverseJacobian<DataVector, 1, Frame::Grid,
                                           Frame::Inertial>>& inv_jac,
@@ -1854,6 +1856,11 @@ class MockBoundaryFilter
     ++call_count_;
     saw_inv_jac_ = inv_jac.has_value();
     saw_jac_ = jac.has_value();
+    if (need_jacs_) {
+      REQUIRE(jac.has_value());
+      REQUIRE(inv_jac.has_value());
+      *vars *= get<0, 0>(*jac)[0];
+    }
   }
   size_t call_count() const { return call_count_; }
   bool saw_inv_jac() const { return saw_inv_jac_; }
@@ -1873,6 +1880,99 @@ class MockBoundaryFilter
 };
 // NOLINTNEXTLINE
 PUP::able::PUP_ID MockBoundaryFilter::my_PUP_ID = 0;
+
+// BoundaryHistory caches coupling results by (local ID, remote ID), so dense
+// output, a full step, and a cache miss at a later current time must agree.
+// Exercise the actual DG mutator, not only the time-stepper cache machinery.
+void test_boundary_filter_lts_history() {
+  using metavars = Metavariables<1, TestHelpers::SystemType::Conservative,
+                                 true, false>;
+  using Full = evolution::dg::ApplyBoundaryCorrections<
+      true, metavars, false, false, typename metavars::system::variables_tag>;
+  using Dense = evolution::dg::ApplyBoundaryCorrections<
+      true, metavars, true, false, typename metavars::system::variables_tag>;
+  using Vars = typename metavars::system::variables_tag::type;
+  using HistoryMap = evolution::dg::Tags::MortarDataHistory<1>::type;
+  const ElementId<1> self_id{0, {{{1, 0}}}};
+  const ElementId<1> neighbor_id{0, {{{1, 1}}}};
+  const auto direction = Direction<1>::upper_xi();
+  const DirectionalId<1> mortar_id{direction, neighbor_id};
+  DirectionMap<1, Neighbors<1>> neighbors{};
+  neighbors[direction] =
+      Neighbors<1>{{neighbor_id}, OrientationMap<1>::create_aligned()};
+  const Element<1> element{self_id, std::move(neighbors)};
+  const Mesh<1> mesh{5, Spectral::Basis::Legendre,
+                     Spectral::Quadrature::GaussLobatto};
+  const evolution::dg::Tags::MortarMesh<1>::type mortar_meshes{
+      {mortar_id, Mesh<0>{}}};
+  evolution::dg::Tags::MortarInfo<1>::type mortar_infos{};
+  mortar_infos[mortar_id].time_stepping_policy() =
+      evolution::dg::TimeSteppingPolicy::Conservative;
+  const evolution::dg::Tags::NormalCovectorAndMagnitude<1>::type normals{};
+  const Slab slab{0.0, 1.0};
+  const TimeDelta dt{slab, {1, 10}};
+  const TimeSteppers::AdamsMoultonPc<true> stepper{4};
+  const BoundaryTerms<1> correction{};
+  // The current cadence says inactive, while the stored local records say
+  // active. Only the latter is part of the cached coupling's identity.
+  const MockBoundaryFilter filter{false, false, true};
+  const auto make_history = [&](const bool active) {
+    HistoryMap histories{};
+    auto& history = histories[mortar_id];
+    for (int n = 0; n < 3; ++n) {
+      const TimeStepId id{true, 0, Time{slab, {n, 10}}};
+      evolution::dg::MortarData<1> local{};
+      constexpr size_t components = Variables<
+          BoundaryTerms<1>::dg_package_field_tags>::number_of_independent_components;
+      local.mortar_data.emplace(components, 1.0);
+      local.mortar_mesh.emplace();
+      local.face_mesh.emplace();
+      local.face_normal_magnitude.emplace(1_st, 1.0);
+      local.boundary_filter_active = active;
+      local.face_jac_grid_to_inertial.emplace(1_st, 0.25);
+      local.face_inv_jac_grid_to_inertial.emplace(1_st, 4.0);
+      auto remote = local;
+      *remote.mortar_data = 2.0;
+      history.local().insert(id, 4, std::move(local));
+      history.remote().insert(id, 4, std::move(remote));
+    }
+    return histories;
+  };
+  const auto full_step = [&](const HistoryMap& histories,
+                             const double current_jacobian) {
+    Vars result{mesh.number_of_grid_points(), 0.0};
+    Full::apply(
+        make_not_null(&result), histories, mesh, element, mortar_meshes,
+        mortar_infos, dg::Formulation::StrongInertial, normals, stepper,
+        correction, dt, filter, 17,
+        Jacobian<DataVector, 1, Frame::Grid, Frame::Inertial>{
+            mesh.number_of_grid_points(), current_jacobian},
+        InverseJacobian<DataVector, 1, Frame::Grid, Frame::Inertial>{
+            mesh.number_of_grid_points(), 1.0 / current_jacobian},
+        10);
+    return result;
+  };
+  auto clean = make_history(true);
+  const auto expected = full_step(clean, 4.0);
+  auto unfiltered = make_history(false);
+  auto unfiltered_result = full_step(unfiltered, 4.0);
+  CHECK(max(abs(get(get<Var1>(expected)))) > 0.0);
+  unfiltered_result *= 0.25;
+  CHECK_VARIABLES_APPROX(expected, unfiltered_result);
+
+  auto observed = make_history(true);
+  Vars dense{mesh.number_of_grid_points(), 0.0};
+  Dense::apply(make_not_null(&dense), observed, mesh, element, mortar_meshes,
+               mortar_infos, dg::Formulation::StrongInertial, normals, stepper,
+               correction, 0.25, filter, 10);
+  CHECK_VARIABLES_APPROX(full_step(observed, 4.0), expected);
+  dense *= 2.0;
+  CHECK_VARIABLES_APPROX(dense, expected);
+  observed.at(mortar_id).clear_coupling_cache();
+  CHECK_VARIABLES_APPROX(full_step(observed, 9.0), expected);
+  CHECK(filter.saw_jac());
+  CHECK(filter.saw_inv_jac());
+}
 
 // Runs a 1D GTS GaussLobatto scenario with the given filter and calls
 // callback(runner, self_id) after the boundary-correction action completes.
@@ -2129,5 +2229,10 @@ SPECTRE_TEST_CASE("Unit.Evolution.DG.ApplyBoundaryCorrections",
   test_deterministic_mortar_interpolation</*IsAuxiliary=*/true>();
   test_auxiliary_boundary_no_filter_jacobians_passed_when_needed();
   test_auxiliary_boundary_no_filter_jacobians_not_passed_when_not_needed();
+}
+
+SPECTRE_TEST_CASE("Unit.Evolution.DG.BoundaryFilterLtsHistory",
+                  "[Unit][Evolution][Actions]") {
+  test_boundary_filter_lts_history();
 }
 }  // namespace

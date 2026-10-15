@@ -68,6 +68,15 @@ struct MortarData {
   std::optional<Mesh<Dim - 1>> face_mesh{std::nullopt};
   std::optional<Mesh<Dim>> volume_mesh{std::nullopt};
 
+  // The LTS coupling cache is keyed only by the local and remote TimeStepIds.
+  // All inputs to boundary filtering must therefore belong to the history
+  // record, rather than the time at which the coupling happens to be evaluated.
+  bool boundary_filter_active{false};
+  std::optional<Jacobian<DataVector, Dim, Frame::Grid, Frame::Inertial>>
+      face_jac_grid_to_inertial{std::nullopt};
+  std::optional<InverseJacobian<DataVector, Dim, Frame::Grid, Frame::Inertial>>
+      face_inv_jac_grid_to_inertial{std::nullopt};
+
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p);
 };
