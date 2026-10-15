@@ -121,7 +121,8 @@ GhVars<Dim> boundary_correction(const Args<Dim>& interior, Args<Dim> exterior,
 }
 
 template <size_t Dim>
-void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
+void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts,
+          const double gamma1) {
   register_classes_with_charm<
       gh::BoundaryCorrections::AveragedUpwindPenalty<Dim>>();
 
@@ -134,6 +135,7 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
   std::uniform_real_distribution velocity_dist(-2.0, 2.0);
   auto average_fields =
       make_with_random_values<Args<Dim>>(gen, make_not_null(&dist), num_pts);
+  get(get<gh::Tags::ConstraintGamma1>(average_fields)) = gamma1;
   // Use a larger range for the mesh velocity so we get all sign
   // combinations for the speeds.
   fill_with_random_values(
@@ -277,13 +279,56 @@ void test(const gsl::not_null<std::mt19937*> gen, const size_t num_pts) {
   }
 }
 
+void test_metric_speed_sign() {
+  constexpr double gamma2 = 1.3;
+  constexpr double metric_jump = 0.02;
+  for (const double gamma1 : {-2.0, -1.0, -0.5}) {
+    for (const double shift : {-0.4, 0.4}) {
+      for (const double mesh_speed : {-0.2, 0.0, 0.2}) {
+        CAPTURE(gamma1, shift, mesh_speed);
+        Args<1> average{1, 0.0};
+        auto& metric = get<gr::Tags::SpacetimeMetric<DataVector, 1>>(average);
+        get<0, 0>(metric) = -1.0 + shift * shift;
+        get<0, 1>(metric) = shift;
+        get<1, 1>(metric) = 1.0;
+        get(get<gh::Tags::ConstraintGamma1>(average)) = gamma1;
+        get(get<gh::Tags::ConstraintGamma2>(average)) = gamma2;
+        get<0>(get<domain::Tags::UnnormalizedFaceNormal<1>>(average)) = 1.0;
+        get<0>(get<MeshVelocity<1>>(average)) = mesh_speed;
+        Args<1> delta{1, 0.0};
+        get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 1>>(delta)) =
+            0.5 * metric_jump;
+        get<0, 0>(get<gh::Tags::Pi<DataVector, 1>>(delta)) =
+            0.5 * gamma2 * metric_jump;
+        // This jump is a pure metric characteristic: delta(Pi-gamma2*g)=0.
+        const auto correction =
+            boundary_correction<1>(average - delta, average + delta);
+        const double speed = -(1.0 + gamma1) * (shift + mesh_speed);
+        const double expected = speed < 0.0 ? speed * metric_jump : 0.0;
+        CHECK(get<0, 0>(get<gr::Tags::SpacetimeMetric<DataVector, 1>>(
+                  correction))[0] == approx(expected));
+        CHECK(get<0, 0>(get<gh::Tags::Pi<DataVector, 1>>(correction))[0] ==
+              approx(gamma2 * expected));
+        for (const auto& component :
+             get<gh::Tags::Phi<DataVector, 1>>(correction)) {
+          CHECK(component[0] == approx(0.0));
+        }
+      }
+    }
+  }
+}
+
 SPECTRE_TEST_CASE(
     "Unit.GeneralizedHarmonic.BoundaryCorrections.AveragedUpwindPenalty",
     "[Unit][Evolution]") {
   MAKE_GENERATOR(gen);
 
-  test<1>(make_not_null(&gen), 1);
-  test<2>(make_not_null(&gen), 5);
-  test<3>(make_not_null(&gen), 5);
+  for (const double gamma1 : {-2.0, -1.0, 0.0}) {
+    CAPTURE(gamma1);
+    test<1>(make_not_null(&gen), 1, gamma1);
+    test<2>(make_not_null(&gen), 5, gamma1);
+    test<3>(make_not_null(&gen), 5, gamma1);
+  }
+  test_metric_speed_sign();
 }
 }  // namespace
