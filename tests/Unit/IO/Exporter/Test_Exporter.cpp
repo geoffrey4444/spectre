@@ -16,6 +16,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/Creators/BinaryCompactObject.hpp"
 #include "Domain/Creators/Rectilinear.hpp"
+#include "Domain/Creators/RegisterDerivedWithCharm.hpp"
 #include "Domain/ElementMap.hpp"
 #include "Domain/Structure/InitialElementIds.hpp"
 #include "Evolution/Systems/ScalarWave/Tags.hpp"
@@ -30,6 +31,80 @@
 #include "Utilities/Serialization/Serialize.hpp"
 
 namespace spectre::Exporter {
+
+SPECTRE_TEST_CASE("Unit.IO.Exporter.BoundedMatrix", "[Unit]") {
+  domain::creators::register_derived_with_charm();
+  // 131072 rows of a64-column double matrix fill the64MiB budget.
+  // Include a nonempty final chunk and both float/double source components.
+  constexpr size_t count = 131079;
+  const domain::creators::Brick creator{
+      {{-1., -1., -1.}}, {{1., 1., 1.}}, {{0, 0, 0}}, {{4, 4, 4}},
+      {{false, false, false}}};
+  const auto domain = creator.create_domain();
+  const Mesh<3> mesh{4, Spectral::Basis::Legendre,
+                     Spectral::Quadrature::GaussLobatto};
+  const auto xi = logical_coordinates(mesh);
+  const DataVector data =
+      1. + get<0>(xi) + 2. * get<1>(xi) - 3. * get<2>(xi);
+  std::vector<float> float_data(data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    float_data[i] = static_cast<float>(data[i]);
+  }
+  const std::string filename{"Unit.IO.Exporter.BoundedMatrix.h5"};
+  if (file_system::check_if_file_exists(filename)) {
+    file_system::rm(filename, true);
+  }
+  {
+    h5::H5File<h5::AccessType::ReadWrite> file(filename);
+    auto& volume = file.insert<h5::VolumeData>("/VolumeData", 0);
+    volume.write_volume_data(
+        123, 0.,
+        {ElementVolumeData{ElementId<3>{0},
+                           {TensorComponent{"Double", data},
+                            TensorComponent{"Float", std::move(float_data)}},
+                           mesh}},
+        serialize(domain));
+  }
+  tnsr::I<DataVector, 3> targets{count};
+  for (size_t i = 0; i < count; ++i) {
+    get<0>(targets)[i] = -.9 + 1.8 * static_cast<double>(i % 101) / 100.;
+    get<1>(targets)[i] = -.8 + 1.6 * static_cast<double>(i % 97) / 96.;
+    get<2>(targets)[i] = -.7 + 1.4 * static_cast<double>(i % 89) / 88.;
+  }
+  const auto check = [&targets](const auto& values) {
+    REQUIRE(values.size() == 2);
+    REQUIRE(values[0].size() == count);
+    REQUIRE(values[1].size() == count);
+    for (size_t i = 0; i < count; ++i) {
+      const double expected = 1. + get<0>(targets)[i] +
+                              2. * get<1>(targets)[i] - 3. * get<2>(targets)[i];
+      CHECK(values[0][i] == approx(expected));
+      CHECK(values[1][i] ==
+            Approx::custom().epsilon(1e-6).scale(1.)(expected));
+    }
+  };
+  std::vector<DataVector> streamed{};
+  interpolate_to_points(make_not_null(&streamed), filename, "/VolumeData",
+                        ObservationId{123}, {"Double", "Float"}, targets,
+                        false, true, 1_st);
+  check(streamed);
+  const PointwiseInterpolator<3> resident{
+      filename, "/VolumeData", ObservationId{123}, {"Double", "Float"}};
+  std::vector<DataVector> reused{};
+  resident.interpolate_to_points(make_not_null(&reused), targets, false, true,
+                                 1_st);
+  check(reused);
+  CHECK_ITERABLE_APPROX(streamed[0], reused[0]);
+  CHECK_ITERABLE_APPROX(streamed[1], reused[1]);
+  std::vector<DataVector> empty{};
+  resident.interpolate_to_points(make_not_null(&empty),
+                                 tnsr::I<DataVector, 3>{size_t{0}}, false, true,
+                                 1_st);
+  REQUIRE(empty.size() == 2);
+  CHECK(empty[0].size() == 0);
+  CHECK(empty[1].size() == 0);
+  file_system::rm(filename, true);
+}
 
 SPECTRE_TEST_CASE("Unit.IO.Exporter", "[Unit]") {
 #ifdef _OPENMP

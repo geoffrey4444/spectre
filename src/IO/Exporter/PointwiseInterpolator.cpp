@@ -3,6 +3,8 @@
 
 #include "IO/Exporter/PointwiseInterpolator.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <csignal>  // For Blaze error handling without PCH
 #ifdef _OPENMP
 #include <omp.h>
@@ -111,44 +113,60 @@ void interpolate_to_points_impl(
       }
       const auto& points = found_points->second;
       const auto& [mesh, offset, length] = meshes.at(element_id);
-      // Interpolate!
-      // Possible optimization: rather than interpolating each tensor component
-      // separately, we could interpolate all components at once. This would
-      // need an offset and stride to be passed to the interpolator, since the
-      // tensor components for all elements are stored contiguously.
-      const intrp::Irregular<Dim> interpolant(mesh,
-                                              points.element_logical_coords);
       const size_t num_element_target_points =
           points.element_logical_coords.begin()->size();
-      for (size_t i = 0; i < tensor_data.size(); ++i) {
-        const auto& component = tensor_data[i];
-        if (std::holds_alternative<DataVector>(component)) {
-          if (interpolated_data_double.size() < num_element_target_points) {
-            interpolated_data_double.destructive_resize(
-                num_element_target_points);
-          }
-          auto output_data = gsl::make_span(interpolated_data_double.data(),
-                                            num_element_target_points);
-          const auto input_data = gsl::make_span(
-              std::get<DataVector>(component).data() + offset, length);
-          interpolant.interpolate(make_not_null(&output_data), input_data);
-          for (size_t j = 0; j < num_element_target_points; ++j) {
-            (*result)[i][points.offsets[j]] = interpolated_data_double[j];
-            (*filled_data)[points.offsets[j]] = true;
-          }
-        } else {
-          interpolated_data_float.resize(num_element_target_points);
-          auto output_data = gsl::make_span(interpolated_data_float.data(),
-                                            num_element_target_points);
-          const auto input_data = gsl::make_span(
-              // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-              std::get<std::vector<float>>(component).data() + offset, length);
-          interpolant.interpolate(make_not_null(&output_data), input_data);
-          for (size_t j = 0; j < num_element_target_points; ++j) {
-            (*result)[i][points.offsets[j]] = interpolated_data_float[j];
-            (*filled_data)[points.offsets[j]] = true;
+      // Irregular materializes a dense target-by-source matrix. Bound this
+      // temporary per OpenMP worker instead of allocating all target rows
+      // together (e.g. when importing to an h-refined spherical shell).
+      // At least one row is needed, even if it exceeds this budget. This
+      // budget does not include source/result data or basis-specific scratch.
+      constexpr size_t matrix_budget_bytes = 64 * 1024 * 1024;
+      const size_t max_chunk_points = std::max(
+          size_t{1}, matrix_budget_bytes / sizeof(double) /
+                         mesh.number_of_grid_points());
+      for (size_t start = 0; start < num_element_target_points;) {
+        const size_t chunk_points =
+            std::min(max_chunk_points, num_element_target_points - start);
+        tnsr::I<DataVector, Dim, Frame::ElementLogical> chunk_coords{
+            chunk_points};
+        for (size_t d = 0; d < Dim; ++d) {
+          std::copy_n(points.element_logical_coords.get(d).begin() +
+                          static_cast<std::ptrdiff_t>(start),
+                      chunk_points, chunk_coords.get(d).begin());
+        }
+        const intrp::Irregular<Dim> interpolant(mesh, chunk_coords);
+        for (size_t i = 0; i < tensor_data.size(); ++i) {
+          const auto& component = tensor_data[i];
+          if (std::holds_alternative<DataVector>(component)) {
+            if (interpolated_data_double.size() < chunk_points) {
+              interpolated_data_double.destructive_resize(chunk_points);
+            }
+            auto output_data =
+                gsl::make_span(interpolated_data_double.data(), chunk_points);
+            const auto input_data = gsl::make_span(
+                std::get<DataVector>(component).data() + offset, length);
+            interpolant.interpolate(make_not_null(&output_data), input_data);
+            for (size_t j = 0; j < chunk_points; ++j) {
+              (*result)[i][points.offsets[start + j]] =
+                  interpolated_data_double[j];
+              (*filled_data)[points.offsets[start + j]] = true;
+            }
+          } else {
+            interpolated_data_float.resize(chunk_points);
+            auto output_data =
+                gsl::make_span(interpolated_data_float.data(), chunk_points);
+            const auto input_data = gsl::make_span(
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+                std::get<std::vector<float>>(component).data() + offset, length);
+            interpolant.interpolate(make_not_null(&output_data), input_data);
+            for (size_t j = 0; j < chunk_points; ++j) {
+              (*result)[i][points.offsets[start + j]] =
+                  interpolated_data_float[j];
+              (*filled_data)[points.offsets[start + j]] = true;
+            }
           }
         }
+        start += chunk_points;
       }
     }  // omp for
   }  // omp parallel
