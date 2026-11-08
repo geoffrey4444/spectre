@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "DataStructures/DataBox/DataBox.hpp"
+#include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
@@ -19,6 +20,8 @@
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Time/Tags/StepNumberWithinSlab.hpp"
+#include "Time/Tags/TimeStepId.hpp"
+#include "Time/TimeStepId.hpp"
 #include "Utilities/Gsl.hpp"
 
 /// \cond
@@ -40,8 +43,16 @@ namespace dg::Actions {
  *
  * The filter is skipped when:
  * - the filter is `Filters::None` (explicit no-op), or
+ * - `apply_volume_filter_on_substep()` returns `false` and the updated
+ *   variables are at an intermediate substep, or
  * - both `apply_volume_filter_on_substep()` and
- *   `apply_volume_filter_on_this_step(step_number)` return `false`.
+ *   `apply_volume_filter_on_this_step(step_number)` return `false` at a
+ *   completed step.
+ *
+ * The `TimeStepIdTag` template parameter identifies the time of the variables
+ * being filtered. Its default, `Tags::Next<Tags::TimeStepId>`, is appropriate
+ * after `UpdateU` and before `AdvanceTime`. When filtering before `UpdateU`,
+ * set it to `Tags::TimeStepId` instead.
  *
  * The grid-to-inertial Jacobian and its inverse are only retrieved from the
  * DataBox when `Filters::Filter::need_jacobians()` returns `true`; otherwise
@@ -56,6 +67,7 @@ namespace dg::Actions {
  * - DataBox:
  *   - `Filters::Tags::SpectralFilter<Dim, TagList>`
  *   - `Tags::StepNumberWithinSlab`
+ *   - `TimeStepIdTag`
  *   - `domain::Tags::Mesh<Dim>`
  *   - `domain::Tags::InverseJacobian<Dim, Frame::Grid, Frame::Inertial>`
  *     (only when `need_jacobians()` is `true`)
@@ -67,7 +79,8 @@ namespace dg::Actions {
  *   - `volume_dim`
  *   - `variables_tag`
  */
-template <size_t Dim, typename TagList>
+template <size_t Dim, typename TagList,
+          typename TimeStepIdTag = ::Tags::Next<::Tags::TimeStepId>>
 struct SpectralFilter {
   template <typename DbTags, typename... InboxTags, typename ArrayIndex,
             typename ActionList, typename ParallelComponent,
@@ -100,7 +113,8 @@ struct SpectralFilter {
     const auto step_number =
         static_cast<size_t>(db::get<::Tags::StepNumberWithinSlab>(box));
     if (not(filter.apply_volume_filter_on_substep() or
-            filter.apply_volume_filter_on_this_step(step_number))) {
+            (db::get<TimeStepIdTag>(box).substep() == 0 and
+             filter.apply_volume_filter_on_this_step(step_number)))) {
       return {Parallel::AlgorithmExecution::Continue, std::nullopt};
     }
 

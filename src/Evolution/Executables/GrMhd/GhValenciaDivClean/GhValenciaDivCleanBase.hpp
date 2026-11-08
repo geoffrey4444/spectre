@@ -763,7 +763,8 @@ struct GhValenciaDivCleanTemplateBase<
 
   using dg_step_actions = tmpl::flatten<tmpl::list<
       dg::Actions::SpectralFilter<volume_dim,
-                                  typename system::variables_tag::tags_list>,
+                                  typename system::variables_tag::tags_list,
+                                  ::Tags::TimeStepId>,
       evolution::dg::Actions::ComputeTimeDerivative<
           volume_dim, system, AllStepChoosers, use_dg_element_collection>,
       evolution::dg::Actions::ApplyBoundaryCorrectionsToTimeDerivative<
