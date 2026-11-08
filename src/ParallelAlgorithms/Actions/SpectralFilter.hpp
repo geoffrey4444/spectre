@@ -11,6 +11,7 @@
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "DataStructures/VariablesTag.hpp"
@@ -175,9 +176,10 @@ struct SpectralFilter {
                 db::get<domain::Tags::Coordinates<Dim, Frame::Grid>>(box);
             const auto& functions_of_time =
                 db::get<domain::Tags::FunctionsOfTime>(box);
-            inv_jac =
-                map.inv_jacobian(grid_coords, filter_time, functions_of_time);
             jac = map.jacobian(grid_coords, filter_time, functions_of_time);
+            // Shape maps compute their inverse by evaluating the Jacobian
+            // again, so reuse the Jacobian already computed here.
+            inv_jac = determinant_and_inverse(*jac).second;
             use_cached_jacobians = false;
           }
         } else {
