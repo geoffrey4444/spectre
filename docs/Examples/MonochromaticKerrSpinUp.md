@@ -155,9 +155,13 @@ the excision boundary an outflow boundary.
 The `DrivenKerrSchild.yaml` example uses 29 radial shells out to
 \f$200M_0\f$, with angular resolution decreasing from \f$L=32\f$ near the
 hole to \f$L=16\f$ in the wave zone. `NumGridPointsAndGridSpacing` weights
-the element distribution for local time stepping. Starting the smooth ramp at
-zero still leaves approximately a light-crossing time before the injected
-wave reaches the hole; boundary turn-on time is not horizon arrival time.
+the element distribution for local time stepping. The shape map tapers to
+identity across the first four shells, ending at \f$r=10M_0\f$.
+Volume filtering is enabled on predictor substeps as well as full steps;
+its tensor transformations use the map at the time of the filtered variables.
+Starting the smooth ramp at zero still leaves approximately a light-crossing
+time before the injected wave reaches the hole; boundary turn-on time is not
+horizon arrival time.
 
 For stationary startup, initialize the excision surface as a homothetic copy
 of the horizon, matching the shape controller's target. With grid inner radius
