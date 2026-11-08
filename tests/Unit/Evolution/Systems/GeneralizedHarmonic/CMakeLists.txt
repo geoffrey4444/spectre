@@ -14,6 +14,7 @@ set(LIBRARY_SOURCES
   BoundaryConditions/Test_DirichletAnalytic.cpp
   BoundaryConditions/Test_DirichletMinkowski.cpp
   BoundaryConditions/Test_Periodic.cpp
+  BoundaryConditions/Test_RotatingQuadrupole.cpp
   BoundaryCorrections/Test_AveragedUpwindPenalty.cpp
   BoundaryCorrections/Test_UpwindPenalty.cpp
   Test_ApplyTensorYlmFilter.cpp

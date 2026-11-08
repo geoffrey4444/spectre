@@ -1,0 +1,370 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: EvolveGhSingleBlackHole
+Testing:
+  Check: parse
+  Timeout: 30
+  Priority: High
+
+---
+
+# A weak, prograde quadrupole drives an initially stationary Kerr-Schild hole.
+# This is an experiment input, not a demonstrated converged spin-up result.
+# Run on at most 12 cores: ten unrefined radial shells leave capacity for AHs.
+# For a short startup pilot, change only the Completion time to 10. For a
+# matched unforced baseline, set RotatingQuadrupole.Amplitude to zero.
+Parallelization:
+  ElementDistribution: NumGridPointsAndGridSpacing
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+  Singletons: Auto
+
+InitialData: &InitialData
+  GeneralizedHarmonic(KerrSchild):
+    Mass: &Mass 1.0
+    Spin: &Spin [0.0, 0.0, 0.99]
+    Center: &Center [0.0, 0.0, 0.0]
+    Velocity: [0.0, 0.0, 0.0]
+
+DomainCreator:
+  SphericalShells:
+    # This is the Boyer-Lindquist radius of the initial ellipsoidal excision
+    # surface, between r_- = 0.85893 and r_+ = 1.14107 for M=1, chi=0.99.
+    InnerRadius: &InnerRadius 1.06
+    OuterRadius: 52.0
+    InitialRadialRefinement: 0
+    InitialNumberOfRadialGridPoints: 15
+    InitialSphericalHarmonicL: 32
+    RadialPartitioning: [1.8, 3.0, 5.0, 8.0, 13.0, 20.0, 28.0, 36.0, 44.0]
+    RadialDistribution: [Logarithmic, Logarithmic, Logarithmic, Logarithmic,
+                         Linear, Linear, Linear, Linear, Linear, Linear]
+    TimeDependentMaps:
+      InitialTime: 0.0
+      ShapeMap:
+        LMax: &ShapeLMax 28
+        InitialValues:
+          Mass: *Mass
+          Spin: *Spin
+        SizeInitialValues: Auto
+        CoefficientTruncationLimit: 1.e-12
+      RotationMap: None
+      ExpansionMap: None
+      TranslationMap: None
+      TransitionRotScaleTrans: false
+      NumberOfRadialShellsWithShapeMap: 1
+    InnerBoundaryCondition:
+      DemandOutgoingCharSpeeds:
+    OuterBoundaryCondition:
+      ConstraintPreservingBjorhus:
+        Type: ConstraintPreservingPhysical
+        RotatingQuadrupole:
+          # Curvature coefficient at the outer boundary, with units M^-2.
+          # This is neither a strain amplitude nor a luminosity normalization.
+          Amplitude: 5.e-4
+          # Positive frequency selects prograde m=2 for a +z spinning hole.
+          # Initially 2 Omega_H = 0.86761 < omega < 1/chi = 1.01010.
+          # 1/1.1 is close to the extremal limiting value along the idealized
+          # dJ/dM=2/omega absorption trajectory from (M,chi)=(1,0.99).
+          AngularFrequency: 0.9090909090909091
+          Phase: 0.0
+          StartTime: 20.0
+          RampUpDuration: 150.0
+          StopTime: 400.0
+          RampDownDuration: 150.0
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: 0.00625
+  MinimumTimeStep: 1.e-7
+  InitialSlabSize: 0.1
+  LocalTimeStepping: Conservative
+  VariableOrderAlgorithm:
+    GoalOrder: 4
+  LtsStepChoosers:
+    - LimitIncrease:
+        Factor: 2.0
+    - ErrorControl:
+        AbsoluteTolerance: 1.e-8
+        RelativeTolerance: 1.e-6
+        MaxFactor: 2.0
+        MinFactor: 0.25
+        SafetyFactor: 0.95
+  TimeStepper:
+    AdamsMoultonPcMonotonic:
+      Order: 4
+
+EvolutionSystem:
+  GeneralizedHarmonic:
+    # Hold the gauge source fixed to the initial Kerr-Schild solution.
+    GaugeCondition:
+      AnalyticChristoffel:
+        AnalyticPrescription: *InitialData
+    DampingFunctionGamma0:
+      GaussianPlusConstant:
+        Constant: 0.001
+        Amplitude: 3.0
+        Width: 11.313708499
+        Center: *Center
+    DampingFunctionGamma1:
+      Constant:
+        Value: -1.0
+    DampingFunctionGamma2:
+      GaussianPlusConstant:
+        Constant: 0.001
+        Amplitude: 1.0
+        Width: 11.313708499
+        Center: *Center
+
+SpatialDiscretization:
+  BoundaryCorrection:
+    AveragedUpwindPenalty:
+  DiscontinuousGalerkin:
+    Formulation: StrongInertial
+    Quadrature: GaussLobatto
+    Filtering:
+      - SphericalShell:
+          NumModesToKill: 4
+          AngularHalfPower: None
+          RadialHalfPower: 320
+          Enable: true
+          BlocksToFilter: All
+          VolumeFilterOnSubstep: false
+          BoundaryCorrectionFilterOnSubstep: false
+          VolumeFilterEveryNSteps: 1
+          BoundaryCorrectionFilterEveryNSteps: None
+
+Amr:
+  Criteria:
+  EnableInBlocks: All
+  Policies:
+    EnforceTwoToOneBalanceInNormalDirection: true
+    Isotropy: Anisotropic
+    Limits:
+      RefinementLevel: Auto
+      NumPolynomialModes: Auto
+      FourierM: Auto
+      SphericalHarmonicL: Auto
+      ErrorBeyondLimits: false
+    AllowCoarsening: true
+  Verbosity: Quiet
+
+PhaseChangeAndTriggers:
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 100
+          Offset: 0
+    PhaseChanges:
+      - CheckpointAndExitAfterWallclock:
+          WallclockHours: 8.0
+
+EventsAndTriggersAtCheckpoints:
+
+EventsAndTriggersAtSlabs:
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 10
+          Offset: 0
+    Events:
+      - ObserveTimeStep:
+          SubfileName: TimeSteps
+          PrintTimeToTerminal: true
+          ObservePerCore: false
+      - ObserveAdaptiveSteppingDiagnostics:
+          SubfileName: AdaptiveStepping
+      - ObserveNorms:
+          SubfileName: Constraints
+          TensorsToObserve:
+            - Name: PointwiseL2Norm(GaugeConstraint)
+              NormType: L2Norm
+              Components: Sum
+            - Name: PointwiseL2Norm(GaugeConstraint)
+              NormType: Max
+              Components: Sum
+            - Name: PointwiseL2Norm(ThreeIndexConstraint)
+              NormType: L2Norm
+              Components: Sum
+            - Name: PointwiseL2Norm(ThreeIndexConstraint)
+              NormType: Max
+              Components: Sum
+            - Name: PointwiseL2Norm(TwoIndexConstraint)
+              NormType: L2Norm
+              Components: Sum
+            - Name: PointwiseL2Norm(FConstraint)
+              NormType: L2Norm
+              Components: Sum
+            - Name: PointwiseL2Norm(FourIndexConstraint)
+              NormType: L2Norm
+              Components: Sum
+            - Name: NormalizedConstraintEnergy
+              NormType: L2Norm
+              Components: Sum
+          BlocksToObserve: All
+          ReductionScope: WholeDomain
+      - ApparentHorizon
+      - ExcisionBoundary
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 200
+          Offset: 0
+    Events:
+      - ObserveFields:
+          SubfileName: VolumeData
+          VariablesToObserve:
+            - SpacetimeMetric
+            - Pi
+            - Phi
+            - GaugeH
+            - Lapse
+            - GridCoordinates
+            - VMinusSpeed
+            - PointwiseL2Norm(GaugeConstraint)
+            - PointwiseL2Norm(ThreeIndexConstraint)
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          CoordinatesFloatingPointType: Double
+          FloatingPointTypes: [Double]
+          BlocksToObserve: All
+  - Trigger:
+      TimeCompares:
+        Comparison: GreaterThanOrEqualTo
+        # Allow the turn-off signal to reach the black hole from r=52.
+        Value: 620.0
+    Events:
+      - Completion
+
+EventsAndTriggersAtSteps:
+
+EventsAndDenseTriggers:
+
+EventsRunAtCleanup:
+  ObservationValue: -1000.0
+  Events:
+    - ObserveTimeStepVolume:
+        SubfileName: FailureTimeStep
+        FloatingPointType: Double
+        CoordinatesFloatingPointType: Double
+    - ObserveFields:
+        SubfileName: FailureVolumeData
+        VariablesToObserve:
+          - SpacetimeMetric
+          - Pi
+          - Phi
+          - GridCoordinates
+          - VMinusSpeed
+          - PointwiseL2Norm(GaugeConstraint)
+          - PointwiseL2Norm(ThreeIndexConstraint)
+        InterpolateToMesh: None
+        ProjectToMesh: None
+        CoordinatesFloatingPointType: Double
+        FloatingPointTypes: [Double]
+        BlocksToObserve: All
+
+Observers:
+  VolumeFileName: DrivenKerrSchildVolume
+  ReductionFileName: DrivenKerrSchildReductions
+  SurfaceFileName: DrivenKerrSchildSurfaces
+
+Interpolator:
+  Verbosity: Silent
+
+ApparentHorizons:
+  LMax: *ShapeLMax
+  ApparentHorizon: &Ah
+    Criteria:
+      - Residual:
+          MinResidual: 1.e-6
+          MaxResidual: 1.e-5
+          # Keep all control horizons at the shape-map resolution.
+          MinResolutionL: *ShapeLMax
+    InitialGuess:
+      InitialL: *ShapeLMax
+      InitialShape:
+        KerrSchild:
+          Center: *Center
+          Mass: *Mass
+          Spin: *Spin
+    FastFlow:
+      Flow: Fast
+      Alpha: 1.0
+      Beta: 0.5
+      AbsTol: 1.e-12
+      TruncationTol: 1.e-2
+      DivergenceTol: 1.2
+      DivergenceIter: 5
+      MaxIts: 200
+    Verbosity: Quiet
+    MaxComputeCoordsRetries: 3
+    BlocksForHorizonFind: [Shell0]
+  # With no rotation, expansion or translation map, distorted coordinates
+  # equal inertial coordinates. All three initial horizons are Kerr ellipsoids.
+  ControlSystemSingleAh: *Ah
+  ControlSystemCharSpeedAh: *Ah
+
+InterpolationTargets:
+  BondiSachsInterpolation:
+    LMax: 16
+    Radius: [40.0]
+    Center: *Center
+    AngularOrdering: Cce
+  ExcisionBoundary: &ExcisionBoundary
+    LMax: *ShapeLMax
+    Center: *Center
+    Radius: *InnerRadius
+    AngularOrdering: Strahlkorper
+  ControlSystemCharSpeedExcision: *ExcisionBoundary
+
+Cce:
+  BondiSachsOutputFilePrefix: DrivenKerrSchildBondiSachs
+
+ControlSystems:
+  WriteDataToDisk: true
+  MeasurementsPerUpdate: 4
+  DelayUpdate: true
+  Verbosity: Silent
+  Translation: None
+  Shape:
+    Averager:
+      AverageTimescaleFraction: 0.25
+      Average0thDeriv: true
+    Controller:
+      UpdateFraction: 0.3
+    TimescaleTuner:
+      InitialTimescales: 2.0
+      MinTimescale: 0.1
+      MaxTimescale: 10.0
+      IncreaseThreshold: 2.5e-4
+      DecreaseThreshold: 1.e-3
+      IncreaseFactor: 1.01
+      DecreaseFactor: 0.9
+    ControlError:
+  Size:
+    Averager:
+      AverageTimescaleFraction: 0.25
+      Average0thDeriv: true
+    Controller:
+      UpdateFraction: 0.3
+    TimescaleTuner:
+      InitialTimescales: 1.0
+      MinTimescale: 0.05
+      MaxTimescale: 2.0
+      IncreaseThreshold: 2.5e-4
+      IncreaseFactor: 1.01
+    ControlError:
+      MaxNumTimesForZeroCrossingPredictor: 8
+      SmoothAvgTimescaleFraction: 0.25
+      DeltaRDriftOutwardOptions: None
+      DeltaRDriftInwardOptions: None
+      InitialState: DeltaR
+      SmootherTuner:
+        InitialTimescales: [2.0]
+        MinTimescale: 0.1
+        MaxTimescale: 20.0
+        IncreaseThreshold: 2.5e-4
+        DecreaseThreshold: 1.e-3
+        IncreaseFactor: 1.01
+        DecreaseFactor: 0.9

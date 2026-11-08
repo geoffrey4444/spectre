@@ -18,8 +18,10 @@
 #include "DataStructures/Variables.hpp"
 #include "Evolution/BoundaryConditions/Type.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/BoundaryCondition.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
 #include "Options/Auto.hpp"
+#include "Options/Context.hpp"
 #include "Options/Options.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/AnalyticData/Tags.hpp"
@@ -89,20 +91,31 @@ namespace gh::BoundaryConditions {
  * exactly zero.
  *
  * An optional injected incoming-wave contribution can be specified through
- * `IncomingWaveProfile`. The injected strain-rate tensor is
+ * `IncomingWaveProfile`. The prescribed incoming curvature tensor is
  * \f[
- *   \dot{h}_{ab} = \dot{f}(t)
+ *   Q_{ab} = f(t)
  *   \left(\hat{x}_a \hat{x}_b + \hat{y}_a \hat{y}_b - 2 \hat{z}_a
  * \hat{z}_b\right),
  * \f]
- * where the configured profile is interpreted directly as \f$\dot{f}(t)\f$ and
+ * where the configured profile is interpreted directly as \f$f(t)\f$ and
  * \f$\hat{x}_a\f$, \f$\hat{y}_a\f$ and \f$\hat{z}_a\f$ are the components of
- * the coordinate basis vectors. This formula is taken from
- * \cite Lindblom2005qh.  It should be considered an approximate perturbation
- * rather than an exact gravitational wave which would have to be constructed at
- * null-infinity. Note that the profile of the injected wave is specified at the
- * outer boundary and its amplitude should be adjusted according to the usual
- * 1/r scaling.
+ * the coordinate basis vectors. The physical boundary correction subtracts
+ * \f$Q_{ab}\f$ from the incoming Weyl characteristic \f$U^{3-}_{ab}\f$
+ * before transverse trace-free projection. Thus the profile has curvature
+ * units (inverse length squared), and no time derivative is taken. This
+ * tensor pattern follows \cite Lindblom2005qh. It is an approximate
+ * perturbation rather than an exact gravitational wave which would have to be
+ * constructed at null-infinity. The profile is specified at the outer boundary;
+ * there is no automatic radius scaling. In the wave zone a fixed source's
+ * radiative curvature, like its strain at a fixed frequency, scales as 1/r.
+ *
+ * Alternatively, `RotatingQuadrupole` prescribes a monochromatic rotating
+ * incoming curvature tensor with smooth turn-on and optional turn-off. This
+ * option supplies angular momentum about the inertial z axis and requires
+ * `ConstraintPreservingPhysical`. See
+ * gh::BoundaryConditions::RotatingQuadrupole for its amplitude, chirality, and
+ * envelope conventions. The gauge source is independently chosen by the
+ * evolution's gauge-condition options.
  *
  * This class provides two choices of combinations of the above corrections:
  *  - `ConstraintPreserving` : this imposes the constraint-preserving and
@@ -136,16 +149,28 @@ class ConstraintPreservingBjorhus final : public BoundaryCondition<Dim> {
                       Options::AutoLabel::None>;
     static std::string name() { return "IncomingWaveProfile"; }
     static constexpr Options::String help{
-        "Optional incoming-wave profile interpreted as the first time "
-        "derivative for the injected physical wave. See the "
+        "Optional incoming curvature profile evaluated directly (no time "
+        "derivative is taken). See the "
         "ConstraintPreservingBjorhus class documentation for the injected-wave "
         "formula. Specify `None` to disable injection. This option is only "
         "supported in 3D."};
   };
 
+  struct RotatingQuadrupoleOptionTag {
+    using type = RotatingQuadrupole;
+    static std::string name() { return "RotatingQuadrupole"; }
+    static constexpr Options::String help{
+        "Rotating quadrupolar incoming curvature with a monochromatic plateau. "
+        "An alternative to IncomingWaveProfile, supported only in 3D with "
+        "Type: ConstraintPreservingPhysical."};
+  };
+
   using options = tmpl::flatten<tmpl::list<
       TypeOptionTag,
-      tmpl::conditional_t<Dim == 3, tmpl::list<IncomingWaveProfileOptionTag>,
+      tmpl::conditional_t<Dim == 3,
+                          tmpl::list<Options::Alternatives<
+                              tmpl::list<IncomingWaveProfileOptionTag>,
+                              tmpl::list<RotatingQuadrupoleOptionTag>>>,
                           tmpl::list<>>>>;
   static constexpr Options::String help{
       "ConstraintPreservingBjorhus boundary conditions setting the value of the"
@@ -157,6 +182,10 @@ class ConstraintPreservingBjorhus final : public BoundaryCondition<Dim> {
       detail::ConstraintPreservingBjorhusType type,
       std::optional<std::unique_ptr<::MathFunction<1, Frame::Inertial>>>
           incoming_wave_profile = std::nullopt);
+
+  ConstraintPreservingBjorhus(detail::ConstraintPreservingBjorhusType type,
+                              RotatingQuadrupole rotating_quadrupole,
+                              const Options::Context& context = {});
 
   ConstraintPreservingBjorhus() = default;
   /// \cond
@@ -312,6 +341,7 @@ class ConstraintPreservingBjorhus final : public BoundaryCondition<Dim> {
   detail::ConstraintPreservingBjorhusType type_{
       detail::ConstraintPreservingBjorhusType::ConstraintPreservingPhysical};
   std::unique_ptr<::MathFunction<1, Frame::Inertial>> incoming_wave_profile_{};
+  std::optional<RotatingQuadrupole> rotating_quadrupole_{};
 };
 }  // namespace gh::BoundaryConditions
 

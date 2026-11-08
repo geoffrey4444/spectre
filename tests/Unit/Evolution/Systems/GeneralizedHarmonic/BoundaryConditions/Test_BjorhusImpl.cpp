@@ -15,6 +15,7 @@
 #include "Domain/Structure/Direction.hpp"
 #include "Domain/Structure/Side.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/BjorhusImpl.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Constraints.hpp"
 #include "Framework/CheckWithRandomValues.hpp"
 #include "Framework/SetupLocalPythonEnvironment.hpp"
@@ -1263,10 +1264,10 @@ tnsr::aa<DataVector, VolumeDim, Frame::Inertial> wrapper_func_cpgp_v_minus(
   return dt_v_minus;
 }
 
-void test_incoming_wave_profile_uses_profile_value_in_3d() {
+void test_incoming_wave_profile_uses_profile_value_in_3d(
+    const bool use_rotating_quadrupole, const double time = 0.37) {
   constexpr size_t local_volume_dim = 3;
   const size_t num_points = 2;
-  const double time = 0.37;
 
   auto gamma2 = make_with_value<Scalar<DataVector>>(num_points, 0.5);
   auto inertial_coords =
@@ -1320,6 +1321,29 @@ void test_incoming_wave_profile_uses_profile_value_in_3d() {
     projection_ab.get(a, a) = 1.0;
     projection_AB.get(a, a) = 1.0;
     projection_Ab.get(a, a) = 1.0;
+  }
+  if (use_rotating_quadrupole) {
+    // A physical tangent-plane projector at a generic point on a sphere.
+    const std::array<double, 3> normal{0.36, 0.48, 0.8};
+    for (auto& component : projection_ab) {
+      component = 0.;
+    }
+    for (auto& component : projection_Ab) {
+      component = 0.;
+    }
+    for (auto& component : projection_AB) {
+      component = 0.;
+    }
+    for (size_t i = 0; i < 3; ++i) {
+      unit_interface_normal_one_form.get(i) = gsl::at(normal, i);
+      unit_interface_normal_vector.get(i) = gsl::at(normal, i);
+      for (size_t j = 0; j < 3; ++j) {
+        projection_ab.get(i + 1, j + 1) =
+            (i == j ? 1. : 0.) - gsl::at(normal, i) * gsl::at(normal, j);
+        projection_Ab.get(i + 1, j + 1) = projection_ab.get(i + 1, j + 1);
+        projection_AB.get(i + 1, j + 1) = projection_ab.get(i + 1, j + 1);
+      }
+    }
   }
 
   auto inverse_spatial_metric =
@@ -1381,6 +1405,8 @@ void test_incoming_wave_profile_uses_profile_value_in_3d() {
   const double profile_value = incoming_wave_profile->operator()(time);
   const double profile_derivative = incoming_wave_profile->first_deriv(time);
   CHECK(std::abs(profile_value - profile_derivative) > 1.0e-3);
+  const gh::BoundaryConditions::RotatingQuadrupole rotating_quadrupole{
+      1.4, 0.7, 0.2, -1., 0.25, 1., 1.};
 
   gh::BoundaryConditions::Bjorhus::
       constraint_preserving_gauge_physical_corrections_dt_v_minus<
@@ -1406,7 +1432,8 @@ void test_incoming_wave_profile_uses_profile_value_in_3d() {
           three_index_constraint, char_projected_rhs_dt_v_psi,
           char_projected_rhs_dt_v_minus, constraint_char_zero_plus,
           constraint_char_zero_minus, phi, d_phi, d_pi, char_speeds,
-          incoming_wave_profile.get());
+          use_rotating_quadrupole ? nullptr : incoming_wave_profile.get(),
+          use_rotating_quadrupole ? &rotating_quadrupole : nullptr);
 
   auto delta = dt_v_minus_with_profile;
   for (size_t a = 0; a <= local_volume_dim; ++a) {
@@ -1421,12 +1448,20 @@ void test_incoming_wave_profile_uses_profile_value_in_3d() {
   auto injected_wave =
       make_with_value<tnsr::aa<DataVector, local_volume_dim, frame>>(
           get(gamma2), 0.0);
-  auto char_speed_3 =
-      make_with_value<Scalar<DataVector>>(get(gamma2), 0.0);
+  auto char_speed_3 = make_with_value<Scalar<DataVector>>(get(gamma2), 0.0);
   get(char_speed_3) = char_speeds[3];
   injected_wave.get(1, 1) = profile_value;
   injected_wave.get(2, 2) = profile_value;
   injected_wave.get(3, 3) = -2.0 * profile_value;
+  if (use_rotating_quadrupole) {
+    for (auto& component : injected_wave) {
+      component = 0.;
+    }
+    const double amplitude = 1.4 * rotating_quadrupole.envelope(time);
+    injected_wave.get(1, 1) = amplitude * cos(0.7 * (time + 1.) + 0.2);
+    injected_wave.get(2, 2) = -injected_wave.get(1, 1);
+    injected_wave.get(1, 2) = amplitude * sin(0.7 * (time + 1.) + 0.2);
+  }
   tenex::evaluate<ti::a, ti::b>(
       make_not_null(&expected_delta),
       (projection_Ab(ti::C, ti::a) * projection_Ab(ti::D, ti::b) -
@@ -1434,6 +1469,22 @@ void test_incoming_wave_profile_uses_profile_value_in_3d() {
           char_speed_3() * (-injected_wave(ti::c, ti::d)));
 
   CHECK_ITERABLE_APPROX(delta, expected_delta);
+  if (use_rotating_quadrupole) {
+    // Injection changes only the transverse, trace-free physical sector.
+    for (size_t a = 0; a <= 3; ++a) {
+      CHECK_ITERABLE_APPROX(delta.get(0, a), DataVector(num_points, 0.));
+    }
+    CHECK_ITERABLE_APPROX(delta.get(1, 1) + delta.get(2, 2) + delta.get(3, 3),
+                          DataVector(num_points, 0.));
+    for (size_t i = 0; i < 3; ++i) {
+      DataVector normal_contraction(num_points, 0.);
+      for (size_t j = 0; j < 3; ++j) {
+        normal_contraction +=
+            unit_interface_normal_vector.get(j) * delta.get(j + 1, i + 1);
+      }
+      CHECK_ITERABLE_APPROX(normal_contraction, DataVector(num_points, 0.));
+    }
+  }
 }
 
 template <size_t LocalVolumeDim>
@@ -1636,7 +1687,10 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.BCBjorhus.VMinus",
       grid_size);
   test_constraint_preserving_gauge_physical_corrections_dt_v_minus<3>(
       grid_size);
-  test_incoming_wave_profile_uses_profile_value_in_3d();
+  test_incoming_wave_profile_uses_profile_value_in_3d(false);
+  for (const double time : {-2., -0.8, 0.37, 1.2, 2.3}) {
+    test_incoming_wave_profile_uses_profile_value_in_3d(true, time);
+  }
   test_incoming_wave_profile_throws_for_non_3d<1>();
   test_incoming_wave_profile_throws_for_non_3d<2>();
 

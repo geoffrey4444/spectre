@@ -26,6 +26,7 @@
 #include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/Serialization/PupStlCpp17.hpp"
 
 namespace gh::BoundaryConditions {
 namespace {
@@ -75,9 +76,23 @@ ConstraintPreservingBjorhus<Dim>::ConstraintPreservingBjorhus(
                                  : nullptr) {
   if constexpr (Dim < 3) {
     if (incoming_wave_profile_ != nullptr) {
-      ERROR("IncomingWaveProfile can only be used for "
-            "ConstraintPreservingBjorhus in 3 spatial dimensions.");
+      ERROR(
+          "IncomingWaveProfile can only be used for "
+          "ConstraintPreservingBjorhus in 3 spatial dimensions.");
     }
+  }
+}
+
+template <size_t Dim>
+ConstraintPreservingBjorhus<Dim>::ConstraintPreservingBjorhus(
+    const detail::ConstraintPreservingBjorhusType type,
+    RotatingQuadrupole rotating_quadrupole, const Options::Context& context)
+    : type_(type), rotating_quadrupole_(std::move(rotating_quadrupole)) {
+  if (Dim != 3 or type_ != detail::ConstraintPreservingBjorhusType::
+                               ConstraintPreservingPhysical) {
+    PARSE_ERROR(context,
+                "RotatingQuadrupole requires 3 spatial dimensions and "
+                "Type: ConstraintPreservingPhysical.");
   }
 }
 
@@ -88,7 +103,8 @@ ConstraintPreservingBjorhus<Dim>::ConstraintPreservingBjorhus(
       type_(rhs.type_),
       incoming_wave_profile_(rhs.incoming_wave_profile_ != nullptr
                                  ? rhs.incoming_wave_profile_->get_clone()
-                                 : nullptr) {}
+                                 : nullptr),
+      rotating_quadrupole_(rhs.rotating_quadrupole_) {}
 
 template <size_t Dim>
 ConstraintPreservingBjorhus<Dim>& ConstraintPreservingBjorhus<Dim>::operator=(
@@ -100,6 +116,7 @@ ConstraintPreservingBjorhus<Dim>& ConstraintPreservingBjorhus<Dim>::operator=(
   incoming_wave_profile_ = rhs.incoming_wave_profile_ != nullptr
                                ? rhs.incoming_wave_profile_->get_clone()
                                : nullptr;
+  rotating_quadrupole_ = rhs.rotating_quadrupole_;
   return *this;
 }
 
@@ -119,6 +136,7 @@ void ConstraintPreservingBjorhus<Dim>::pup(PUP::er& p) {
   BoundaryCondition<Dim>::pup(p);
   p | type_;
   p | incoming_wave_profile_;
+  p | rotating_quadrupole_;
 }
 
 template <size_t Dim>
@@ -361,7 +379,8 @@ std::optional<std::string> ConstraintPreservingBjorhus<Dim>::dg_time_derivative(
         inverse_spacetime_metric, three_index_constraint,
         char_projected_rhs_dt_v_psi, char_projected_rhs_dt_v_minus,
         constraint_char_zero_plus, constraint_char_zero_minus, phi, d_phi, d_pi,
-        char_speeds, incoming_wave_profile_.get());
+        char_speeds, incoming_wave_profile_.get(),
+        rotating_quadrupole_.has_value() ? &*rotating_quadrupole_ : nullptr);
   } else {
     ERROR(
         "Failed to set dtVMinus. Input option must be one of "

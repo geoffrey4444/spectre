@@ -21,6 +21,7 @@ class not_null;
 /// \endcond
 
 namespace gh::BoundaryConditions {
+class RotatingQuadrupole;
 /// \brief Detailed implementation of Bjorhus-type boundary corrections
 namespace Bjorhus {
 /*!
@@ -252,7 +253,8 @@ void constraint_preserving_gauge_physical_corrections_dt_v_minus(
     const tnsr::ijaa<DataType, VolumeDim, Frame::Inertial>& d_phi,
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds,
-    const MathFunction<1, Frame::Inertial>* incoming_wave_profile = nullptr);
+    const MathFunction<1, Frame::Inertial>* incoming_wave_profile = nullptr,
+    const RotatingQuadrupole* rotating_quadrupole = nullptr);
 /// @}
 
 namespace detail {
@@ -317,7 +319,8 @@ void add_physical_terms_to_dt_v_minus(
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds,
     double time = std::numeric_limits<double>::signaling_NaN(),
-    const MathFunction<1, Frame::Inertial>* incoming_wave_profile = nullptr);
+    const MathFunction<1, Frame::Inertial>* incoming_wave_profile = nullptr,
+    const RotatingQuadrupole* rotating_quadrupole = nullptr);
 }  // namespace detail
 }  // namespace Bjorhus
 }  // namespace gh::BoundaryConditions
