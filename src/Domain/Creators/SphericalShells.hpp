@@ -138,11 +138,13 @@ class SphericalShells : public DomainCreator<3> {
    * \brief Initial spherical harmonic resolution
    */
   struct InitialSphericalHarmonicL {
-    using type = size_t;
-    static size_t lower_bound() { return 2; }
+    using type = std::variant<size_t, std::vector<size_t>>;
     static constexpr Options::String help = {
         "Initial spherical harmonic resolution specified as the highest "
-        "spherical harmonic represented on the grid.  Minimum value is 2."};
+        "spherical harmonic represented on the grid. Specify one value for "
+        "all blocks, or a list from the innermost to outermost block, "
+        "including "
+        "the filled sphere when present. Each value must be at least 2."};
   };
 
   /*!
@@ -232,11 +234,30 @@ class SphericalShells : public DomainCreator<3> {
       "An optional B3 surrounded by a set of concentric spherical shells "
       "centered at the origin."};
 
+  /// Construct all blocks with the same angular resolution.
   SphericalShells(
       double inner_radius, double outer_radius,
       size_t initial_radial_refinement,
       size_t initial_number_of_radial_grid_points,
       size_t initial_spherical_harmonic_l,
+      std::vector<double> radial_partitioning = {},
+      const typename RadialDistribution::type& radial_distribution =
+          domain::CoordinateMaps::Distribution::Linear,
+      std::optional<TimeDepOptionType> time_dependent_options = std::nullopt,
+      std::optional<
+          std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
+          inner_boundary_condition = std::nullopt,
+      std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+          outer_boundary_condition = nullptr,
+      const Options::Context& context = {});
+
+  /// Construct blocks with uniform or individually specified angular
+  /// resolution.
+  SphericalShells(
+      double inner_radius, double outer_radius,
+      size_t initial_radial_refinement,
+      size_t initial_number_of_radial_grid_points,
+      const InitialSphericalHarmonicL::type& initial_spherical_harmonic_l,
       std::vector<double> radial_partitioning = {},
       const typename RadialDistribution::type& radial_distribution =
           domain::CoordinateMaps::Distribution::Linear,
@@ -290,7 +311,7 @@ class SphericalShells : public DomainCreator<3> {
   size_t initial_radial_refinement_{};
   size_t initial_number_of_radial_grid_points_{};
   bool excise_center_{};
-  size_t initial_spherical_harmonic_l_{};
+  std::vector<size_t> initial_spherical_harmonic_l_{};
   std::vector<double> radial_partitioning_{};
   std::vector<domain::CoordinateMaps::Distribution> radial_distribution_{};
   std::optional<TimeDepOptionType> time_dependent_options_{};

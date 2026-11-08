@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <exception>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -24,6 +25,7 @@
 #include "Domain/CoordinateMaps/ProductMaps.tpp"
 #include "Domain/CoordinateMaps/SphericalToCartesianPfaffian.hpp"
 #include "Domain/Creators/DomainCreator.hpp"
+#include "Domain/Creators/ExpandOverBlocks.hpp"
 #include "Domain/Creators/ShellDistribution.hpp"
 #include "Domain/Creators/TimeDependence/None.hpp"
 #include "Domain/Domain.hpp"
@@ -50,12 +52,34 @@ SphericalShells::SphericalShells(
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
         outer_boundary_condition,
     const Options::Context& context)
+    : SphericalShells(
+          inner_radius, outer_radius, initial_radial_refinement,
+          initial_number_of_radial_grid_points,
+          InitialSphericalHarmonicL::type{initial_spherical_harmonic_l},
+          std::move(radial_partitioning), radial_distribution,
+          std::move(time_dependent_options),
+          std::move(inner_boundary_condition),
+          std::move(outer_boundary_condition), context) {}
+
+SphericalShells::SphericalShells(
+    const double inner_radius, const double outer_radius,
+    const size_t initial_radial_refinement,
+    const size_t initial_number_of_radial_grid_points,
+    const InitialSphericalHarmonicL::type& initial_spherical_harmonic_l,
+    std::vector<double> radial_partitioning,
+    const typename RadialDistribution::type& radial_distribution,
+    std::optional<TimeDepOptionType> time_dependent_options,
+    std::optional<
+        std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
+        inner_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        outer_boundary_condition,
+    const Options::Context& context)
     : inner_radius_(inner_radius),
       outer_radius_(outer_radius),
       initial_radial_refinement_(initial_radial_refinement),
       initial_number_of_radial_grid_points_(
           initial_number_of_radial_grid_points),
-      initial_spherical_harmonic_l_(initial_spherical_harmonic_l),
       radial_partitioning_(std::move(radial_partitioning)),
       time_dependent_options_(std::move(time_dependent_options)),
       inner_boundary_condition_(
@@ -74,6 +98,21 @@ SphericalShells::SphericalShells(
       make_not_null(&num_blocks_), make_not_null(&radial_distribution_),
       radial_partitioning_, radial_distribution, inner_radius_, outer_radius_,
       "inner", "outer", context);
+  try {
+    initial_spherical_harmonic_l_ = std::visit(
+        ExpandOverBlocks<size_t>{num_blocks_}, initial_spherical_harmonic_l);
+  } catch (const std::exception& error) {
+    PARSE_ERROR(context, "Invalid InitialSphericalHarmonicL: " << error.what());
+  }
+  for (size_t block = 0; block < num_blocks_; ++block) {
+    if (initial_spherical_harmonic_l_[block] < 2) {
+      PARSE_ERROR(context,
+                  "InitialSphericalHarmonicL must be at least 2 in every "
+                  "block, but block "
+                      << block << " has "
+                      << initial_spherical_harmonic_l_[block] << ".");
+    }
+  }
   excise_center_ = inner_radius_ != 0.0;
   if (not excise_center_) {
     block_names_.emplace_back("FilledSphere");
@@ -262,14 +301,16 @@ SphericalShells::external_boundary_conditions() const {
 }
 
 std::vector<std::array<size_t, 3>> SphericalShells::initial_extents() const {
-  std::vector<std::array<size_t, 3>> extents{
-      num_blocks_, std::array{initial_number_of_radial_grid_points_,
-                              initial_spherical_harmonic_l_ + 1,
-                              2 * initial_spherical_harmonic_l_ + 1}};
+  std::vector<std::array<size_t, 3>> extents;
+  extents.reserve(num_blocks_);
+  for (const size_t l_max : initial_spherical_harmonic_l_) {
+    extents.push_back(
+        {initial_number_of_radial_grid_points_, l_max + 1, 2 * l_max + 1});
+  }
   if (not excise_center_) {
     // setting B3's number of r points based on minimizing the spectral space
     // restriction inequality: l_max < 2 * n_r - 1
-    extents[0][0] = (initial_spherical_harmonic_l_ + 3) / 2;
+    extents[0][0] = (initial_spherical_harmonic_l_.front() + 3) / 2;
   }
   return extents;
 }
