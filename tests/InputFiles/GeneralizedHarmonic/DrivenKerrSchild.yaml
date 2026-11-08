@@ -11,7 +11,8 @@ Testing:
 
 # A weak, prograde quadrupole drives an initially stationary Kerr-Schild hole.
 # This is an experiment input, not a demonstrated converged spin-up result.
-# Run on at most 12 cores: ten unrefined radial shells leave capacity for AHs.
+# The 29 unrefined radial shells are weighted by grid points and spacing
+# for local time stepping. The inner shells have higher angular resolution.
 # For a short startup pilot, change only the Completion time to 10. For a
 # matched unforced baseline, set RotatingQuadrupole.Amplitude to zero.
 Parallelization:
@@ -30,22 +31,33 @@ InitialData: &InitialData
 
 DomainCreator:
   SphericalShells:
-    # This is the Boyer-Lindquist radius of the initial ellipsoidal excision
-    # surface, between r_- = 0.85893 and r_+ = 1.14107 for M=1, chi=0.99.
+    # The excision surface is a homothetic copy of the initial horizon.
+    # Its polar radius is 1.06; its Boyer-Lindquist radii range from
+    # 0.994628 to 1.06, between r_- = 0.85893 and r_+ = 1.14107.
     InnerRadius: &InnerRadius 1.06
-    OuterRadius: 52.0
+    OuterRadius: 200.0
     InitialRadialRefinement: 0
     InitialNumberOfRadialGridPoints: 15
-    InitialSphericalHarmonicL: 32
-    RadialPartitioning: [1.8, 3.0, 5.0, 8.0, 13.0, 20.0, 28.0, 36.0, 44.0]
+    InitialSphericalHarmonicL: [32, 28, 24, 20, 16, 16, 16, 16, 16,
+                              16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+                              16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+    RadialPartitioning: [2.4, 4.0, 6.5, 10.0, 16.0, 20.0, 28.0, 36.0,
+                         44.0, 52.0, 60.0, 68.0, 76.0, 84.0, 92.0, 100.0,
+                         108.0, 116.0, 124.0, 132.0, 140.0, 148.0, 156.0,
+                         164.0, 172.0, 180.0, 188.0, 196.0]
     RadialDistribution: [Logarithmic, Logarithmic, Logarithmic, Logarithmic,
-                         Linear, Linear, Linear, Linear, Linear, Linear]
+                         Linear, Linear, Linear, Linear, Linear, Linear,
+                         Linear, Linear, Linear, Linear, Linear, Linear,
+                         Linear, Linear, Linear, Linear, Linear, Linear,
+                         Linear, Linear, Linear, Linear, Linear, Linear, Linear]
     TimeDependentMaps:
       InitialTime: 0.0
       ShapeMap:
         LMax: &ShapeLMax 28
         InitialValues:
-          Mass: *Mass
+          # InnerRadius / r_+ gives the shape-control equilibrium surface.
+          # This is a map parameter; the physical hole still has mass 1.
+          Mass: 0.9289547991179896
           Spin: *Spin
         SizeInitialValues: Auto
         CoefficientTruncationLimit: 1.e-12
@@ -62,16 +74,16 @@ DomainCreator:
         RotatingQuadrupole:
           # Curvature coefficient at the outer boundary, with units M^-2.
           # This is neither a strain amplitude nor a luminosity normalization.
-          Amplitude: 5.e-4
+          Amplitude: 2.6e-4
           # Positive frequency selects prograde m=2 for a +z spinning hole.
           # Initially 2 Omega_H = 0.86761 < omega < 1/chi = 1.01010.
           # 1/1.1 is close to the extremal limiting value along the idealized
           # dJ/dM=2/omega absorption trajectory from (M,chi)=(1,0.99).
           AngularFrequency: 0.9090909090909091
           Phase: 0.0
-          StartTime: 20.0
+          StartTime: 0.0
           RampUpDuration: 150.0
-          StopTime: 400.0
+          StopTime: None
           RampDownDuration: 150.0
 
 Evolution:
@@ -233,7 +245,7 @@ EventsAndTriggersAtSlabs:
       TimeCompares:
         Comparison: GreaterThanOrEqualTo
         # Allow the turn-off signal to reach the black hole from r=52.
-        Value: 620.0
+        Value: 6000.0
     Events:
       - Completion
 

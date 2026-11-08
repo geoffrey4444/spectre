@@ -64,13 +64,13 @@ For example, in units where the initial hole mass is one:
 ConstraintPreservingBjorhus:
   Type: ConstraintPreservingPhysical
   RotatingQuadrupole:
-    Amplitude: 0.0005
+    Amplitude: 0.00026
     AngularFrequency: 0.9090909090909091
     Phase: 0.0
-    StartTime: 20.0
-    RampUpDuration: 100.0
+    StartTime: 0.0
+    RampUpDuration: 150.0
     StopTime: None
-    RampDownDuration: 100.0
+    RampDownDuration: 150.0
 ```
 
 `RotatingQuadrupole` and `IncomingWaveProfile` are alternative options;
@@ -140,10 +140,10 @@ leading far-zone, time-averaged incident luminosity
      \left\langle\dot E_{\mathrm{in}}\right\rangle.
 \f$
 
-For \f$R=52M_0\f$, \f$A=5\times10^{-4}/M_0^2\f$, and
+For \f$R=200M_0\f$, \f$A=2.6\times10^{-4}/M_0^2\f$, and
 \f$M_0\omega=0.90909\f$, the incident power is about
-\f$2.0\times10^{-5}\f$. Accreting \f$0.1M_0\f$ would take at least
-\f$4900M_0\f$ at this plateau power, and longer with incomplete absorption
+\f$8.2\times10^{-5}\f$. Accreting \f$0.1M_0\f$ would take at least
+\f$1220M_0\f$ at this plateau power, and longer with incomplete absorption
 or ramping. At fixed radius halving the amplitude increases this estimate
 by a factor of four.
 
@@ -151,6 +151,24 @@ Use analytic Kerr-Schild gauge source functions from the initial hole to
 retain that gauge prescription. The evolving geometry is no longer exactly
 Kerr-Schild. Shape and size control must track the distorted horizon and keep
 the excision boundary an outflow boundary.
+
+The `DrivenKerrSchild.yaml` example uses 29 radial shells out to
+\f$200M_0\f$, with angular resolution decreasing from \f$L=32\f$ near the
+hole to \f$L=16\f$ in the wave zone. `NumGridPointsAndGridSpacing` weights
+the element distribution for local time stepping. Starting the smooth ramp at
+zero still leaves approximately a light-crossing time before the injected
+wave reaches the hole; boundary turn-on time is not horizon arrival time.
+
+For stationary startup, initialize the excision surface as a homothetic copy
+of the horizon, matching the shape controller's target. With grid inner radius
+\f$r_{\mathrm{in}}\f$, set only `ShapeMap.InitialValues.Mass` to
+\f$r_{\mathrm{in}}/(1+\sqrt{1-\chi_0^2})\f$ and use `SizeInitialValues: Auto`.
+Keep the physical initial-data and gauge masses at \f$M_0\f$. For
+\f$r_{\mathrm{in}}=1.06M_0\f$ and \f$\chi_0=0.99\f$, this map parameter is
+\f$0.9289547991M_0\f$. Using the physical mass for this map initializer instead
+produces a constant Boyer-Lindquist-radius ellipsoid, which the shape
+controller immediately deforms even in stationary Kerr. Resolution and
+positive excision characteristic speeds still need to be checked numerically.
 
 A finite spherical boundary and this spherical quadrupole are not an exact
 Kerr spheroidal scattering solution. Curvature, reflection, transients, and
