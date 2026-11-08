@@ -292,7 +292,7 @@ ApparentHorizons:
       Flow: Fast
       Alpha: 1.0
       Beta: 0.5
-      AbsTol: 1.e-12
+      AbsTol: 1.e-8
       TruncationTol: 1.e-2
       DivergenceTol: 1.2
       DivergenceIter: 5
@@ -334,7 +334,7 @@ ControlSystems:
     Controller:
       UpdateFraction: 0.3
     TimescaleTuner:
-      InitialTimescales: 2.0
+      InitialTimescales: 5.0
       MinTimescale: 0.1
       MaxTimescale: 10.0
       IncreaseThreshold: 2.5e-4
@@ -349,9 +349,9 @@ ControlSystems:
     Controller:
       UpdateFraction: 0.3
     TimescaleTuner:
-      InitialTimescales: 1.0
+      InitialTimescales: 3.0
       MinTimescale: 0.05
-      MaxTimescale: 2.0
+      MaxTimescale: 10.0
       IncreaseThreshold: 2.5e-4
       IncreaseFactor: 1.01
     ControlError:
