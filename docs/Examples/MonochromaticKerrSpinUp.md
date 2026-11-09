@@ -46,7 +46,8 @@ gives
 \f}
 
 Thus positive \f$\omega\f$ gives a prograde electric quadrupole for a hole
-spinning about +z. The positive-frequency part has \f$m=2\f$; reality adds
+spinning about +z. On a monochromatic plateau the positive-frequency carrier
+has \f$m=2\f$; reality adds
 the \f$(-m,-\omega)\f$ partner, which has the same angular momentum per unit
 energy. Reversing the frequency reverses the rotation. The old axisymmetric
 `IncomingWaveProfile` source does not provide this rotating pattern.
@@ -119,8 +120,11 @@ under continued absorption. Derived weak, adiabatic estimates are:
 | 0.9090909 | 1.1000000 | 1.0000000 (limiting tangency) |
 
 These are model predictions, not simulation results or a prescription that
-guarantees extremality. A weak drive loses absorption efficiency near the
-threshold. Second-order effects also invalidate a test-body claim of
+guarantees extremality. The kinematic trajectory does not determine the
+absorption efficiency or approach time in the simultaneous extremal and
+synchronous-frequency limit; see
+[Richartz, Herdeiro, and Berti](https://arxiv.org/abs/1706.01112).
+Second-order effects also invalidate a test-body claim of
 overspinning; see
 [Sorce and Wald](https://arxiv.org/abs/1707.05862).
 
@@ -128,8 +132,11 @@ overspinning; see
 
 In the flat, locally planar limit an ingoing TT strain obeys
 \f$U^{3-}_{ij}=-2\partial_t^2h^{\mathrm{TT}}_{ij}\f$.
-During the plateau its strain coefficient is therefore
-\f$B=A/(2\omega^2)\f$. Integrating the quadrupole angular pattern gives the
+The oscillatory monochromatic particular solution therefore has strain
+coefficient \f$B=A/(2\omega^2)\f$. Switching the curvature source can also
+leave integration-history terms; a zero curvature target after ramp-down
+does not itself enforce zero strain or strain rate. For the oscillatory
+plateau contribution, integrating the quadrupole angular pattern gives the
 leading far-zone, time-averaged incident luminosity
 
 \f$
