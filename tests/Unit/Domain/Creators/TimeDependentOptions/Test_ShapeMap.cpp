@@ -4,9 +4,11 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <ios>
+#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -34,6 +36,7 @@
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/FillYlmLegendAndData.hpp"
 #include "NumericalAlgorithms/Strahlkorper/Strahlkorper.hpp"
+#include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/FileSystem.hpp"
 #include "Utilities/Gsl.hpp"
 
@@ -46,6 +49,76 @@ void test_kerr_schild_boyer_lindquist() {
       "Spin: [0.45, 0.12, 0.34]");
   CHECK(kerr_schild_boyer_lindquist.mass == 1.7);
   CHECK(kerr_schild_boyer_lindquist.spin == std::array{0.45, 0.12, 0.34});
+}
+
+void test_kerr_schild_horizon() {
+  const auto horizon = TestHelpers::test_creation<KerrSchildFromHorizon>(
+      "KerrSchildHorizon:\n"
+      "  Mass: 1.7\n"
+      "  Spin: [0.45, 0.12, 0.34]");
+  CHECK(horizon.mass == 1.7);
+  CHECK(horizon.spin == std::array{0.45, 0.12, 0.34});
+  CHECK_THROWS_WITH(
+      TestHelpers::test_creation<KerrSchildFromHorizon>(
+          "KerrSchildHorizon:\n  Mass: 0.0\n  Spin: [0.0, 0.0, 0.99]"),
+      Catch::Matchers::ContainsSubstring("Mass must be finite and positive"));
+  CHECK_THROWS_WITH(
+      TestHelpers::test_creation<KerrSchildFromHorizon>(
+          "KerrSchildHorizon:\n  Mass: 1.0\n  Spin: [0.8, 0.8, 0.0]"),
+      Catch::Matchers::ContainsSubstring("Spin magnitude must be finite"));
+
+  for (const double mass : {-1.0, std::numeric_limits<double>::infinity(),
+                            std::numeric_limits<double>::quiet_NaN()}) {
+    CHECK_THROWS_WITH(
+        (KerrSchildFromHorizon{mass, {0.0, 0.0, 0.99}}),
+        Catch::Matchers::ContainsSubstring("Mass must be finite and positive"));
+  }
+  for (const double spin : {std::numeric_limits<double>::max(),
+                            std::numeric_limits<double>::infinity(),
+                            std::numeric_limits<double>::quiet_NaN()}) {
+    CHECK_THROWS_WITH(
+        (KerrSchildFromHorizon{1.0, {0.0, 0.0, spin}}),
+        Catch::Matchers::ContainsSubstring("Spin magnitude must be finite"));
+  }
+
+  const auto options = TestHelpers::test_option_tag<
+      ShapeMapOptions<false, domain::ObjectLabel::None>>(
+      "LMax: 28\n"
+      "CoefficientTruncationLimit: 0.0\n"
+      "InitialValues:\n"
+      "  KerrSchildHorizon:\n"
+      "    Mass: 1.0\n"
+      "    Spin: [0.0, 0.0, 0.99]\n"
+      "SizeInitialValues: Auto\n");
+  REQUIRE(options.has_value());
+  const ylm::Spherepack spherepack{28, 28};
+  for (const double inner_radius : {1.01, 1.06}) {
+    CAPTURE(inner_radius);
+    const auto fots = get_shape_and_size(*options, 0.0, 1.0, 2.0, inner_radius);
+    const auto shape = fots.at("Shape")->func_and_2_derivs(0.0);
+    const auto size = fots.at("Size")->func_and_2_derivs(0.0);
+    CHECK(fots.at("Shape")->time_bounds() == std::array{0.0, 1.0});
+    CHECK(fots.at("Size")->time_bounds() == std::array{0.0, 2.0});
+    CHECK(shape[0][0] == 0.0);
+    for (size_t i = 1; i < 3; ++i) {
+      CHECK(gsl::at(shape, i) == DataVector(spherepack.spectral_size(), 0.0));
+      CHECK(gsl::at(size, i) == DataVector{0.0});
+    }
+    // Check the actual ellipsoid axes, including the normalization of Size.
+    const double monopole_radius = inner_radius - size[0][0] / sqrt(4.0 * M_PI);
+    const double polar_radius =
+        monopole_radius -
+        spherepack.interpolate_from_coefs(shape[0], std::array{0.0, 0.0});
+    const double equatorial_radius =
+        monopole_radius -
+        spherepack.interpolate_from_coefs(shape[0], std::array{M_PI_2, 0.0});
+    const double r_plus = 1.0 + sqrt(1.0 - square(0.99));
+    // Allow for truncating the ellipsoid's spherical harmonics at l=28.
+    const auto surface_approx = approx.custom().epsilon(1.0e-12);
+    CHECK(polar_radius == surface_approx(inner_radius));
+    CHECK(equatorial_radius ==
+          surface_approx(inner_radius * hypot(r_plus, 0.99) / r_plus));
+  }
 }
 
 void test_ylms_from_file() {
@@ -511,6 +584,7 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.TimeDependentOptions.ShapeMap",
   domain::FunctionsOfTime::register_derived_with_charm();
   MAKE_GENERATOR(generator);
   test_kerr_schild_boyer_lindquist();
+  test_kerr_schild_horizon();
   test_ylms_from_file();
   test_funcs(make_not_null(&generator));
 }

@@ -28,16 +28,38 @@
 #include "Options/Context.hpp"
 #include "Options/ParseError.hpp"
 #include "PointwiseFunctions/GeneralRelativity/KerrHorizon.hpp"
+#include "Utilities/Algorithm.hpp"
+#include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/EqualWithinRoundoff.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/StdArrayHelpers.hpp"
+#include "Utilities/StdHelpers.hpp"
 
 namespace domain::creators::time_dependent_options {
 KerrSchildFromBoyerLindquist::KerrSchildFromBoyerLindquist() = default;
 KerrSchildFromBoyerLindquist::KerrSchildFromBoyerLindquist(
     const double mass_in, const std::array<double, 3> spin_in)
     : mass(mass_in), spin(spin_in) {}
+
+KerrSchildFromHorizon::KerrSchildFromHorizon(
+    const double mass_in, const std::array<double, 3> spin_in,
+    const Options::Context& context)
+    : mass(mass_in), spin(spin_in) {
+  if (not(std::isfinite(mass) and mass > 0.0)) {
+    PARSE_ERROR(context, "Mass must be finite and positive, but is " << mass);
+  }
+  const bool valid_components = alg::all_of(spin, [](const double component) {
+    return std::isfinite(component) and abs(component) <= 1.0;
+  });
+  if (not valid_components or magnitude(spin) > 1.0) {
+    using ::operator<<;
+    PARSE_ERROR(context,
+                "Spin magnitude must be finite and at most one, but "
+                "the spin is "
+                    << spin);
+  }
+}
 
 YlmsFromFile::YlmsFromFile() = default;
 YlmsFromFile::YlmsFromFile(std::string h5_filename_in,
@@ -93,7 +115,8 @@ template <bool IncludeTransitionEndsAtCube, domain::ObjectLabel Object>
 ShapeMapOptions<IncludeTransitionEndsAtCube, Object>::ShapeMapOptions(
     const size_t l_max_in,
     std::optional<
-        std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile, YlmsFromSpEC>>
+        std::variant<KerrSchildFromBoyerLindquist, KerrSchildFromHorizon,
+                     YlmsFromFile, YlmsFromSpEC>>
         initial_values_in,
     std::optional<std::array<double, 3>> initial_size_values_in,
     const double coefficient_truncation_limit_in,
@@ -106,7 +129,8 @@ template <bool IncludeTransitionEndsAtCube, domain::ObjectLabel Object>
 ShapeMapOptions<IncludeTransitionEndsAtCube, Object>::ShapeMapOptions(
     const size_t l_max_in,
     std::optional<
-        std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile, YlmsFromSpEC>>
+        std::variant<KerrSchildFromBoyerLindquist, KerrSchildFromHorizon,
+                     YlmsFromFile, YlmsFromSpEC>>
         initial_values_in,
     std::optional<std::array<double, 3>> initial_size_values_in,
     const double coefficient_truncation_limit_in,
@@ -256,6 +280,22 @@ FunctionsOfTimeMap get_shape_and_size(
       // Transform from SPHEREPACK to actual Ylm for size func
       size_funcs[0][0] = shape_funcs[0][0] * sqrt(0.5 * M_PI);
       // Set l=0 for shape map to 0 because size control will adjust l=0
+      shape_funcs[0][0] = 0.0;
+    } else if (std::holds_alternative<KerrSchildFromHorizon>(
+                   hard_coded_options.initial_values.value())) {
+      const ylm::Spherepack ylm{l_max, l_max};
+      const auto& horizon = std::get<KerrSchildFromHorizon>(
+          hard_coded_options.initial_values.value());
+      const double horizon_polar_radius =
+          horizon.mass * (1.0 + sqrt(1.0 - square(magnitude(horizon.spin))));
+      const DataVector radial_distortion =
+          deformed_radius -
+          (deformed_radius / horizon_polar_radius) *
+              get(gr::Solutions::kerr_horizon_radius(
+                  ylm.theta_phi_points(), horizon.mass, horizon.spin));
+      shape_funcs[0] = ylm.phys_to_spec(radial_distortion);
+      // Transform from SPHEREPACK to actual Ylm for size control.
+      size_funcs[0][0] = shape_funcs[0][0] * sqrt(0.5 * M_PI);
       shape_funcs[0][0] = 0.0;
     } else if (std::holds_alternative<YlmsFromFile>(
                    hard_coded_options.initial_values.value())) {

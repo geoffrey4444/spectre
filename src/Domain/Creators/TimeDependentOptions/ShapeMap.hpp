@@ -58,6 +58,64 @@ struct KerrSchildFromBoyerLindquist {
                              std::numeric_limits<double>::signaling_NaN()};
 };
 
+/*!
+ * \brief Initialize a uniformly scaled Kerr-Schild horizon.
+ *
+ * For a centered, unboosted Kerr black hole, the target surface is
+ * \f$R_{\rm exc}(\theta,\phi) = (r_{\rm exc}/r_+)
+ * R_{\rm AH}(\theta,\phi)\f$, where
+ * \f$r_+ = M(1 + \sqrt{1-|\chi|^2})\f$ and \f$r_{\rm exc}\f$ is the
+ * grid-frame excision sphere radius (`InnerRadius` for a Sphere domain).
+ * The distorted-frame radius along the spin axis therefore equals the grid
+ * radius. Choose it below \f$r_+\f$ to place the surface inside the horizon.
+ *
+ * With `SizeInitialValues: Auto`, this initializes the Shape control error
+ * to zero up to spectral truncation and roundoff, provided the distorted-frame
+ * horizon is the specified Kerr-Schild horizon. All initial time derivatives
+ * vanish. Overriding the size coefficient changes the relative size of the
+ * surface and generally produces a nonzero Shape control error.
+ *
+ * Unlike KerrSchildFromBoyerLindquist, this surface is a scaled horizon,
+ * rather than a surface of constant Boyer-Lindquist radius of the specified
+ * black hole.
+ *
+ * For example, in the `ShapeMap` options of a Sphere or SphericalShells domain:
+ * \code{.yaml}
+ * InitialValues:
+ *   KerrSchildHorizon:
+ *     Mass: 1.0
+ *     Spin: [0.0, 0.0, 0.99]
+ * SizeInitialValues: Auto
+ * \endcode
+ */
+struct KerrSchildFromHorizon {
+  struct KerrSchildHorizon {
+    static constexpr Options::String help = {
+        "Mass and dimensionless spin of the Kerr-Schild horizon to scale."};
+  };
+  struct Mass : KerrSchildFromBoyerLindquist::Mass {
+    using group = KerrSchildHorizon;
+  };
+  struct Spin : KerrSchildFromBoyerLindquist::Spin {
+    using group = KerrSchildHorizon;
+  };
+  using options = tmpl::list<Mass, Spin>;
+  static constexpr Options::String help = {
+      "Conform to a uniformly scaled Kerr-Schild horizon, with polar radius "
+      "equal to the grid-frame excision radius (InnerRadius for a Sphere). "
+      "With SizeInitialValues: Auto, the initial Shape control error vanishes "
+      "for the specified centered, unboosted Kerr-Schild black hole."};
+
+  KerrSchildFromHorizon() = default;
+  KerrSchildFromHorizon(double mass_in, std::array<double, 3> spin_in,
+                        const Options::Context& context = {});
+
+  double mass{std::numeric_limits<double>::signaling_NaN()};
+  std::array<double, 3> spin{std::numeric_limits<double>::signaling_NaN(),
+                             std::numeric_limits<double>::signaling_NaN(),
+                             std::numeric_limits<double>::signaling_NaN()};
+};
+
 /// Label for shape map options
 struct Spherical {};
 
@@ -271,7 +329,8 @@ struct ShapeMapOptions {
 
   struct InitialValues {
     using type = Options::Auto<
-        std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile, YlmsFromSpEC>,
+        std::variant<KerrSchildFromBoyerLindquist, KerrSchildFromHorizon,
+                     YlmsFromFile, YlmsFromSpEC>,
         Spherical>;
     static constexpr Options::String help = {
         "Initial Ylm coefficients for the shape map. Specify 'Spherical' for "
@@ -298,24 +357,26 @@ struct ShapeMapOptions {
   ShapeMapOptions() = default;
   ShapeMapOptions(size_t l_max_in,
                   std::optional<std::variant<KerrSchildFromBoyerLindquist,
+                                             KerrSchildFromHorizon,
                                              YlmsFromFile, YlmsFromSpEC>>
                       initial_values_in,
                   std::optional<std::array<double, 3>> initial_size_values_in =
                       std::nullopt,
                   double coefficient_truncation_limit_in = 0.0,
                   const Options::Context& context = {});
-  ShapeMapOptions(size_t l_max_in,
-                  std::optional<std::variant<KerrSchildFromBoyerLindquist,
-                                             YlmsFromFile, YlmsFromSpEC>>
-                      initial_values_in,
-                  std::optional<std::array<double, 3>> initial_size_values_in,
-                  double coefficient_truncation_limit_in,
-                  bool transition_ends_at_cube_in,
-                  const Options::Context& context = {});
+  ShapeMapOptions(
+      size_t l_max_in,
+      std::optional<
+          std::variant<KerrSchildFromBoyerLindquist, KerrSchildFromHorizon,
+                       YlmsFromFile, YlmsFromSpEC>>
+          initial_values_in,
+      std::optional<std::array<double, 3>> initial_size_values_in,
+      double coefficient_truncation_limit_in, bool transition_ends_at_cube_in,
+      const Options::Context& context = {});
 
   size_t l_max{};
-  std::optional<
-      std::variant<KerrSchildFromBoyerLindquist, YlmsFromFile, YlmsFromSpEC>>
+  std::optional<std::variant<KerrSchildFromBoyerLindquist,
+                             KerrSchildFromHorizon, YlmsFromFile, YlmsFromSpEC>>
       initial_values;
   std::optional<std::array<double, 3>> initial_size_values;
   double coefficient_truncation_limit{0.0};

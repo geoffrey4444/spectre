@@ -5,6 +5,7 @@ import unittest
 
 from spectre.Domain.Creators.TimeDependentOptions import (
     KerrSchildFromBoyerLindquist,
+    KerrSchildFromHorizon,
     ShapeMapOptions,
 )
 
@@ -27,6 +28,12 @@ class TestShapeMap(unittest.TestCase):
         self.assertNotEqual(shape_map_B, None)
         self.assertNotEqual(shape_map_C, None)
         self.assertNotEqual(shape_map_no_object, None)
+
+        for label in ["A", "B", "C", "None"]:
+            shape_map = ShapeMapOptions[label](
+                28, KerrSchildFromHorizon(1.0, [0.0, 0.0, 0.99])
+            )
+            self.assertIsNotNone(shape_map)
 
 
 if __name__ == "__main__":

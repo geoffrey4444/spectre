@@ -8,9 +8,11 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "ControlSystem/Averager.hpp"
@@ -28,6 +30,7 @@
 #include "Domain/Block.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/Shape.hpp"
 #include "Domain/CoordinateMaps/TimeDependent/ShapeMapTransitionFunctions/SphereTransition.hpp"
+#include "Domain/Creators/TimeDependentOptions/ShapeMap.hpp"
 #include "Domain/Domain.hpp"
 #include "Domain/FunctionsOfTime/FunctionOfTime.hpp"
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
@@ -41,6 +44,7 @@
 #include "NumericalAlgorithms/SphericalHarmonics/SpherepackIterator.hpp"
 #include "NumericalAlgorithms/Strahlkorper/Strahlkorper.hpp"
 #include "Parallel/Phase.hpp"
+#include "PointwiseFunctions/GeneralRelativity/KerrHorizon.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeArray.hpp"
@@ -211,6 +215,52 @@ void check_shape_control_error(const size_t ah_l_max, const size_t lambda_l_max,
   CHECK_ITERABLE_APPROX(control_error, expected_control_error);
 }
 
+void check_kerr_schild_initial_error(const double mass,
+                                     const std::array<double, 3>& spin,
+                                     const double inner_radius) {
+  CAPTURE(mass, spin, inner_radius);
+  using metavars =
+      TestHelpers::control_system::MockMetavars<0, 0, 0, deriv_order>;
+  using element_component = typename metavars::element_component;
+  using ControlError = typename metavars::shape_system::control_error;
+  using namespace domain::creators::time_dependent_options;
+  constexpr size_t l_max = 28;
+  const ylm::Spherepack spherepack{l_max, l_max};
+  const Strahlkorper horizon{l_max, l_max,
+                             get(gr::Solutions::kerr_horizon_radius(
+                                 spherepack.theta_phi_points(), mass, spin)),
+                             std::array{0.0, 0.0, 0.0}};
+  // No explicit size coefficients: exercise SizeInitialValues: Auto.
+  const std::variant<ShapeMapOptions<false, domain::ObjectLabel::A>,
+                     FromVolumeFileShapeSize<domain::ObjectLabel::A>>
+      options{ShapeMapOptions<false, domain::ObjectLabel::A>{
+          l_max, KerrSchildFromHorizon{mass, spin}, std::nullopt}};
+  auto functions_of_time =
+      get_shape_and_size(options, 0.0, 1.0, 1.0, inner_radius);
+  const tnsr::I<double, 3, Frame::Grid> origin{0.0};
+  Domain<3> domain{
+      std::vector<Block<3>>{},
+      {{"ExcisionSphereA",
+        ExcisionSphere<3>{
+            inner_radius, origin, {{0, Direction<3>::lower_zeta()}}}}}};
+  ActionTesting::MockRuntimeSystem<metavars> runner{
+      {"DummyFilename", std::move(domain), 4, true, false, ::Verbosity::Silent,
+       std::unordered_map<std::string, bool>{}, origin, origin,
+       std::unordered_map<std::string, std::string>{}},
+      {std::move(functions_of_time), FoTMap{}}};
+  ActionTesting::emplace_array_component<element_component>(
+      make_not_null(&runner), ActionTesting::NodeId{0},
+      ActionTesting::LocalCoreId{0}, 0);
+  auto& cache = ActionTesting::cache<element_component>(runner, 0);
+  const tuples::TaggedTuple<
+      QueueTags::Horizon<Frame::Distorted, domain::ObjectLabel::A>>
+      measurement{horizon};
+  // Evaluate the production control error, not a duplicate of its formula.
+  const DataVector error = ControlError{}(::TimescaleTuner<true>{}, cache, 0.0,
+                                          "ShapeA", measurement);
+  CHECK(max(abs(error)) < 1.0e-12);
+}
+
 SPECTRE_TEST_CASE("Unit.ControlSystem.ControlErrors.Shape",
                   "[ControlSystem][Unit]") {
   MAKE_GENERATOR(generator);
@@ -219,6 +269,11 @@ SPECTRE_TEST_CASE("Unit.ControlSystem.ControlErrors.Shape",
   // ah_l_max < lambda_l_max (prolong), equal, and ah_l_max > lambda_l_max
   check_shape_control_error(8, 10, generator);
   check_shape_control_error(10, 10, generator);
+  check_kerr_schild_initial_error(1.0, {0.0, 0.0, 0.99}, 1.01);
+  check_kerr_schild_initial_error(1.0, {0.0, 0.0, 0.99}, 1.06);
+  check_kerr_schild_initial_error(1.7, {0.3, 0.4, 0.7}, 1.5);
+  check_kerr_schild_initial_error(1.7, {0.0, 0.0, 0.0}, 2.5);
+  check_kerr_schild_initial_error(1.0, {0.0, 0.0, 1.0}, 0.95);
   CHECK_THROWS_WITH(
       check_shape_control_error(12, 10, generator),
       Catch::Matchers::ContainsSubstring(
