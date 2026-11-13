@@ -245,7 +245,8 @@ void check_kerr_schild_initial_error(const double mass,
         ExcisionSphere<3>{
             inner_radius, origin, {{0, Direction<3>::lower_zeta()}}}}}};
   ActionTesting::MockRuntimeSystem<metavars> runner{
-      {"DummyFilename", std::move(domain), 4, true, false, ::Verbosity::Silent,
+      {"DummyFilename", std::move(domain), 4, true,
+       std::unordered_set<std::string>{}, ::Verbosity::Silent,
        std::unordered_map<std::string, bool>{}, origin, origin,
        std::unordered_map<std::string, std::string>{}},
       {std::move(functions_of_time), FoTMap{}}};
