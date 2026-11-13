@@ -189,8 +189,9 @@ void test_suggested_timescale_survives_averager_update() {
             tnsr::I<double, 3, Frame::Grid>{std::array{0.0, 0.0, 0.0}},
             {}}}}};
   Parallel::GlobalCache<Metavars> cache{
-      {std::move(functions_of_time), std::move(domain), false,
-       ::Verbosity::Silent, "", "", std::vector<std::string>{}}};
+      {std::move(functions_of_time), std::move(domain),
+       std::unordered_set<std::string>{}, ::Verbosity::Silent, "", "",
+       std::vector<std::string>{}}};
 
   using ExcisionQuantities =
       control_system::QueueTags::SizeExcisionQuantities<Frame::Distorted>;
