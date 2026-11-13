@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "DataStructures/DataVector.hpp"
@@ -60,7 +61,8 @@ std::string stringize(const std::vector<T>& t) {
 std::string option_string(
     const double inner_radius, const double outer_radius,
     const size_t radial_refinement, const size_t radial_extents,
-    const size_t spherical_harmonic_l,
+    const domain::creators::SphericalShells::InitialSphericalHarmonicL::type&
+        spherical_harmonic_l,
     const std::vector<double>& radial_partitioning,
     const std::vector<domain::CoordinateMaps::Distribution>&
         radial_distribution,
@@ -121,7 +123,10 @@ std::string option_string(
          std::to_string(radial_extents) +
          "\n"
          "  InitialSphericalHarmonicL: " +
-         std::to_string(spherical_harmonic_l) +
+         (std::holds_alternative<size_t>(spherical_harmonic_l)
+              ? std::to_string(std::get<size_t>(spherical_harmonic_l))
+              : stringize(
+                    std::get<std::vector<size_t>>(spherical_harmonic_l))) +
          "\n"
          "  RadialPartitioning: " +
          stringize(radial_partitioning) +
@@ -804,6 +809,64 @@ void test_shape_distortion() {
   }
 }
 
+void test_angular_resolutions() {
+  using domain::creators::SphericalShells;
+  const std::vector<double> partitions{2., 3.};
+  const std::vector<domain::CoordinateMaps::Distribution> distributions{
+      domain::CoordinateMaps::Distribution::Linear};
+  for (const double inner_radius : {0., 1.}) {
+    CAPTURE(inner_radius);
+    // Plain integer literals also retain the original scalar constructor API.
+    const SphericalShells scalar{inner_radius, 4., 0, 5, 6, partitions};
+    const SphericalShells uniform{
+        inner_radius, 4., 0, 5, std::vector<size_t>{6, 6, 6}, partitions};
+    CHECK(uniform.initial_extents() == scalar.initial_extents());
+    CHECK(uniform.create_domain() == scalar.create_domain());
+    CHECK(uniform.initial_refinement_levels() ==
+          scalar.initial_refinement_levels());
+    TestHelpers::domain::creators::test_creation(
+        option_string(inner_radius, 4., 0, 5, std::vector<size_t>{6, 6, 6},
+                      partitions, distributions, false, false, false),
+        scalar, false);
+
+    const std::vector<size_t> resolutions{12, 8, 6};
+    const SphericalShells varying{inner_radius, 4.,        0, 5,
+                                  resolutions,  partitions};
+    const std::vector<std::array<size_t, 3>> expected_extents{
+        {inner_radius == 0. ? 7_st : 5_st, 13, 25}, {5, 9, 17}, {5, 7, 13}};
+    CHECK(varying.initial_extents() == expected_extents);
+    CHECK(varying.create_domain() == scalar.create_domain());
+    CHECK(varying.initial_refinement_levels() ==
+          scalar.initial_refinement_levels());
+    TestHelpers::domain::creators::test_creation(
+        option_string(inner_radius, 4., 0, 5, resolutions, partitions,
+                      distributions, false, false, false),
+        varying, false);
+
+    for (const auto& invalid_length :
+         {std::vector<size_t>{}, std::vector<size_t>{6, 6},
+          std::vector<size_t>{6, 6, 6, 6}}) {
+      CHECK_THROWS_WITH(
+          (SphericalShells{inner_radius, 4., 0, 5, invalid_length, partitions}),
+          Catch::Matchers::ContainsSubstring(
+              "Invalid InitialSphericalHarmonicL") and
+              Catch::Matchers::ContainsSubstring("3 blocks"));
+    }
+    CHECK_THROWS_WITH(
+        (SphericalShells{inner_radius, 4., 0, 5, 1_st, partitions}),
+        Catch::Matchers::ContainsSubstring(
+            "InitialSphericalHarmonicL must be at least 2"));
+    CHECK_THROWS_WITH(
+        (TestHelpers::domain::creators::test_creation(
+            option_string(inner_radius, 4., 0, 5, std::vector<size_t>{6, 1, 6},
+                          partitions, distributions, false, false, false),
+            scalar, false)),
+        Catch::Matchers::ContainsSubstring(
+            "InitialSphericalHarmonicL must be at least 2") and
+            Catch::Matchers::ContainsSubstring("block 1 has 1"));
+  }
+}
+
 template <typename Generator>
 void test_filled_sphere(const gsl::not_null<Generator*> gen) {
   const double inner_radius = 0.0;
@@ -882,6 +945,7 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.SphericalShells", "[Domain][Unit]") {
   test_parse_errors();
   test_sphere(make_not_null(&gen));
   test_filled_sphere(make_not_null(&gen));
+  test_angular_resolutions();
   test_number_of_radial_shells_with_shape_map();
   test_shape_distortion();
 }

@@ -12,6 +12,7 @@
 #include "DataStructures/Tags/TempTensor.hpp"
 #include "DataStructures/TempBuffer.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Christoffel.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/CovariantDerivOfExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/Ricci.hpp"
@@ -250,7 +251,8 @@ void add_physical_terms_to_dt_v_minus(
     const tnsr::ijaa<DataType, VolumeDim, Frame::Inertial>& d_phi,
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds, const double time,
-    const MathFunction<1, Frame::Inertial>* const incoming_wave_profile) {
+    const MathFunction<1, Frame::Inertial>* const incoming_wave_profile,
+    const RotatingQuadrupole* const rotating_quadrupole) {
   // hard-coded value from SpEC Bbh input file Mu = MuPhys = 0
   constexpr double mu_phys = 0.;
   constexpr bool adjust_phys_using_c4 = true;
@@ -445,6 +447,19 @@ void add_physical_terms_to_dt_v_minus(
     }
   }
 
+  if (rotating_quadrupole != nullptr) {
+    if constexpr (VolumeDim == 3) {
+      const auto quadrupole = (*rotating_quadrupole)(time);
+      for (size_t a = 0; a <= VolumeDim; ++a) {
+        for (size_t b = a; b <= VolumeDim; ++b) {
+          injected_wave.get(a, b) += quadrupole.get(a, b);
+        }
+      }
+    } else {
+      ERROR("RotatingQuadrupole can only be used in 3 spatial dimensions.");
+    }
+  }
+
   // Add physical boundary corrections
   if (gamma2_in_phys) {
     auto& normal_dot_three_index_constraint_gamma2 =
@@ -616,7 +631,8 @@ void constraint_preserving_gauge_physical_corrections_dt_v_minus(
     const tnsr::ijaa<DataType, VolumeDim, Frame::Inertial>& d_phi,
     const tnsr::iaa<DataType, VolumeDim, Frame::Inertial>& d_pi,
     const std::array<DataType, 4>& char_speeds,
-    const MathFunction<1, Frame::Inertial>* const incoming_wave_profile) {
+    const MathFunction<1, Frame::Inertial>* const incoming_wave_profile,
+    const RotatingQuadrupole* const rotating_quadrupole) {
   for (size_t a = 0; a <= VolumeDim; ++a) {
     for (size_t b = a; b <= VolumeDim; ++b) {
       bc_dt_v_minus->get(a, b) = -char_projected_rhs_dt_v_minus.get(a, b);
@@ -633,7 +649,7 @@ void constraint_preserving_gauge_physical_corrections_dt_v_minus(
       projection_Ab, projection_AB, inverse_spatial_metric, extrinsic_curvature,
       spacetime_metric, inverse_spacetime_metric, three_index_constraint,
       char_projected_rhs_dt_v_minus, phi, d_phi, d_pi, char_speeds, time,
-      incoming_wave_profile);
+      incoming_wave_profile, rotating_quadrupole);
   detail::add_gauge_sommerfeld_terms_to_dt_v_minus(
       bc_dt_v_minus, gamma2, inertial_coords, incoming_null_one_form,
       outgoing_null_one_form, incoming_null_vector, outgoing_null_vector,
@@ -739,7 +755,8 @@ void constraint_preserving_gauge_physical_corrections_dt_v_minus(
       const tnsr::ijaa<DTYPE(data), DIM(data), Frame::Inertial>& d_phi,        \
       const tnsr::iaa<DTYPE(data), DIM(data), Frame::Inertial>& d_pi,          \
       const std::array<DTYPE(data), 4>& char_speeds, const double time,        \
-      const MathFunction<1, Frame::Inertial>* incoming_wave_profile);          \
+      const MathFunction<1, Frame::Inertial>* incoming_wave_profile,           \
+      const gh::BoundaryConditions::RotatingQuadrupole* rotating_quadrupole);  \
   template void gh::BoundaryConditions::Bjorhus::                              \
       constraint_preserving_corrections_dt_v_minus(                            \
           const gsl::not_null<                                                 \
@@ -846,7 +863,9 @@ void constraint_preserving_gauge_physical_corrections_dt_v_minus(
           const tnsr::ijaa<DTYPE(data), DIM(data), Frame::Inertial>& d_phi,    \
           const tnsr::iaa<DTYPE(data), DIM(data), Frame::Inertial>& d_pi,      \
           const std::array<DTYPE(data), 4>& char_speeds,                       \
-          const MathFunction<1, Frame::Inertial>* incoming_wave_profile);
+          const MathFunction<1, Frame::Inertial>* incoming_wave_profile,       \
+          const gh::BoundaryConditions::RotatingQuadrupole*                    \
+              rotating_quadrupole);
 
 GENERATE_INSTANTIATIONS(INSTANTIATE, (1, 2, 3), (DataVector))
 

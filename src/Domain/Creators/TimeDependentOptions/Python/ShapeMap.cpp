@@ -34,6 +34,15 @@ void bind_ylms_from_file_impl(py::module& m) {
            py::arg("set_l1_coefs_to_zero"), py::arg("check_frame"));
 }
 
+void bind_kerrschild_from_horizon_impl(py::module& m) {
+  py::class_<time_dependent_options::KerrSchildFromHorizon>(
+      m, "KerrSchildFromHorizon")
+      .def(py::init([](const double mass, const std::array<double, 3>& spin) {
+             return KerrSchildFromHorizon{mass, spin};
+           }),
+           py::arg("mass"), py::arg("spin"));
+}
+
 void bind_ylms_from_spec_impl(py::module& m) {
   py::class_<time_dependent_options::YlmsFromSpEC>(m, "YlmsFromSpEC")
       .def(py::init<std::string, double, std::optional<double>, bool>(),
@@ -50,6 +59,8 @@ void bind_shape_map_impl(py::module& m) {
                    std::optional<std::variant<
                        domain::creators::time_dependent_options::
                            KerrSchildFromBoyerLindquist,
+                       domain::creators::time_dependent_options::
+                           KerrSchildFromHorizon,
                        domain::creators::time_dependent_options::YlmsFromFile,
                        domain::creators::time_dependent_options::YlmsFromSpEC>>,
                    std::optional<std::array<double, 3>>, double, bool>(),
@@ -62,6 +73,7 @@ void bind_shape_map_impl(py::module& m) {
 
 void bind_shape_map(py::module& m) {
   py_bindings::bind_kerrschild_from_boyer_lindquist_impl(m);
+  py_bindings::bind_kerrschild_from_horizon_impl(m);
   py_bindings::bind_shape_map_impl<ObjectLabel::A>(m);
   py_bindings::bind_shape_map_impl<ObjectLabel::B>(m);
   py_bindings::bind_shape_map_impl<ObjectLabel::C>(m);

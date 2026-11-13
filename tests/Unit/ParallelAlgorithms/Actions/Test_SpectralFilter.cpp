@@ -3,13 +3,17 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <pup.h>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -19,6 +23,13 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "DataStructures/VariablesTag.hpp"
+#include "Domain/CoordinateMaps/CoordinateMap.hpp"
+#include "Domain/CoordinateMaps/CoordinateMap.tpp"
+#include "Domain/CoordinateMaps/Identity.hpp"
+#include "Domain/CoordinateMaps/Tags.hpp"
+#include "Domain/CoordinateMaps/TimeDependent/CubicScale.hpp"
+#include "Domain/Creators/Tags/FunctionsOfTime.hpp"
+#include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "Domain/Structure/Element.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "Domain/Structure/Topology.hpp"
@@ -31,10 +42,11 @@
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
+#include "Parallel/GlobalCache.hpp"
 #include "Parallel/Phase.hpp"
 #include "ParallelAlgorithms/Actions/SpectralFilter.hpp"
-#include "Time/Slab.hpp"
 #include "Time/Tags/StepNumberWithinSlab.hpp"
+#include "Time/Tags/Time.hpp"
 #include "Time/Tags/TimeStepId.hpp"
 #include "Time/Time.hpp"
 #include "Time/TimeStepId.hpp"
@@ -82,6 +94,8 @@ class MockFilter : public FilterBase {
     p | supports_mesh_;
     p | saw_inv_jac_;
     p | saw_jac_;
+    p | inv_jac_values_;
+    p | jac_values_;
   }
 
   std::unique_ptr<FilterBase> get_clone() const override {
@@ -127,6 +141,12 @@ class MockFilter : public FilterBase {
                                    Frame::Inertial>>& jac) const override {
     saw_inv_jac_ = inv_jac.has_value();
     saw_jac_ = jac.has_value();
+    if (inv_jac.has_value()) {
+      inv_jac_values_ = get<0, 0>(*inv_jac);
+    }
+    if (jac.has_value()) {
+      jac_values_ = get<0, 0>(*jac);
+    }
     for (auto& component : get<ScalarFieldTag>(*vars)) {
       component *= 2.0;
     }
@@ -143,6 +163,8 @@ class MockFilter : public FilterBase {
 
   bool saw_inv_jac() const { return saw_inv_jac_; }
   bool saw_jac() const { return saw_jac_; }
+  const DataVector& inv_jac_values() const { return inv_jac_values_; }
+  const DataVector& jac_values() const { return jac_values_; }
 
  private:
   bool apply_substep_{false};
@@ -154,6 +176,10 @@ class MockFilter : public FilterBase {
   mutable bool saw_inv_jac_{false};
   // NOLINTNEXTLINE(spectre-mutable)
   mutable bool saw_jac_{false};
+  // NOLINTNEXTLINE(spectre-mutable)
+  mutable DataVector inv_jac_values_{};
+  // NOLINTNEXTLINE(spectre-mutable)
+  mutable DataVector jac_values_{};
 };
 
 // NOLINTNEXTLINE
@@ -179,14 +205,21 @@ struct ElementArray {
       tmpl::list<Parallel::PhaseActions<
                      Parallel::Phase::Initialization,
                      tmpl::list<ActionTesting::InitializeDataBox<tmpl::list<
-                         VarsTag, MeshTag, ElementTag, StepTag, FilterTag,
-                         InvJacTag, JacTag, NextTimeStepIdTag>>>>,
-                 Parallel::PhaseActions<Parallel::Phase::Testing,
-                                        tmpl::list<dg::Actions::SpectralFilter<
-                                            1, tmpl::list<ScalarFieldTag>>>>>;
+                         VarsTag, MeshTag, ElementTag, StepTag, ::Tags::Time,
+                         ::Tags::TimeStepId, NextTimeStepIdTag, FilterTag,
+                         InvJacTag, JacTag>>>>,
+                 Parallel::PhaseActions<
+                     Parallel::Phase::Testing,
+                     tmpl::list<typename Metavariables::filter_action>>>;
 };
 
+template <bool BeforeUpdate>
 struct Metavariables {
+  using filter_action = tmpl::conditional_t<
+      BeforeUpdate,
+      dg::Actions::SpectralFilter<1, tmpl::list<ScalarFieldTag>,
+                                  ::Tags::TimeStepId>,
+      dg::Actions::SpectralFilter<1, tmpl::list<ScalarFieldTag>>>;
   using component_list = tmpl::list<ElementArray<Metavariables>>;
 };
 
@@ -200,45 +233,237 @@ Jacobian<DataVector, 1, Frame::Grid, Frame::Inertial> make_identity_jac() {
   return Jacobian<DataVector, 1, Frame::Grid, Frame::Inertial>{5_st, 1.0};
 }
 
-template <typename Filter, typename Callback>
+template <bool BeforeUpdate = false, typename Filter, typename Callback>
 void run_action(std::unique_ptr<Filter> filter_ptr, const double initial_value,
                 const uint64_t step_number, Callback&& callback,
-                const bool step_complete = true) {
-  using element_array = ElementArray<Metavariables>;
-  const Slab slab{0.0, 1.0};
-  const TimeStepId step_start{true, 0, slab.start()};
-  // The action runs after UpdateU and before AdvanceTime, so the next ID
-  // identifies whether the updated solution completes the step.
-  const TimeStepId next_time_step_id =
-      step_complete ? step_start.next_step(slab.duration())
-                    : step_start.next_substep(slab.duration(), 0.5);
-  ActionTesting::MockRuntimeSystem<Metavariables> runner{{}};
+                const TimeStepId& next_time_step_id =
+                    TimeStepId{true, 0, Slab{0., 1.}.start()},
+                const TimeStepId& time_step_id = TimeStepId{
+                    true, 0, Slab{0., 1.}.start()}) {
+  using element_array = ElementArray<Metavariables<BeforeUpdate>>;
+  ActionTesting::MockRuntimeSystem<Metavariables<BeforeUpdate>> runner{{}};
   ActionTesting::emplace_component_and_initialize<element_array>(
       &runner, 0,
       {Vars(5, initial_value),
        Mesh<1>{5, Spectral::Basis::Legendre,
                Spectral::Quadrature::GaussLobatto},
        Element<1>{ElementId<1>{0}, {}, domain::topologies::hypercube<1>},
-       step_number, std::unique_ptr<FilterBase>(std::move(filter_ptr)),
-       make_identity_inv_jac(), make_identity_jac(), next_time_step_id});
+       step_number, time_step_id.substep_time(), time_step_id,
+       next_time_step_id, std::unique_ptr<FilterBase>(std::move(filter_ptr)),
+       make_identity_inv_jac(), make_identity_jac()});
   ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
   ActionTesting::next_action<element_array>(make_not_null(&runner), 0);
   std::forward<Callback>(callback)(runner);
 }
 
+template <typename Metavariables>
 DataVector get_scalar_field(
     const ActionTesting::MockRuntimeSystem<Metavariables>& runner) {
   return get(get<ScalarFieldTag>(
-      ActionTesting::get_databox_tag<ElementArray<Metavariables>, VarsTag>(
-          runner, 0)));
+      ActionTesting::get_databox_tag<
+          tmpl::front<typename Metavariables::component_list>, VarsTag>(runner,
+                                                                        0)));
 }
 
+template <typename Metavariables>
 const MockFilter* get_mock_filter(
     const ActionTesting::MockRuntimeSystem<Metavariables>& runner) {
-  const auto& filter_ref =
-      ActionTesting::get_databox_tag<ElementArray<Metavariables>, FilterTag>(
-          runner, 0);
+  const auto& filter_ref = ActionTesting::get_databox_tag<
+      tmpl::front<typename Metavariables::component_list>, FilterTag>(runner,
+                                                                      0);
   return dynamic_cast<const MockFilter*>(&filter_ref);
+}
+
+using MapTag = domain::CoordinateMaps::Tags::CoordinateMap<1, Frame::Grid,
+                                                           Frame::Inertial>;
+using GridCoordinatesTag = domain::Tags::Coordinates<1, Frame::Grid>;
+using ScaleMap =
+    domain::CoordinateMap<Frame::Grid, Frame::Inertial,
+                          domain::CoordinateMaps::TimeDependent::CubicScale<1>>;
+using IdentityMap = domain::CoordinateMap<Frame::Grid, Frame::Inertial,
+                                          domain::CoordinateMaps::Identity<1>>;
+using Polynomial = domain::FunctionsOfTime::PiecewisePolynomial<1>;
+
+template <typename Metavariables>
+struct MovingMapElementArray {
+  using metavariables = Metavariables;
+  using chare_type = ActionTesting::MockArrayChare;
+  using array_index = int;
+  using mutable_global_cache_tags =
+      tmpl::list<domain::Tags::FunctionsOfTimeInitialize>;
+  using phase_dependent_action_list = tmpl::list<
+      Parallel::PhaseActions<
+          Parallel::Phase::Initialization,
+          tmpl::list<ActionTesting::InitializeDataBox<
+              tmpl::list<VarsTag, MeshTag, ElementTag, StepTag, ::Tags::Time,
+                         ::Tags::TimeStepId, NextTimeStepIdTag, FilterTag,
+                         InvJacTag, JacTag, MapTag, GridCoordinatesTag>,
+              tmpl::list<Parallel::Tags::FromGlobalCache<
+                  domain::Tags::FunctionsOfTimeInitialize, Metavariables>>>>>,
+      Parallel::PhaseActions<
+          Parallel::Phase::Testing,
+          tmpl::list<typename Metavariables::filter_action>>>;
+};
+
+template <bool BeforeUpdate>
+struct MovingMapMetavariables : Metavariables<BeforeUpdate> {
+  using component_list =
+      tmpl::list<MovingMapElementArray<MovingMapMetavariables>>;
+};
+
+template <bool BeforeUpdate = false, typename Callback>
+void with_moving_map(const TimeStepId& time_step_id,
+                     const TimeStepId& next_time_step_id,
+                     const double expiration_time,
+                     std::unique_ptr<FilterBase> filter, MapTag::type map,
+                     Callback&& callback) {
+  using metavars = MovingMapMetavariables<BeforeUpdate>;
+  using component = MovingMapElementArray<metavars>;
+  domain::Tags::FunctionsOfTime::type functions_of_time{};
+  functions_of_time["Expansion"] = std::make_unique<Polynomial>(
+      -0.5, std::array{DataVector{0.5}, DataVector{1.}}, expiration_time);
+  // An unrelated expired function must not delay this map's filter.
+  functions_of_time["Unrelated"] = std::make_unique<Polynomial>(
+      -0.5, std::array{DataVector{0.}, DataVector{0.}}, 0.);
+  ActionTesting::MockRuntimeSystem<metavars> runner{
+      {}, {std::move(functions_of_time)}};
+  ActionTesting::emplace_component_and_initialize<component>(
+      &runner, 0,
+      {Vars(5, 3.),
+       Mesh<1>{5, Spectral::Basis::Legendre,
+               Spectral::Quadrature::GaussLobatto},
+       Element<1>{ElementId<1>{0}, {}, domain::topologies::hypercube<1>},
+       uint64_t{0}, time_step_id.substep_time(), time_step_id,
+       next_time_step_id, std::move(filter),
+       // Deliberately distinct cached matrices identify the fast path.
+       InvJacTag::type{5_st, 0.5}, JacTag::type{5_st, 2.}, std::move(map),
+       GridCoordinatesTag::type{5_st, 1.}});
+  ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
+  std::forward<Callback>(callback)(make_not_null(&runner),
+                                   std::type_identity<component>{});
+}
+
+std::unique_ptr<ScaleMap> make_scale_map() {
+  return std::make_unique<ScaleMap>(
+      domain::CoordinateMaps::TimeDependent::CubicScale<1>{10., "Expansion",
+                                                           "Expansion"});
+}
+
+template <bool BeforeUpdate>
+void test_jacobian_times() {
+  const Slab slab{0., 1.};
+  const TimeStepId step_start{true, 0, slab.start()};
+  const auto step_size = slab.duration() / 4;
+  const auto predictor_id = step_start.next_substep(step_size, 1.);
+  const auto corrector_id = predictor_id.next_step(step_size);
+  for (const auto& current_id : {step_start, predictor_id}) {
+    const auto& next_id =
+        current_id.substep() == 0 ? predictor_id : corrector_id;
+    const bool cached = BeforeUpdate or current_id == predictor_id;
+    CAPTURE(BeforeUpdate, current_id, next_id);
+    with_moving_map<BeforeUpdate>(
+        current_id, next_id, 1., std::make_unique<MockFilter>(true, true, true),
+        make_scale_map(),
+        [cached, current_time = current_id.substep_time()](const auto runner,
+                                                           auto component_v) {
+          using component = typename decltype(component_v)::type;
+          CHECK(ActionTesting::next_action_if_ready<component>(runner, 0));
+          CHECK(get_scalar_field(*runner) == DataVector(5, 6.));
+          const auto* filter = get_mock_filter(*runner);
+          REQUIRE(filter != nullptr);
+          CHECK(filter->jac_values() == DataVector(5, cached ? 2. : 1.25));
+          CHECK(filter->inv_jac_values() == DataVector(5, cached ? 0.5 : 0.8));
+          CHECK(get<0, 0>(ActionTesting::get_databox_tag<component, JacTag>(
+                    *runner, 0)) == DataVector(5, 2.));
+          CHECK(get<0, 0>(ActionTesting::get_databox_tag<component, InvJacTag>(
+                    *runner, 0)) == DataVector(5, 0.5));
+          CHECK(ActionTesting::get_databox_tag<component, ::Tags::Time>(
+                    *runner, 0) == current_time);
+        });
+  }
+}
+
+void test_static_map_uses_cached_jacobians() {
+  const Slab slab{0., 1.};
+  const TimeStepId step_start{true, 0, slab.start()};
+  with_moving_map(
+      step_start, step_start.next_substep(slab.duration() / 4, 1.), 0.,
+      std::make_unique<MockFilter>(true, true, true),
+      std::make_unique<IdentityMap>(), [](const auto runner, auto component_v) {
+        using component = typename decltype(component_v)::type;
+        CHECK(ActionTesting::next_action_if_ready<component>(runner, 0));
+        CHECK(get_scalar_field(*runner) == DataVector(5, 6.));
+        const auto* filter = get_mock_filter(*runner);
+        REQUIRE(filter != nullptr);
+        CHECK(filter->jac_values() == DataVector(5, 2.));
+        CHECK(filter->inv_jac_values() == DataVector(5, 0.5));
+      });
+}
+
+struct ExtendExpansion {
+  static void apply(
+      const gsl::not_null<domain::Tags::FunctionsOfTime::type*> functions) {
+    functions->at("Expansion")->update(0.125, DataVector{1.}, 1.);
+  }
+};
+
+void test_wait_for_future_jacobians() {
+  const Slab slab{0., 1.};
+  const TimeStepId step_start{true, 0, slab.start()};
+  with_moving_map(
+      step_start, step_start.next_substep(slab.duration() / 4, 1.), 0.125,
+      std::make_unique<MockFilter>(true, true, true), make_scale_map(),
+      [](const auto runner, auto component_v) {
+        using component = typename decltype(component_v)::type;
+        CHECK(not ActionTesting::next_action_if_ready<component>(runner, 0));
+        CHECK(get_scalar_field(*runner) == DataVector(5, 3.));
+        const auto* filter = get_mock_filter(*runner);
+        REQUIRE(filter != nullptr);
+        CHECK(not filter->saw_jac());
+        auto& cache = ActionTesting::cache<component>(*runner, 0);
+        Parallel::mutate<domain::Tags::FunctionsOfTime, ExtendExpansion>(cache);
+        CHECK(ActionTesting::next_action_if_ready<component>(runner, 0));
+        CHECK(get_scalar_field(*runner) == DataVector(5, 6.));
+        CHECK(filter->jac_values() == DataVector(5, 1.25));
+        CHECK(filter->inv_jac_values() == DataVector(5, 0.8));
+      });
+}
+
+void test_no_jacobians_skip_future_map() {
+  const Slab slab{0., 1.};
+  const TimeStepId step_start{true, 0, slab.start()};
+  for (const bool no_filter : {false, true}) {
+    std::unique_ptr<FilterBase> filter =
+        no_filter
+            ? std::unique_ptr<FilterBase>{std::make_unique<
+                  Filters::None<1, tmpl::list<ScalarFieldTag>>>(std::nullopt)}
+            : std::unique_ptr<FilterBase>{
+                  std::make_unique<MockFilter>(true, true, false)};
+    with_moving_map(
+        step_start, step_start.next_substep(slab.duration() / 4, 1.), 0.,
+        std::move(filter), make_scale_map(),
+        [no_filter](const auto runner, auto component_v) {
+          using component = typename decltype(component_v)::type;
+          CHECK(ActionTesting::next_action_if_ready<component>(runner, 0));
+          CHECK(get_scalar_field(*runner) ==
+                DataVector(5, no_filter ? 3. : 6.));
+        });
+  }
+}
+
+template <bool BeforeUpdate>
+void test_unused_self_start_step() {
+  const Slab slab{0., 1.};
+  const TimeStepId current_id{true, -2, slab.start() + slab.duration() / 4};
+  const TimeStepId reset_id{true, -1, slab.start()};
+  with_moving_map<BeforeUpdate>(
+      current_id, reset_id, 0., std::make_unique<MockFilter>(true, true, true),
+      make_scale_map(), [](const auto runner, auto component_v) {
+        using component = typename decltype(component_v)::type;
+        CHECK(ActionTesting::next_action_if_ready<component>(runner, 0));
+        CHECK(get_scalar_field(*runner) ==
+              DataVector(5, BeforeUpdate ? 6. : 3.));
+      });
 }
 
 void test_none_filter_skips() {
@@ -279,27 +504,39 @@ void test_step_flag_applies_filter() {
              });
 }
 
-// A selected step must not cause filtering of intermediate RK stages unless
-// substep filtering is explicitly enabled. Keep the step number at zero to
-// reproduce the GTS case where every step is selected by the cadence check.
-void test_volume_filter_cadence() {
-  for (const bool step_complete : {false, true}) {
-    CAPTURE(step_complete);
+// Exercise both action placements: before UpdateU the variables belong to
+// TimeStepId, and after UpdateU they belong to Next<TimeStepId>. Keep both
+// tags in the box with different substeps to catch selecting the wrong one.
+// A predictor at the end time of a step remains a substep; only the corrected
+// result is a full step.
+template <bool BeforeUpdate>
+void test_filter_cadence() {
+  const Slab slab{0., 1.};
+  const TimeStepId step_start{true, 0, slab.start()};
+  const auto step_size = slab.duration() / 4;
+  const auto predictor_id = step_start.next_substep(step_size, 1.);
+  const auto corrector_id = predictor_id.next_step(step_size);
+  for (const auto& time_step_id : {step_start, predictor_id}) {
+    const auto& next_time_step_id =
+        time_step_id.substep() == 0 ? predictor_id : corrector_id;
     for (const bool apply_substep : {false, true}) {
-      CAPTURE(apply_substep);
       for (const bool apply_this_step : {false, true}) {
-        CAPTURE(apply_this_step);
+        CAPTURE(BeforeUpdate, time_step_id, next_time_step_id, apply_substep,
+                apply_this_step);
+        const bool at_full_step = BeforeUpdate
+                                      ? time_step_id.substep() == 0
+                                      : next_time_step_id.substep() == 0;
         const bool should_filter =
-            apply_substep or (step_complete and apply_this_step);
-        run_action(
+            apply_substep or (at_full_step and apply_this_step);
+        run_action<BeforeUpdate>(
             std::make_unique<MockFilter>(apply_substep, apply_this_step,
                                          /*need_jacs=*/false),
-            3.0, 0,
+            3., 2,
             [should_filter](const auto& runner) {
               CHECK(get_scalar_field(runner) ==
-                    DataVector(5, should_filter ? 6.0 : 3.0));
+                    DataVector(5, should_filter ? 6. : 3.));
             },
-            step_complete);
+            next_time_step_id, time_step_id);
       }
     }
   }
@@ -351,13 +588,22 @@ void test_unsupported_mesh_errors() {
 SPECTRE_TEST_CASE("Unit.ParallelAlgorithms.Actions.SpectralFilter",
                   "[Unit][ParallelAlgorithms][Actions]") {
   register_classes_with_charm<MockFilter,
-                              Filters::None<1, tmpl::list<ScalarFieldTag>>>();
+                              Filters::None<1, tmpl::list<ScalarFieldTag>>,
+                              ScaleMap, IdentityMap, Polynomial>();
   test_none_filter_skips();
   test_no_gating_flags_skips();
   test_substep_flag_applies_filter();
   test_step_flag_applies_filter();
-  test_volume_filter_cadence();
+  test_filter_cadence<false>();
+  test_filter_cadence<true>();
   test_jacobians_passed_when_needed();
   test_jacobians_not_passed_when_not_needed();
+  test_jacobian_times<false>();
+  test_jacobian_times<true>();
+  test_static_map_uses_cached_jacobians();
+  test_wait_for_future_jacobians();
+  test_no_jacobians_skip_future_map();
+  test_unused_self_start_step<false>();
+  test_unused_self_start_step<true>();
   test_unsupported_mesh_errors();
 }

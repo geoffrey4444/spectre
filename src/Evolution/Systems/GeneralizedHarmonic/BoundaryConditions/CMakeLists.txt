@@ -10,6 +10,7 @@ spectre_target_sources(
   DemandOutgoingCharSpeeds.cpp
   DirichletAnalytic.cpp
   DirichletMinkowski.cpp
+  RotatingQuadrupole.cpp
   )
 
 spectre_target_headers(
@@ -23,4 +24,5 @@ spectre_target_headers(
   DirichletAnalytic.hpp
   DirichletMinkowski.hpp
   Factory.hpp
+  RotatingQuadrupole.hpp
   )
