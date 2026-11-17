@@ -4,73 +4,54 @@
 #include "ControlSystem/ControlErrors/Size/StateHistory.hpp"
 
 #include <deque>
-#include <memory>
 #include <pup.h>
 #include <pup_stl.h>
-#include <unordered_map>
 #include <utility>
 
-#include "ControlSystem/ControlErrors/Size/AhSpeed.hpp"
-#include "ControlSystem/ControlErrors/Size/DeltaR.hpp"
-#include "ControlSystem/ControlErrors/Size/DeltaRDriftInward.hpp"
-#include "ControlSystem/ControlErrors/Size/DeltaRDriftOutward.hpp"
-#include "ControlSystem/ControlErrors/Size/DeltaRNoDrift.hpp"
 #include "ControlSystem/ControlErrors/Size/Info.hpp"
-#include "ControlSystem/ControlErrors/Size/Initial.hpp"
 #include "ControlSystem/ControlErrors/Size/State.hpp"
-#include "DataStructures/DataVector.hpp"
+#include "Utilities/Serialization/PupStlCpp17.hpp"
 
 namespace control_system::size {
-StateHistory::StateHistory() { initialize_stored_control_errors(); }
+void ControlErrorArgs::pup(PUP::er& p) {
+  p | min_char_speed;
+  p | control_error_delta_r;
+  p | control_error_delta_r_outward;
+  p | avg_distorted_normal_dot_unit_coord_vector;
+  p | time_deriv_of_lambda_00;
+}
+
+StateHistory::StateHistory() = default;
 
 StateHistory::StateHistory(const size_t num_times_to_store)
-    : num_times_to_store_(num_times_to_store) {
-  initialize_stored_control_errors();
-}
+    : num_times_to_store_(num_times_to_store) {}
 
-void StateHistory::initialize_stored_control_errors() {
-  stored_control_errors_[States::Initial{}.number()];
-  stored_control_errors_[States::DeltaR{}.number()];
-  stored_control_errors_[States::AhSpeed{}.number()];
-  stored_control_errors_[States::DeltaRDriftInward{}.number()];
-  stored_control_errors_[States::DeltaRNoDrift{}.number()];
-  stored_control_errors_[States::DeltaRDriftOutward{}.number()];
-}
-
-void StateHistory::store(double time, const Info& info,
+void StateHistory::store(const double time,
                          const ControlErrorArgs& control_error_args) {
-  const auto store_state = [this, &time, &info,
-                            &control_error_args](auto state) {
-    const double control_error = state.control_error(info, control_error_args);
-    std::deque<std::pair<double, double>>& history =
-        stored_control_errors_.at(state.number());
-    history.emplace_back(time, control_error);
-    while (history.size() > num_times_to_store_) {
-      history.pop_front();
-    }
-  };
-
-  store_state(States::Initial{});
-  store_state(States::DeltaR{});
-  store_state(States::AhSpeed{});
-  store_state(States::DeltaRDriftInward{});
-  store_state(States::DeltaRNoDrift{});
-  store_state(States::DeltaRDriftOutward{});
+  stored_control_error_args_.emplace_back(time, control_error_args);
+  while (stored_control_error_args_.size() > num_times_to_store_) {
+    stored_control_error_args_.pop_front();
+  }
 }
 
-const std::deque<std::pair<double, double>>& StateHistory::state_history(
-    const size_t state_number) const {
-  return stored_control_errors_.at(state_number);
+std::deque<std::pair<double, double>> StateHistory::state_history(
+    const Info& info) const {
+  std::deque<std::pair<double, double>> result{};
+  for (const auto& [time, control_error_args] : stored_control_error_args_) {
+    result.emplace_back(time,
+                        info.state->control_error(info, control_error_args));
+  }
+  return result;
 }
 
 void StateHistory::pup(PUP::er& p) {
   p | num_times_to_store_;
-  p | stored_control_errors_;
+  p | stored_control_error_args_;
 }
 
 bool operator==(const StateHistory& lhs, const StateHistory& rhs) {
   return lhs.num_times_to_store_ == rhs.num_times_to_store_ and
-         lhs.stored_control_errors_ == rhs.stored_control_errors_;
+         lhs.stored_control_error_args_ == rhs.stored_control_error_args_;
 }
 
 bool operator!=(const StateHistory& lhs, const StateHistory& rhs) {
