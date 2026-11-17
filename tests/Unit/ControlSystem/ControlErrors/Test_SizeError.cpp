@@ -187,7 +187,7 @@ void test_suggested_timescale_survives_averager_update() {
                                              tnsr::I<double, 3, Frame::Grid>{
                                                  std::array{0.0, 0.0, 0.0}},
                                              {}}}}};
-  Parallel::GlobalCache<Metavars> cache{
+  const Parallel::GlobalCache<Metavars> cache{
       {std::move(functions_of_time), std::move(domain),
        std::unordered_set<std::string>{}, ::Verbosity::Silent, "", "",
        std::vector<std::string>{}}};
@@ -208,7 +208,8 @@ void test_suggested_timescale_survives_averager_update() {
   const std::array horizon_radii{1.25, 1.15, 1.05};
   for (size_t step = 0; step < horizon_radii.size(); ++step) {
     tuples::get<ylm::Tags::Strahlkorper<Frame::Distorted>>(horizon_quantities) =
-        ylm::Strahlkorper<Frame::Distorted>{l_max, horizon_radii[step], center};
+        ylm::Strahlkorper<Frame::Distorted>{l_max, gsl::at(horizon_radii, step),
+                                            center};
     static_cast<void>(size_error(tuner, cache, 0.1 * static_cast<double>(step),
                                  "Size"s, measurements));
   }
