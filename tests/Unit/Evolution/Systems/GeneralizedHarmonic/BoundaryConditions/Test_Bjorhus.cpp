@@ -3,6 +3,9 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <array>
+#include <memory>
+
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/Index.hpp"
 #include "DataStructures/TaggedTuple.hpp"
@@ -10,6 +13,7 @@
 #include "DataStructures/TempBuffer.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Bjorhus.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/Factory.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryCorrections/UpwindPenalty.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/System.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Tags.hpp"
@@ -147,6 +151,108 @@ void test_incoming_wave_profile_option_parsing_and_dim_guard() {
                             "      Phase: 0.4")),
       Catch::Matchers::ContainsSubstring(
           "Option 'IncomingWaveProfile' is not a valid option."));
+}
+
+void test_rotating_wave_lifecycle() {
+  using Boundary = gh::BoundaryConditions::ConstraintPreservingBjorhus<3>;
+  using Type = gh::BoundaryConditions::detail::ConstraintPreservingBjorhusType;
+  const std::string wave_options =
+      "  RotatingQuadrupole:\n"
+      "    Amplitude: 0.003\n"
+      "    AngularFrequency: 0.9\n"
+      "    Phase: 0.4\n"
+      "    StartTime: 2.0\n"
+      "    RampUpDuration: 3.0\n"
+      "    StopTime: 15.0\n"
+      "    RampDownDuration: 2.0\n";
+  const auto created = TestHelpers::test_creation<
+      std::unique_ptr<gh::BoundaryConditions::BoundaryCondition<3>>,
+      Metavariables<3>>(
+      "ConstraintPreservingBjorhus:\n"
+      "  Type: ConstraintPreservingPhysical\n" +
+      wave_options);
+  const auto& boundary = dynamic_cast<const Boundary&>(*created);
+  const Boundary copied{boundary};
+  Boundary assigned{Type::ConstraintPreserving};
+  assigned = boundary;
+  const auto cloned = boundary.get_clone();
+  const auto restored = serialize_and_deserialize(boundary);
+  const gh::BoundaryConditions::RotatingQuadrupole wave{0.003, 0.9, 0.4, 2.,
+                                                        3.,    15., 2.};
+
+  // A flat boundary normal to +z leaves this quadrupole unchanged by the
+  // physical projector. The incoming characteristic has speed -1, so its
+  // correction is Q, which gives dt Pi = Q/2 and dt Phi_z = -Q/2.
+  const size_t points = 3;
+  tnsr::aa<DataVector, 3> metric{points, 0.};
+  tnsr::AA<DataVector, 3> inverse_metric{points, 0.};
+  get<0, 0>(metric) = -1.;
+  get<0, 0>(inverse_metric) = -1.;
+  for (size_t i = 1; i <= 3; ++i) {
+    metric.get(i, i) = 1.;
+    inverse_metric.get(i, i) = 1.;
+  }
+  tnsr::i<DataVector, 3> normal_covector{points, 0.};
+  tnsr::I<DataVector, 3> normal_vector{points, 0.};
+  get<2>(normal_covector) = 1.;
+  get<2>(normal_vector) = 1.;
+  tnsr::I<DataVector, 3> coords{points, 0.};
+  get<2>(coords) = 10.;
+  tnsr::A<DataVector, 3> time_normal{points, 0.};
+  get<0>(time_normal) = 1.;
+  const tnsr::I<DataVector, 3> shift{points, 0.};
+  const tnsr::aa<DataVector, 3> zero_aa{points, 0.};
+  const tnsr::iaa<DataVector, 3> zero_iaa{points, 0.};
+  const tnsr::ijaa<DataVector, 3> zero_ijaa{points, 0.};
+  const tnsr::a<DataVector, 3> gauge{points, 0.};
+  const tnsr::ab<DataVector, 3> deriv_gauge{points, 0.};
+  const Scalar<DataVector> one{points, 1.};
+  const Scalar<DataVector> minus_one{points, -1.};
+  for (const Boundary* candidate : std::array<const Boundary*, 5>{
+           &boundary, &copied, &assigned,
+           &dynamic_cast<const Boundary&>(*cloned), &restored}) {
+    for (const double time : {1., 3., 7., 16., 18.}) {
+      CAPTURE(time);
+      tnsr::aa<DataVector, 3> dt_metric{points, 0.};
+      tnsr::aa<DataVector, 3> dt_pi{points, 0.};
+      tnsr::iaa<DataVector, 3> dt_phi{points, 0.};
+      CHECK_FALSE(candidate->dg_time_derivative(
+          make_not_null(&dt_metric), make_not_null(&dt_pi),
+          make_not_null(&dt_phi), std::nullopt, normal_covector, normal_vector,
+          metric, zero_aa, zero_iaa, coords, minus_one, one, one, shift,
+          inverse_metric, time_normal, zero_iaa, gauge, deriv_gauge, zero_aa,
+          zero_aa, zero_iaa, zero_iaa, zero_iaa, zero_ijaa, time));
+      const auto expected_wave = wave(time);
+      for (size_t a = 0; a <= 3; ++a) {
+        for (size_t b = a; b <= 3; ++b) {
+          CHECK_ITERABLE_APPROX(dt_metric.get(a, b), DataVector(points, 0.));
+          CHECK_ITERABLE_APPROX(
+              dt_pi.get(a, b),
+              DataVector(points, 0.5 * expected_wave.get(a, b)));
+          for (size_t i = 0; i < 3; ++i) {
+            CHECK_ITERABLE_APPROX(
+                dt_phi.get(i, a, b),
+                DataVector(points,
+                           i == 2 ? -0.5 * expected_wave.get(a, b) : 0.));
+          }
+        }
+      }
+    }
+  }
+  CHECK_THROWS_WITH(
+      (TestHelpers::test_creation<
+          std::unique_ptr<gh::BoundaryConditions::BoundaryCondition<3>>,
+          Metavariables<3>>("ConstraintPreservingBjorhus:\n"
+                            "  Type: ConstraintPreserving\n" +
+                            wave_options)),
+      Catch::Matchers::ContainsSubstring("ConstraintPreservingPhysical"));
+  CHECK_THROWS_WITH(
+      (TestHelpers::test_creation<
+          std::unique_ptr<gh::BoundaryConditions::BoundaryCondition<2>>,
+          Metavariables<2>>("ConstraintPreservingBjorhus:\n"
+                            "  Type: ConstraintPreservingPhysical\n" +
+                            wave_options)),
+      Catch::Matchers::ContainsSubstring("RotatingQuadrupole"));
 }
 
 template <size_t Dim>
@@ -373,4 +479,5 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.GeneralizedHarmonic.BCBjorhus.Cls",
   test_with_random_values<2>(used_for_size);
   test_with_random_values<3>(used_for_size);
   test_incoming_wave_profile_option_parsing_and_dim_guard();
+  test_rotating_wave_lifecycle();
 }
