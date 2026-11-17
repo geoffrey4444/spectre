@@ -37,8 +37,18 @@ void test_target_change() {
             0.0,
             std::nullopt,
             false};
-  const ControlErrorArgs first_args{0.2, 0.0, 0.4, -1.0, 0.5};
-  const ControlErrorArgs second_args{0.3, 0.0, 0.5, -2.0, 0.6};
+  const ControlErrorArgs first_args{
+      .min_char_speed = 0.2,
+      .control_error_delta_r = 0.0,
+      .control_error_delta_r_outward = 0.4,
+      .avg_distorted_normal_dot_unit_coord_vector = -1.0,
+      .time_deriv_of_lambda_00 = 0.5};
+  const ControlErrorArgs second_args{
+      .min_char_speed = 0.3,
+      .control_error_delta_r = 0.0,
+      .control_error_delta_r_outward = 0.5,
+      .avg_distorted_normal_dot_unit_coord_vector = -2.0,
+      .time_deriv_of_lambda_00 = 0.6};
 
   StateHistory state_history{3};
   state_history.store(0.0, first_args);
@@ -61,7 +71,12 @@ void test_target_change() {
   for (const auto& [time, control_error] : inward_history) {
     averager.update(time, DataVector{1, control_error}, timescale);
   }
-  const ControlErrorArgs current_args{0.4, 0.0, 0.6, -1.5, 0.7};
+  const ControlErrorArgs current_args{
+      .min_char_speed = 0.4,
+      .control_error_delta_r = 0.0,
+      .control_error_delta_r_outward = 0.6,
+      .avg_distorted_normal_dot_unit_coord_vector = -1.5,
+      .time_deriv_of_lambda_00 = 0.7};
   averager.update(2.0,
                   DataVector{1, info.state->control_error(info, current_args)},
                   timescale);
