@@ -226,8 +226,8 @@ namespace detail {
 // migratable, and should only be constructed by the `Main` chare on the same
 // processor as the `Main` chare. When load-balancing occurs, main invokes the
 // member function `IndicateAtSync()`, and when `ResumeFromSync()` is called
-// from charm, `AtSyncIndicator` simply passes control back to the Main chare
-// via `execute_next_phase()`.
+// from charm, `AtSyncIndicator` waits for quiescence before passing control
+// back to the Main chare via `execute_next_phase()`.
 template <typename Metavariables>
 class AtSyncIndicator : public CBase_AtSyncIndicator<Metavariables> {
  public:
@@ -270,7 +270,10 @@ void AtSyncIndicator<Metavariables>::IndicateAtSync() {
 
 template <typename Metavariables>
 void AtSyncIndicator<Metavariables>::ResumeFromSync() {
-  main_proxy_.execute_next_phase();
+  // Migrations and their observer registrations may still be in flight. Finish
+  // them before the next phase can contribute observation data.
+  CkStartQD(CkCallback(CkIndex_Main<Metavariables>::execute_next_phase(),
+                       main_proxy_));
 }
 }  // namespace detail
 
