@@ -144,7 +144,6 @@ struct SpectralFilter {
     std::optional<Jacobian<DataVector, Dim, Frame::Grid, Frame::Inertial>> jac{
         std::nullopt};
     if (filter.need_jacobians()) {
-      bool use_cached_jacobians = true;
       const double filter_time = db::get<TimeStepIdTag>(box).substep_time();
       if (filter_time != db::get<::Tags::Time>(box)) {
         using MapTag =
@@ -168,7 +167,6 @@ struct SpectralFilter {
             // Shape maps compute their inverse by evaluating the Jacobian
             // again, so reuse the Jacobian already computed here.
             inv_jac = determinant_and_inverse(*jac).second;
-            use_cached_jacobians = false;
           }
         } else {
           ERROR(
@@ -178,7 +176,7 @@ struct SpectralFilter {
         }
       }
 
-      if (use_cached_jacobians) {
+      if (not jac.has_value()) {
         if constexpr (db::tag_is_retrievable_v<
                           domain::Tags::InverseJacobian<Dim, Frame::Grid,
                                                         Frame::Inertial>,
