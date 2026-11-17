@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -19,6 +20,7 @@
 #include "NumericalAlgorithms/LinearOperators/Filters/Tag.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/GlobalCache.hpp"
+#include "Time/SelfStart.hpp"
 #include "Time/Tags/StepNumberWithinSlab.hpp"
 #include "Time/Tags/TimeStepId.hpp"
 #include "Time/TimeStepId.hpp"
@@ -52,7 +54,8 @@ namespace dg::Actions {
  * The `TimeStepIdTag` template parameter identifies the time of the variables
  * being filtered. Its default, `Tags::Next<Tags::TimeStepId>`, is appropriate
  * after `UpdateU` and before `AdvanceTime`. When filtering before `UpdateU`,
- * set it to `Tags::TimeStepId` instead.
+ * set it to `Tags::TimeStepId` instead. In the default mode, unused self-start
+ * steps are skipped because `UpdateU` did not update the variables.
  *
  * The grid-to-inertial Jacobian and its inverse are only retrieved from the
  * DataBox when `Filters::Filter::need_jacobians()` returns `true`; otherwise
@@ -68,6 +71,7 @@ namespace dg::Actions {
  *   - `Filters::Tags::SpectralFilter<Dim, TagList>`
  *   - `Tags::StepNumberWithinSlab`
  *   - `TimeStepIdTag`
+ *   - `Tags::TimeStepId` (in the default post-`UpdateU` mode)
  *   - `domain::Tags::Mesh<Dim>`
  *   - `domain::Tags::InverseJacobian<Dim, Frame::Grid, Frame::Inertial>`
  *     (only when `need_jacobians()` is `true`)
@@ -108,6 +112,14 @@ struct SpectralFilter {
     // None is explicitly a no-op; skip immediately.
     if (dynamic_cast<const Filters::None<Dim, TagList>*>(&filter) != nullptr) {
       return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+    }
+
+    if constexpr (std::is_same_v<TimeStepIdTag,
+                                 ::Tags::Next<::Tags::TimeStepId>>) {
+      if (SelfStart::step_unused(db::get<::Tags::TimeStepId>(box),
+                                 db::get<TimeStepIdTag>(box))) {
+        return {Parallel::AlgorithmExecution::Continue, std::nullopt};
+      }
     }
 
     const auto step_number =

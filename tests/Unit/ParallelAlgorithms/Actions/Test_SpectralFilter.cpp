@@ -248,6 +248,26 @@ const MockFilter* get_mock_filter(
   return dynamic_cast<const MockFilter*>(&filter_ref);
 }
 
+template <bool BeforeUpdate>
+void test_unused_self_start_step() {
+  const Slab slab{0., 1.};
+  const TimeStepId current_id{true, -2, slab.start() + slab.duration() / 4};
+  const TimeStepId reset_id{true, -1, slab.start()};
+  for (const bool need_jacobians : {false, true}) {
+    run_action<BeforeUpdate>(
+        std::make_unique<MockFilter>(true, true, need_jacobians), 3.0, 0,
+        [need_jacobians](const auto& runner) {
+          CHECK(get_scalar_field(runner) ==
+                DataVector(5, BeforeUpdate ? 6.0 : 3.0));
+          const auto* filter = get_mock_filter(runner);
+          REQUIRE(filter != nullptr);
+          CHECK(filter->saw_jac() == (BeforeUpdate and need_jacobians));
+          CHECK(filter->saw_inv_jac() == (BeforeUpdate and need_jacobians));
+        },
+        reset_id, current_id);
+  }
+}
+
 void test_none_filter_skips() {
   run_action(std::make_unique<Filters::None<1, tmpl::list<ScalarFieldTag>>>(
                  std::nullopt),
@@ -371,6 +391,8 @@ SPECTRE_TEST_CASE("Unit.ParallelAlgorithms.Actions.SpectralFilter",
                   "[Unit][ParallelAlgorithms][Actions]") {
   register_classes_with_charm<MockFilter,
                               Filters::None<1, tmpl::list<ScalarFieldTag>>>();
+  test_unused_self_start_step<false>();
+  test_unused_self_start_step<true>();
   test_none_filter_skips();
   test_no_gating_flags_skips();
   test_substep_flag_applies_filter();
