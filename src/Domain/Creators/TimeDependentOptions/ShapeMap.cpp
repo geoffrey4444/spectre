@@ -46,7 +46,7 @@ KerrSchildFromHorizon::KerrSchildFromHorizon(
     const double mass_in, const std::array<double, 3> spin_in,
     const Options::Context& context)
     : mass(mass_in), spin(spin_in) {
-  if (not(std::isfinite(mass) and mass > 0.0)) {
+  if (not std::isfinite(mass) or mass <= 0.0) {
     PARSE_ERROR(context, "Mass must be finite and positive, but is " << mass);
   }
   const bool valid_components = alg::all_of(spin, [](const double component) {
