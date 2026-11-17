@@ -224,7 +224,10 @@ void check_kerr_schild_initial_error(const double mass,
       TestHelpers::control_system::MockMetavars<0, 0, 0, deriv_order>;
   using element_component = typename metavars::element_component;
   using ControlError = typename metavars::shape_system::control_error;
-  using namespace domain::creators::time_dependent_options;
+  using domain::creators::time_dependent_options::FromVolumeFileShapeSize;
+  using domain::creators::time_dependent_options::KerrSchildFromHorizon;
+  using domain::creators::time_dependent_options::ShapeMapOptions;
+  using domain::creators::time_dependent_options::get_shape_and_size;
   constexpr size_t l_max = 28;
   const ylm::Spherepack spherepack{l_max, l_max};
   const Strahlkorper horizon{l_max, l_max,
