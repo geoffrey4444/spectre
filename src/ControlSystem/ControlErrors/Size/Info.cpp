@@ -3,6 +3,7 @@
 
 #include "ControlSystem/ControlErrors/Size/Info.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <pup.h>
@@ -51,6 +52,15 @@ void Info::reset() {
   // Currently nothing actually sets this, but we may want to reset it in the
   // future when we add more States
   // target_drift_velocity = 0.0;
+}
+
+void Info::suggest_timescale(
+    const std::optional<double> new_suggested_time_scale) {
+  if (new_suggested_time_scale.has_value()) {
+    suggested_time_scale = std::min(
+        suggested_time_scale.value_or(std::numeric_limits<double>::infinity()),
+        new_suggested_time_scale.value());
+  }
 }
 
 bool operator==(const Info& lhs, const Info& rhs) {

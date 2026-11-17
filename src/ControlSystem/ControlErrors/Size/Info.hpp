@@ -55,6 +55,9 @@ struct Info {
   /// Reset `discontinuous_change_has_occurred` and `suggested_time_scale`
   void reset();
 
+  /// Retain the smallest timescale suggested since the last `reset()`.
+  void suggest_timescale(std::optional<double> new_suggested_time_scale);
+
   friend bool operator==(const Info& lhs, const Info& rhs);
   friend bool operator!=(const Info& lhs, const Info& rhs);
 
