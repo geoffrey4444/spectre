@@ -344,6 +344,10 @@ struct Size : tt::ConformsTo<protocols::ControlError> {
    */
   bool discontinuous_change_has_occurred() const;
 
+  /// Acknowledge a discontinuous change without clearing a suggested
+  /// timescale.
+  void acknowledge_discontinuous_change();
+
   /*!
    * \brief Reset the internal `control_system::size::Info` using
    * `control_system::size::Info::reset`.
