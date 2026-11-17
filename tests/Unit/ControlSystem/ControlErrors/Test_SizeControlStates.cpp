@@ -257,17 +257,19 @@ void test_suggested_timescale_latches_minimum() {
       false};
   const auto make_update_args = [&test_params]() {
     return control_system::size::StateUpdateArgs{
-        test_params.min_char_speed,
-        test_params.min_comoving_char_speed,
-        test_params.horizon_00,
-        test_params.control_err_delta_r,
-        test_params.average_radial_distance,
-        test_params.max_allowed_radial_distance,
-        test_params.avg_distorted_normal_dot_unit_coord_vector,
-        test_params.inward_drift_velocity,
-        test_params.min_allowed_radial_distance,
-        test_params.min_allowed_char_speed,
-        test_params.comoving_char_speed_increasing_inward};
+        .min_char_speed = test_params.min_char_speed,
+        .min_comoving_char_speed = test_params.min_comoving_char_speed,
+        .horizon_00 = test_params.horizon_00,
+        .control_error_delta_r = test_params.control_err_delta_r,
+        .average_radial_distance = test_params.average_radial_distance,
+        .max_allowed_radial_distance = test_params.max_allowed_radial_distance,
+        .avg_distorted_normal_dot_unit_coord_vector =
+            test_params.avg_distorted_normal_dot_unit_coord_vector,
+        .inward_drift_velocity = test_params.inward_drift_velocity,
+        .min_allowed_radial_distance = test_params.min_allowed_radial_distance,
+        .min_allowed_char_speed = test_params.min_allowed_char_speed,
+        .comoving_char_speed_increasing_inward =
+            test_params.comoving_char_speed_increasing_inward};
   };
 
   // The first measurement makes an urgent recommendation while transitioning
