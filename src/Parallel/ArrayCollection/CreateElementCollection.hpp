@@ -20,9 +20,9 @@
 #include "Domain/Domain.hpp"
 #include "Domain/Structure/ElementId.hpp"
 #include "Domain/Tags/ElementDistribution.hpp"
+#include "Evolution/DiscontinuousGalerkin/Initialization/InitialBasis.hpp"
 #include "Evolution/DiscontinuousGalerkin/Initialization/QuadratureTag.hpp"
 #include "Evolution/DiscontinuousGalerkin/SubcellElementDistribution.hpp"
-#include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
 #include "Parallel/AlgorithmExecution.hpp"
 #include "Parallel/ArrayCollection/CreateElementsUsingDistribution.hpp"
@@ -97,7 +97,8 @@ struct CreateElementCollection {
     const auto& initial_refinement_levels =
         get<domain::Tags::InitialRefinementLevels<Dim>>(box);
     const auto& initial_extents = get<domain::Tags::InitialExtents<Dim>>(box);
-    const auto i1_basis = Spectral::Basis::Legendre;
+    const auto i1_basis =
+        ::evolution::dg::initial_i1_basis<Metavariables>(domain);
     const auto& i1_quadrature = get<evolution::dg::Tags::Quadrature>(box);
     const std::optional<domain::ElementWeight>& element_weight =
         Parallel::get<domain::Tags::ElementDistribution>(local_cache);

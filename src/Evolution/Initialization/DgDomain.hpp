@@ -34,9 +34,9 @@
 #include "Domain/Tags.hpp"
 #include "Domain/Tags/NeighborMesh.hpp"
 #include "Domain/TagsTimeDependent.hpp"
+#include "Evolution/DiscontinuousGalerkin/Initialization/InitialBasis.hpp"
 #include "Evolution/DiscontinuousGalerkin/Initialization/QuadratureTag.hpp"
 #include "Evolution/TagsDomain.hpp"
-#include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
@@ -154,7 +154,8 @@ struct Domain {
       const ElementId<dim>& element_id) {
     *element = ::domain::create_initial_element(element_id, domain.blocks(),
                                                 initial_refinement);
-    const Spectral::Basis i1_basis{Spectral::Basis::Legendre};
+    const auto i1_basis =
+        evolution::dg::initial_i1_basis<Metavariables>(domain);
     *mesh = ::domain::create_initial_mesh(initial_extents, *element, i1_basis,
                                           i1_quadrature);
     if (not ::domain::is_valid_dg_mesh(*mesh, *element)) {

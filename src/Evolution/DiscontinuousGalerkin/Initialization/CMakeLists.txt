@@ -6,6 +6,7 @@ spectre_target_headers(
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
   BoundaryEvolvedVariables.hpp
+  InitialBasis.hpp
   Mortars.hpp
   ProjectSpectralFilters.hpp
   QuadratureTag.hpp

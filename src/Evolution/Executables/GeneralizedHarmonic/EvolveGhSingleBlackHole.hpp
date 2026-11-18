@@ -19,7 +19,10 @@
 #include "ControlSystem/Systems/Translation.hpp"
 #include "ControlSystem/Trigger.hpp"
 #include "DataStructures/Tensor/IndexType.hpp"
+#include "Domain/Block.hpp"
+#include "Domain/Domain.hpp"
 #include "Domain/Structure/ObjectLabel.hpp"
+#include "Domain/Structure/Topology.hpp"
 #include "Evolution/Actions/RunEventsAndTriggers.hpp"
 #include "Evolution/DiscontinuousGalerkin/EqualRateLts/ChangeFixedLtsRatio.hpp"
 #include "Evolution/DiscontinuousGalerkin/Initialization/ProjectSpectralFilters.hpp"
@@ -27,6 +30,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/InitialShapeFromFile.hpp"
 #include "NumericalAlgorithms/Strahlkorper/InitialShape.hpp"
 #include "Options/FactoryHelpers.hpp"
@@ -86,6 +90,15 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
   using gh_base = GeneralizedHarmonicTemplateBase<volume_dim>;
   using typename gh_base::initialize_initial_data_dependent_quantities_actions;
   using typename gh_base::system;
+
+  static Spectral::Basis initial_i1_basis(const Domain<3>& domain) {
+    const bool spherical_shells =
+        alg::all_of(domain.blocks(), [](const auto& block) {
+          return block.topologies() == domain::topologies::spherical_shell;
+        });
+    return spherical_shells ? Spectral::Basis::Chebyshev
+                            : Spectral::Basis::Legendre;
+  }
 
   static constexpr Options::String help{
       "Evolve the Einstein field equations using the Generalized Harmonic "
