@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "DataStructures/DataBox/Tag.hpp"
@@ -14,10 +15,14 @@
 #include "Domain/Creators/Tags/FunctionsOfTime.hpp"
 #include "Domain/FunctionsOfTime/PiecewisePolynomial.hpp"
 #include "Domain/FunctionsOfTime/Tags.hpp"
+#include "Domain/Structure/ElementId.hpp"
 #include "Framework/ActionTesting.hpp"
 #include "Framework/MockDistributedObject.hpp"
 #include "Framework/MockRuntimeSystem.hpp"
 #include "Framework/MockRuntimeSystemFreeFunctions.hpp"
+#include "Parallel/ArrayCollection/IsDgElementCollection.hpp"
+#include "Parallel/ArrayCollection/PerformAlgorithmOnElement.hpp"
+#include "Parallel/ArrayCollection/Tags/ElementLocations.hpp"
 #include "Parallel/Callback.hpp"
 #include "Parallel/GlobalCache.hpp"
 #include "Parallel/Phase.hpp"
@@ -125,11 +130,44 @@ struct EmptyMetavars {
   using component_list = tmpl::list<EmptyComponent<EmptyMetavars, 0_st>>;
 };
 
+struct Metavariables;
+
+struct CheckResumedElement {
+  template <typename ParallelComponent, typename DbTags>
+  static void apply(db::DataBox<DbTags>& /*box*/,
+                    Parallel::GlobalCache<Metavariables>& /*cache*/,
+                    const int /*node*/,
+                    const gsl::not_null<Parallel::NodeLock*>
+                    /*node_lock*/,
+                    const ElementId<3>& element_id) {
+    CHECK(element_id == ElementId<3>{2});
+  }
+};
+
+struct MockElementCollection {
+  using metavariables = Metavariables;
+  using chare_type = ActionTesting::MockNodeGroupChare;
+  using array_index = int;
+  using simple_tags_from_options =
+      tmpl::list<Parallel::Tags::ElementLocations<3>>;
+  using phase_dependent_action_list = tmpl::list<
+      Parallel::PhaseActions<Parallel::Phase::Testing, tmpl::list<>>>;
+  using replace_these_threaded_actions =
+      tmpl::list<Parallel::Actions::PerformAlgorithmOnElement<false>>;
+  using with_these_threaded_actions = tmpl::list<CheckResumedElement>;
+};
+
 struct Metavariables {
-  using component_list = tmpl::list<Component<Metavariables, 0_st>,
-                                    Component<Metavariables, 1_st>>;
+  static constexpr size_t volume_dim = 3;
+  using component_list =
+      tmpl::list<Component<Metavariables, 0_st>, Component<Metavariables, 1_st>,
+                 MockElementCollection>;
 };
 }  // namespace
+
+template <>
+struct Parallel::is_dg_element_collection<MockElementCollection>
+    : std::true_type {};
 
 SPECTRE_TEST_CASE("Unit.Domain.FunctionsOfTimeAreReady", "[Domain][Unit]") {
   register_classes_with_charm<
@@ -167,6 +205,10 @@ SPECTRE_TEST_CASE("Unit.Domain.FunctionsOfTimeAreReady", "[Domain][Unit]") {
   ActionTesting::emplace_array_component<component1>(
       make_not_null(&runner), ActionTesting::NodeId{0},
       ActionTesting::LocalCoreId{0}, 0, 2.0);
+  const ElementId<3> element_id{2};
+  ActionTesting::emplace_nodegroup_component<MockElementCollection>(
+      make_not_null(&runner),
+      Parallel::Tags::ElementLocations<3>::type{{element_id, 0}});
   ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Testing);
 
   auto& cache = ActionTesting::cache<component0>(runner, 0);
@@ -203,6 +245,24 @@ SPECTRE_TEST_CASE("Unit.Domain.FunctionsOfTimeAreReady", "[Domain][Unit]") {
     CHECK(domain::functions_of_time_are_ready_algorithm_callback<
           OtherFunctionsOfTime, dim>(cache, 0, component_0_p, 0.5,
                                      std::nullopt));
+  }
+
+  {
+    INFO("The element collection waits only for the requested functions");
+    const MockElementCollection* const collection = nullptr;
+    // At t=200 only OtherB is ready; the default cache tag has also expired.
+    CHECK(domain::functions_of_time_are_ready_algorithm_callback<
+          OtherFunctionsOfTime, 3>(cache, element_id, collection, 200.0,
+                                   std::unordered_set{"OtherB"s}));
+    CHECK_FALSE(domain::functions_of_time_are_ready_algorithm_callback<
+                OtherFunctionsOfTime, 3>(cache, element_id, collection, 200.0,
+                                         std::unordered_set{"OtherA"s}));
+    Parallel::mutate<OtherFunctionsOfTime, UpdateFoT>(cache, "OtherA"s, 300.0);
+    REQUIRE(
+        ActionTesting::number_of_queued_threaded_actions<MockElementCollection>(
+            runner, 0) == 1);
+    ActionTesting::invoke_queued_threaded_action<MockElementCollection>(
+        make_not_null(&runner), 0);
   }
 
   // Test the action.  This should automatically look at

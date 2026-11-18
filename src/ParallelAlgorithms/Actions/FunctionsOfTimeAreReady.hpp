@@ -199,9 +199,9 @@ bool functions_of_time_are_ready_algorithm_callback(
                << Parallel::my_node<int>(cache)
                << " but the record says it is on node " << element_location);
     return functions_of_time_are_ready_threaded_action_callback<
-        domain::Tags::FunctionsOfTime,
-        Parallel::Actions::PerformAlgorithmOnElement<false>>(
-        cache, element_location, component_p, time, std::nullopt, array_index);
+        CacheTag, Parallel::Actions::PerformAlgorithmOnElement<false>>(
+        cache, element_location, component_p, time, functions_to_check,
+        array_index);
   } else {
     using ProxyType =
         std::decay_t<decltype(::Parallel::get_parallel_component<Component>(
