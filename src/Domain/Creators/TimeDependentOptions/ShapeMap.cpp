@@ -286,13 +286,16 @@ FunctionsOfTimeMap get_shape_and_size(
       const ylm::Spherepack ylm{l_max, l_max};
       const auto& horizon = std::get<KerrSchildFromHorizon>(
           hard_coded_options.initial_values.value());
-      const double horizon_polar_radius =
-          horizon.mass * (1.0 + sqrt(1.0 - square(magnitude(horizon.spin))));
+      // Both horizon radii scale with mass. Form their ratio at unit mass
+      // so that squaring a very large or small mass cannot overflow or
+      // underflow while computing a finite shape.
+      const double unit_mass_polar_radius =
+          1.0 + sqrt(1.0 - square(magnitude(horizon.spin)));
       const DataVector radial_distortion =
-          deformed_radius -
-          (deformed_radius / horizon_polar_radius) *
-              get(gr::Solutions::kerr_horizon_radius(
-                  ylm.theta_phi_points(), horizon.mass, horizon.spin));
+          deformed_radius *
+          (1.0 - get(gr::Solutions::kerr_horizon_radius(ylm.theta_phi_points(),
+                                                        1.0, horizon.spin)) /
+                     unit_mass_polar_radius);
       shape_funcs[0] = ylm.phys_to_spec(radial_distortion);
       // Transform from SPHEREPACK to actual Ylm for size control.
       size_funcs[0][0] = shape_funcs[0][0] * sqrt(0.5 * M_PI);

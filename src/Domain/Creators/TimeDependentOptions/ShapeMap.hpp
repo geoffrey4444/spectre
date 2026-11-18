@@ -68,6 +68,7 @@ struct KerrSchildFromBoyerLindquist {
  * grid-frame excision sphere radius (`InnerRadius` for a Sphere domain).
  * The distorted-frame radius along the spin axis therefore equals the grid
  * radius. Choose it below \f$r_+\f$ to place the surface inside the horizon.
+ * The ratio \f$R_{\rm AH}/r_+\f$ depends only on the dimensionless spin.
  *
  * With `SizeInitialValues: Auto`, this initializes the Shape control error
  * to zero up to spectral truncation and roundoff, provided the distorted-frame

@@ -97,6 +97,18 @@ void test_kerr_schild_horizon() {
     const auto fots = get_shape_and_size(*options, 0.0, 1.0, 2.0, inner_radius);
     const auto shape = fots.at("Shape")->func_and_2_derivs(0.0);
     const auto size = fots.at("Size")->func_and_2_derivs(0.0);
+    // Changing the physical mass cannot change a normalized Kerr shape,
+    // even when the square of the mass overflows or underflows.
+    for (const double mass : {1.e-200, 1.e200}) {
+      CAPTURE(mass);
+      using MapOptions = ShapeMapOptions<false, domain::ObjectLabel::None>;
+      const auto rescaled =
+          get_shape_and_size<false, domain::ObjectLabel::None>(
+              MapOptions{28, KerrSchildFromHorizon{mass, {0.0, 0.0, 0.99}}},
+              0.0, 1.0, 2.0, inner_radius);
+      CHECK_ITERABLE_APPROX(rescaled.at("Shape")->func(0.0)[0], shape[0]);
+      CHECK_ITERABLE_APPROX(rescaled.at("Size")->func(0.0)[0], size[0]);
+    }
     CHECK(fots.at("Shape")->time_bounds() == std::array{0.0, 1.0});
     CHECK(fots.at("Size")->time_bounds() == std::array{0.0, 2.0});
     CHECK(shape[0][0] == 0.0);
