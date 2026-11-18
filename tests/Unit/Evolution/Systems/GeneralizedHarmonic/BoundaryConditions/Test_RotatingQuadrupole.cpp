@@ -7,7 +7,6 @@
 #include <cmath>
 #include <limits>
 #include <optional>
-#include <string>
 
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
@@ -121,27 +120,26 @@ void test_chirality() {
 }
 
 void test_invalid_options() {
-  const std::string message = "RotatingQuadrupole requires finite parameters";
   for (const double amplitude : {-1., std::numeric_limits<double>::infinity(),
                                  std::numeric_limits<double>::quiet_NaN()}) {
     CHECK_THROWS_WITH(
         (RotatingQuadrupole{amplitude, 1., 0., 0., 1., std::nullopt, 1.}),
-        Catch::Matchers::ContainsSubstring(message));
+        Catch::Matchers::ContainsSubstring("Amplitude must be finite"));
   }
   for (const double frequency : {0., std::numeric_limits<double>::infinity(),
                                  std::numeric_limits<double>::quiet_NaN()}) {
     CHECK_THROWS_WITH(
         (RotatingQuadrupole{1., frequency, 0., 0., 1., std::nullopt, 1.}),
-        Catch::Matchers::ContainsSubstring(message));
+        Catch::Matchers::ContainsSubstring("AngularFrequency must be finite"));
   }
   for (const double duration :
        {0., -1., std::numeric_limits<double>::infinity()}) {
     CHECK_THROWS_WITH(
         (RotatingQuadrupole{1., 1., 0., 0., duration, std::nullopt, 1.}),
-        Catch::Matchers::ContainsSubstring(message));
+        Catch::Matchers::ContainsSubstring("RampUpDuration must be finite"));
     CHECK_THROWS_WITH(
         (RotatingQuadrupole{1., 1., 0., 0., 1., std::nullopt, duration}),
-        Catch::Matchers::ContainsSubstring(message));
+        Catch::Matchers::ContainsSubstring("RampDownDuration must be finite"));
   }
   for (const double stop : {0.5, std::numeric_limits<double>::infinity(),
                             std::numeric_limits<double>::quiet_NaN()}) {
