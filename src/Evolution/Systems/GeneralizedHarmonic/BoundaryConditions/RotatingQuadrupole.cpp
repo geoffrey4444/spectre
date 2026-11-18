@@ -3,7 +3,9 @@
 
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryConditions/RotatingQuadrupole.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Options/ParseError.hpp"
@@ -37,8 +39,13 @@ RotatingQuadrupole::RotatingQuadrupole(
   if (not std::isfinite(start_time_)) {
     PARSE_ERROR(context, "StartTime must be finite, got " << start_time_);
   }
+  // Subtract the larger operand so the bound is exact near overflow.
+  const auto end_overflows = [](double start, double duration) {
+    return std::min(start, duration) >
+           std::numeric_limits<double>::max() - std::max(start, duration);
+  };
   if (not std::isfinite(ramp_up_duration_) or ramp_up_duration_ <= 0. or
-      not std::isfinite(start_time_ + ramp_up_duration_)) {
+      end_overflows(start_time_, ramp_up_duration_)) {
     PARSE_ERROR(context,
                 "RampUpDuration must be finite and positive with a "
                 "finite end time, got "
@@ -51,14 +58,12 @@ RotatingQuadrupole::RotatingQuadrupole(
   if (stop_time_.has_value() and
       (not std::isfinite(*stop_time_) or
        *stop_time_ < start_time_ + ramp_up_duration_ or
-       not std::isfinite(*stop_time_ + ramp_down_duration_))) {
+       end_overflows(*stop_time_, ramp_down_duration_))) {
     PARSE_ERROR(context,
                 "RotatingQuadrupole StopTime must be finite and at least "
                 "StartTime + RampUpDuration, and the ramp-down end time "
                 "must be finite. Got StopTime "
-                    << *stop_time_
-                    << ", "
-                       "ramp-up end "
+                    << *stop_time_ << ", ramp-up end "
                     << start_time_ + ramp_up_duration_
                     << " and RampDownDuration " << ramp_down_duration_);
   }

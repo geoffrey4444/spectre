@@ -120,6 +120,12 @@ void test_chirality() {
 }
 
 void test_invalid_options() {
+  const double max = std::numeric_limits<double>::max();
+  CHECK_THROWS_WITH(
+      (RotatingQuadrupole{1., 1., 0., max, max, std::nullopt, 1.}),
+      Catch::Matchers::ContainsSubstring("RampUpDuration"));
+  CHECK_THROWS_WITH((RotatingQuadrupole{1., 1., 0., 0., 1., max, max}),
+                    Catch::Matchers::ContainsSubstring("StopTime"));
   for (const double amplitude : {-1., std::numeric_limits<double>::infinity(),
                                  std::numeric_limits<double>::quiet_NaN()}) {
     CHECK_THROWS_WITH(
