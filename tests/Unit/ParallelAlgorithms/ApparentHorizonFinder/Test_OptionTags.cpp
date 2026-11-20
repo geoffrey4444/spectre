@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "Domain/Creators/Sphere.hpp"
 #include "Domain/Domain.hpp"
 #include "Framework/TestCreation.hpp"
+#include "Framework/TestHelpers.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/InitialShapeFromFile.hpp"
 #include "NumericalAlgorithms/Strahlkorper/InitialShape.hpp"
@@ -36,6 +38,7 @@
 #include "PointwiseFunctions/GeneralRelativity/KerrHorizon.hpp"
 #include "Time/Tags/TimeAndPrevious.hpp"
 #include "Utilities/ProtocolHelpers.hpp"
+#include "Utilities/Serialization/RegisterDerivedClassesWithCharm.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace {
@@ -79,6 +82,7 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
                   "[ApparentHorizonFinder][Unit]") {
   (void)MockHorizonMetavars::destination;
   domain::creators::register_derived_with_charm();
+  register_classes_with_charm(tmpl::list<ah::Criteria::Residual>{});
 
   // Constants used in this test.
   const size_t l_max = 12;
@@ -95,33 +99,57 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.OptionTags",
       Verbosity::Verbose, 3_st, std::nullopt);
 
   // Test creation of options
-  const auto created_opts =
-      TestHelpers::test_creation<ah::HorizonOptions<Frame::Grid>,
-                                 TestCreationMetavariables>(
-          "Criteria:\n"
-          "  - Residual:\n"
-          "      MinResidual: 1.e-12\n"
-          "      MaxResidual: 1.e-2\n"
-          "      MinResolutionL: 2\n"
-          "FastFlow:\n"
-          "  Flow: Fast\n"
-          "  Alpha: 1.0\n"
-          "  Beta: 0.5\n"
-          "  AbsTol: 1e-12\n"
-          "  TruncationTol: 1e-2\n"
-          "  DivergenceTol: 1.2\n"
-          "  DivergenceIter: 5\n"
-          "  MaxIts: 100\n"
-          "Verbosity: Verbose\n"
-          "InitialGuess:\n"
-          "  InitialL: 12\n"
-          "  InitialShape:\n"
-          "    Sphere:\n"
-          "      Center: [0.05, 0.06, 0.07]\n"
-          "      Radius: 2.0\n"
-          "MaxComputeCoordsRetries: 3\n"
-          "BlocksForHorizonFind: All");
+  const auto parse_options = [](const std::string& extrapolation_option) {
+    return TestHelpers::test_creation<ah::HorizonOptions<Frame::Grid>,
+                                      TestCreationMetavariables>(
+        "Criteria:\n"
+        "  - Residual:\n"
+        "      MinResidual: 1.e-12\n"
+        "      MaxResidual: 1.e-2\n"
+        "      MinResolutionL: 2\n"
+        "FastFlow:\n"
+        "  Flow: Fast\n"
+        "  Alpha: 1.0\n"
+        "  Beta: 0.5\n"
+        "  AbsTol: 1e-12\n"
+        "  TruncationTol: 1e-2\n"
+        "  DivergenceTol: 1.2\n"
+        "  DivergenceIter: 5\n"
+        "  MaxIts: 100\n"
+        "Verbosity: Verbose\n"
+        "InitialGuess:\n"
+        "  InitialL: 12\n"
+        "  InitialShape:\n"
+        "    Sphere:\n"
+        "      Center: [0.05, 0.06, 0.07]\n"
+        "      Radius: 2.0\n"
+        "MaxComputeCoordsRetries: 3\n"
+        "BlocksForHorizonFind: All\n" +
+        extrapolation_option);
+  };
+  const auto created_opts = parse_options("");
   CHECK(created_opts == apparent_horizon_opts);
+  CHECK(created_opts.number_of_points_for_time_extrapolation == 3);
+  const auto with_points = [&parse_options](const std::string& value) {
+    return parse_options("NumberOfPointsForTimeExtrapolation: " + value);
+  };
+  CHECK(with_points("3") == created_opts);
+  for (const size_t num_points : {2_st, 4_st}) {
+    const auto fixed = with_points(std::to_string(num_points));
+    CHECK(fixed.number_of_points_for_time_extrapolation == num_points);
+    CHECK(fixed != created_opts);
+    test_serialization(fixed);
+  }
+  const auto adaptive = with_points("Adaptive");
+  CHECK_FALSE(adaptive.number_of_points_for_time_extrapolation.has_value());
+  CHECK(adaptive != created_opts);
+  test_serialization(adaptive);
+  for (const auto& value : {"1", "5"}) {
+    CHECK_THROWS_WITH(with_points(value),
+                      Catch::Matchers::ContainsSubstring(
+                          "NumberOfPointsForTimeExtrapolation must be "
+                          "2, 3, 4, or Adaptive"));
+  }
 
   const auto domain_creator = domain::creators::Sphere(
       1.8, 2.2, domain::creators::Sphere::Excision{}, 1_st, 5_st, false);

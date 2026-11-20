@@ -35,6 +35,7 @@ namespace ah {
  *   - `ah::Tags::CompletedTimes`
  *   - `ah::Tags::Storage`
  *   - `ah::Tags::PreviousSurfaces`
+ *   - `ah::Tags::ExtrapolationPredictionErrors`
  *   - `ah::Tags::Strahlkorper`
  *   - `ah::Tags::TimeDerivStrahlkorper`
  *   - `ah::Tags::Dependency`
@@ -52,12 +53,13 @@ struct Initialize {
   using simple_tags_from_options = tmpl::list<>;
 
   using simple_tags = tmpl::append<
-      tmpl::list<Tags::CurrentResolutionL, Tags::Verbosity, Tags::FastFlow,
-                 Tags::CurrentTime, Tags::PendingTimes, Tags::CompletedTimes,
-                 Tags::Storage<Fr>, Tags::BlockSearchOrder,
-                 Tags::PreviousSurfaces<Fr>, ylm::Tags::Strahlkorper<Fr>,
-                 ylm::Tags::TimeDerivStrahlkorper<Fr>, ah::Tags::Dependency,
-                 ::Tags::Variables<ah::vars_to_interpolate_to_target<3, Fr>>>,
+      tmpl::list<
+          Tags::CurrentResolutionL, Tags::Verbosity, Tags::FastFlow,
+          Tags::CurrentTime, Tags::PendingTimes, Tags::CompletedTimes,
+          Tags::Storage<Fr>, Tags::BlockSearchOrder, Tags::PreviousSurfaces<Fr>,
+          Tags::ExtrapolationPredictionErrors, ylm::Tags::Strahlkorper<Fr>,
+          ylm::Tags::TimeDerivStrahlkorper<Fr>, ah::Tags::Dependency,
+          ::Tags::Variables<ah::vars_to_interpolate_to_target<3, Fr>>>,
       tmpl::conditional_t<
           std::is_same_v<Fr, Frame::Inertial>, tmpl::list<>,
           tmpl::list<ylm::Tags::CartesianCoords<Frame::Inertial>>>>;

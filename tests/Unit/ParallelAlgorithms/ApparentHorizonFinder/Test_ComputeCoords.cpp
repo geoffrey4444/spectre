@@ -180,6 +180,10 @@ void test_compute_points() {
     previous_surfaces.emplace_back(
         prev_time, ylm::Strahlkorper<Fr>{l_max, 1.0, std::array{0.0, 0.0, 0.0}},
         std::unordered_set<ElementId<3>>{});
+    previous_surfaces.emplace_back(
+        LinkedMessageId<double>{.id = 0.0, .previous = std::nullopt},
+        ylm::Strahlkorper<Fr>{l_max, 1.25, std::array{0.0, 0.0, 0.0}},
+        std::unordered_set<ElementId<3>>{});
 
     const bool coords_set_successfully = set_current_iteration_coords(
         make_not_null(&current_iteration), make_not_null(&block_order), time,
@@ -195,6 +199,14 @@ void test_compute_points() {
     CHECK(alg::all_of(current_iteration.block_coord_holders.value(),
                       [](const auto& holder) { return holder.has_value(); }));
     CHECK(current_iteration.compute_coords_retries == 0);
+    CHECK(current_iteration.strahlkorper.average_radius() == approx(1.6));
+
+    REQUIRE(set_current_iteration_coords(
+        make_not_null(&current_iteration), make_not_null(&block_order), time,
+        fast_flow, initial_guess, previous_iteration_surface, previous_surfaces,
+        max_compute_coords_retries, domain, functions_of_time, std::nullopt,
+        false, 4));
+    CHECK(current_iteration.strahlkorper.average_radius() == approx(1.35));
   }
 
   // Succeed on second iteration of fast flow, but we had to recompute once

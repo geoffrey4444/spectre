@@ -18,6 +18,7 @@ spectre_target_sources(
   KerrSchild.cpp
   OptionTags.cpp
   Storage.cpp
+  TimeExtrapolation.cpp
   )
 
 spectre_target_headers(
@@ -41,6 +42,7 @@ spectre_target_headers(
   PrintDeadlockAnalysis.hpp
   Storage.hpp
   Tags.hpp
+  TimeExtrapolation.hpp
   )
 
 target_link_libraries(
@@ -63,6 +65,7 @@ target_link_libraries(
   PRIVATE
   CoordinateMaps
   Domain
+  Interpolation
   INTERFACE
   Initialization
   Observer

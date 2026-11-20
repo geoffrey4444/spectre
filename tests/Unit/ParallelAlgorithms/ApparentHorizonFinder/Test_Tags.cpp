@@ -56,6 +56,8 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.Tags",
       "Storage");
   TestHelpers::db::test_simple_tag<
       ah::Tags::PreviousSurfaces<::Frame::Distorted>>("PreviousSurfaces");
+  TestHelpers::db::test_simple_tag<ah::Tags::ExtrapolationPredictionErrors>(
+      "ExtrapolationPredictionErrors");
   TestHelpers::db::test_simple_tag<
       ah::Tags::ApparentHorizonOptions<MockHorizonMetavars>>(
       "ApparentHorizonOptions");

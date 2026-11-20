@@ -16,6 +16,7 @@ set(LIBRARY_SOURCES
   Test_OptionTags.cpp
   Test_Storage.cpp
   Test_Tags.cpp
+  Test_TimeExtrapolation.cpp
   )
 
 add_subdirectory(Callbacks)

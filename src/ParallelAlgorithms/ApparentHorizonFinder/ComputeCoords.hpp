@@ -45,17 +45,11 @@ namespace ah {
  * (see `::block_logical_coordinates` for details)
  * \param time The current time
  * \param fast_flow The FastFlow object for the current horizon find
- * \param initial_guess If the current iteration number is zero and
- * rerunning_with_higher_resolution == false, current_iteration is set to
- * this Strahlkorper
- * \param previous_iteration_surface If empty, current_iteration is set to
- * initial_guess; if one previous iteration, current_iteration is set to
- * that previous iteration; if two previous iterations, current_iteration
- * is set by linearly extrapolating in time the two pervious iterations;
- * if three or more previous iterations, current_iteration is set by
- * quadratic extrpolation of the three most recent iterations
- * \param previous_surfaces Previously successful iteratios used to attempt to
- * recover when some points are outside the domain.
+ * \param initial_guess Trial surface for the first find.
+ * \param previous_iteration_surface Previous trial surface at this time,
+ * used for coordinate retries and reruns at higher resolution.
+ * \param previous_surfaces Converged horizons at earlier times, newest first.
+ * Their expansion centers are assumed to coincide in the finder frame.
  * \param max_compute_coords_retries Retry up to this many times before
  * returning false
  * \param domain The spatial domain in which the horizon is being found
@@ -65,6 +59,8 @@ namespace ah {
  * \param rerunning_with_higher_resolution Must be false unless
  * current_resolution_l is set; if true, then on iteration zero, set
  * the initial guess to the previous iteration surface
+ * \param max_extrapolation_points Maximum number of previous surfaces to use
+ * for the initial guess at a new time. A single surface is reused directly.
  * \returns Whether or not set_current_iteration_coords succeeded
  */
 template <typename Fr>
@@ -78,5 +74,6 @@ bool set_current_iteration_coords(
     size_t max_compute_coords_retries, const Domain<3>& domain,
     const domain::FunctionsOfTimeMap& functions_of_time,
     const std::optional<size_t>& current_resolution_l = std::nullopt,
-    bool rerunning_with_higher_resolution = false);
+    bool rerunning_with_higher_resolution = false,
+    size_t max_extrapolation_points = 3);
 }  // namespace ah

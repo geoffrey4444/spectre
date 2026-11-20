@@ -20,6 +20,7 @@
 #include "NumericalAlgorithms/Strahlkorper/StrahlkorperFunctions.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/TimeExtrapolation.hpp"
 #include "Utilities/GetOutput.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Serialization/Serialize.hpp"
@@ -129,6 +130,12 @@ struct BlockSearchOrder : db::SimpleTag {
 template <typename Fr>
 struct PreviousSurfaces : db::SimpleTag {
   using type = std::deque<ah::Storage::PreviousSurface<Fr>>;
+};
+
+/// Errors of the two-, three-, and four-point predictions of the last
+/// accepted horizon, used to choose the next initial guess in adaptive mode.
+struct ExtrapolationPredictionErrors : db::SimpleTag {
+  using type = ah::PredictionErrors;
 };
 
 /*!

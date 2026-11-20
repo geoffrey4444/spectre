@@ -216,7 +216,8 @@ void test_apparent_horizon(
     const bool is_time_dependent,
     const std::optional<std::string>& dependency = std::nullopt,
     const size_t max_its = 100_st,
-    std::vector<std::unique_ptr<ah::Criterion>> criteria = {}) {
+    std::vector<std::unique_ptr<ah::Criterion>> criteria = {},
+    const std::optional<size_t> extrapolation_points = 3) {
   using metavars = MockMetavariables<Fr, Dest>;
   using horizon_metavars = HorizonMetavars<Fr, Dest>;
   using component = MockComponent<metavars, horizon_metavars>;
@@ -241,7 +242,7 @@ void test_apparent_horizon(
                             {{0.0, 0.0, 0.0}}},
       FastFlow{FastFlow::FlowType::Fast, 1.0, 0.5, 1.e-12, 1.e-2, 1.2, 5,
                max_its},
-      Verbosity::Verbose, 3_st, std::nullopt);
+      Verbosity::Verbose, 3_st, std::nullopt, extrapolation_points);
 
   std::unordered_map<std::string, std::unordered_set<std::string>>
       blocks_for_interpolation{};
@@ -304,17 +305,22 @@ void test_apparent_horizon(
   ActionTesting::next_action<component>(make_not_null(&runner), 0);
   ActionTesting::set_phase(make_not_null(&runner), Parallel::Phase::Register);
 
-  // Find horizon at three times.  The horizon find at the second time will use
+  // Find the horizon at successive times. The second find will use
   // the result from the first time as an initial guess.  The horizon find at
   // the third time will use an initial guess that was linearly extrapolated
   // from the first two horizon finds. For the time-independent case, the volume
   // data will not change between horizon finds, so the second and third horizon
   // finds will take zero iterations.  Having three times tests some logic in
   // the interpolator.
-  const std::vector<LinkedMessageId<double>> times{
-      {12.0 / 15.0, std::nullopt},
-      {13.0 / 15.0, {12.0 / 15.0}},
-      {14.0 / 15.0, {13.0 / 15.0}}};
+  std::vector<LinkedMessageId<double>> times{{12.0 / 15.0, std::nullopt},
+                                             {13.0 / 15.0, {12.0 / 15.0}},
+                                             {14.0 / 15.0, {13.0 / 15.0}}};
+  if (not extrapolation_points.has_value()) {
+    // The fifth find scores all three predictors. The sixth uses those scores.
+    for (size_t i = 15; i <= 17; ++i) {
+      times.emplace_back(static_cast<double>(i) / 15.0, times.back().id);
+    }
+  }
 
   // Create element_ids.
   std::vector<ElementId<3>> element_ids{};
@@ -465,6 +471,15 @@ void test_apparent_horizon(
         ActionTesting::array_indices_with_queued_simple_actions<
             typename metavars::component_list>(make_not_null(&runner));
   }
+  if (not extrapolation_points.has_value()) {
+    const auto& errors =
+        ActionTesting::get_databox_tag<component,
+                                       ah::Tags::ExtrapolationPredictionErrors>(
+            runner, 0);
+    for (const auto& error : errors) {
+      CHECK(error.has_value());
+    }
+  }
 }
 
 // [[TimeOut, 60]]
@@ -481,13 +496,13 @@ SPECTRE_TEST_CASE("Unit.ApparentHorizonFinder.FindApparentHorizon",
   callback_failure_count = 0;
   callback_count = 0;
   test_apparent_horizon<Frame::Inertial>(3, 3, 1.0, {{0.0, 0.0, 0.0}}, false,
-                                         dependency);
+                                         dependency, 100_st, {}, std::nullopt);
   test_apparent_horizon<Frame::Grid>(3, 4, 1.1, {{0.2, 0.1, -0.4}}, false);
   test_apparent_horizon<Frame::Inertial, ah::Destination::Observation>(
       3, 4, 1.1, {{0.2, 0.1, -0.4}}, false);
-  CHECK(callback_count == 18);
+  CHECK(callback_count == 24);
   CHECK(callback_failure_count == 0);
-  CHECK(ah_found_resolutions == std::vector<size_t>(18, 3));
+  CHECK(ah_found_resolutions == std::vector<size_t>(24, 3));
   callback_count = 0;
   ah_found_resolutions.clear();
 

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <deque>
 #include <optional>
@@ -28,6 +29,7 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/HorizonAliases.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/TimeExtrapolation.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -56,7 +58,9 @@ struct UpdatePreviousSurface {
  *
  * 1. Restricts the final interpolated variables from the $L_\mathrm{mesh}$ used
  *    for the FastFlow algorithm, to the actual $L$ of the Strahlkorper.
- * 2. Adds the current Strahlkorper to the `ah::Tags::PreviousSurfaces`.
+ * 2. In adaptive mode, scores each available extrapolation against the
+ *    accepted surface, then adds the surface to `ah::Tags::PreviousSurfaces`
+ *    in all modes.
  * 3. Copies the Strahlkorper, its time derivative, and the dependency that
  *    was received with the volume data for the current time (see
  *    `ah::Storage::SingleTimeStorage::dependency`) into the box. Also possibly
@@ -78,6 +82,19 @@ void invoke_callbacks(const gsl::not_null<db::DataBox<DbTags>*> box,
   auto& previous_surfaces =
       db::get_mutable_reference<ah::Tags::PreviousSurfaces<Fr>>(box);
   const auto& fast_flow = db::get<ah::Tags::FastFlow>(*box);
+  const auto& number_of_points =
+      Parallel::get<Tags::ApparentHorizonOptions<HorizonMetavars>>(cache)
+          .number_of_points_for_time_extrapolation;
+
+  // Score predictions using only the surfaces available before this find.
+  if (not number_of_points.has_value()) {
+    db::mutate<Tags::ExtrapolationPredictionErrors>(
+        [&](const gsl::not_null<PredictionErrors*> errors) {
+          *errors = prediction_errors(current_time.id, current_strahlkorper,
+                                      previous_surfaces);
+        },
+        box);
+  }
 
   // Update the previous surfaces. We do this before the callbacks in case any
   // of the callbacks need the previous strahlkorpers with the current
@@ -92,9 +109,11 @@ void invoke_callbacks(const gsl::not_null<db::DataBox<DbTags>*> box,
                    detail::UpdatePreviousSurface<Fr>>(
       cache, previous_surfaces.front());
 
-  // Remove old previous_strahlkorpers that are no longer relevant.
-  const size_t num_previous_strahlkorpers = 3;
-  while (previous_surfaces.size() > num_previous_strahlkorpers) {
+  constexpr size_t time_derivative_points = 3;
+  const size_t history_size =
+      std::max(time_derivative_points,
+               number_of_points.value_or(max_number_of_extrapolation_points));
+  while (previous_surfaces.size() > history_size) {
     previous_surfaces.pop_back();
   }
 
@@ -135,10 +154,14 @@ void invoke_callbacks(const gsl::not_null<db::DataBox<DbTags>*> box,
               callback_dependency) {
         *horizon = current_strahlkorper;
 
-        // This is a hack to use ylm::time_deriv_of_strahlkorper function below
+        // The derivative used by size control always uses at most three
+        // surfaces, independently of the order of the initial guess.
         std::deque<std::pair<double, ylm::Strahlkorper<Fr>>>
             previous_horizons{};
-        for (const auto& previous_surface : previous_surfaces) {
+        const size_t derivative_history_size =
+            std::min(previous_surfaces.size(), time_derivative_points);
+        for (size_t i = 0; i < derivative_history_size; ++i) {
+          const auto& previous_surface = previous_surfaces[i];
           previous_horizons.emplace_back(previous_surface.time.id,
                                          previous_surface.surface);
         }

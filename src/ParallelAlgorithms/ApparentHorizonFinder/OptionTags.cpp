@@ -6,11 +6,14 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include "DataStructures/Tensor/IndexType.hpp"
 #include "IO/Logging/Verbosity.hpp"
 #include "Options/Context.hpp"
+#include "Options/ParseError.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Serialization/PupStlCpp17.hpp"
 
@@ -20,13 +23,26 @@ HorizonOptions<Fr>::HorizonOptions(
     std::vector<std::unique_ptr<ah::Criterion>> criteria_in,
     ylm::Strahlkorper<Fr> initial_guess_in, ::FastFlow fast_flow_in,
     ::Verbosity verbosity_in, const size_t max_compute_coords_retries_in,
-    std::optional<std::vector<std::string>> blocks_for_horizon_find_in)
+    std::optional<std::vector<std::string>> blocks_for_horizon_find_in,
+    const std::optional<size_t> number_of_points_for_time_extrapolation_in,
+    const Options::Context& context)
     : criteria(std::move(criteria_in)),
       initial_guess(std::move(initial_guess_in)),
       fast_flow(std::move(fast_flow_in)),  // NOLINT
       verbosity(std::move(verbosity_in)),  // NOLINT
       max_compute_coords_retries(max_compute_coords_retries_in),
-      blocks_for_horizon_find(std::move(blocks_for_horizon_find_in)) {}
+      blocks_for_horizon_find(std::move(blocks_for_horizon_find_in)),
+      number_of_points_for_time_extrapolation(
+          number_of_points_for_time_extrapolation_in) {
+  if (number_of_points_for_time_extrapolation.has_value() and
+      (*number_of_points_for_time_extrapolation < 2 or
+       *number_of_points_for_time_extrapolation > 4)) {
+    PARSE_ERROR(context,
+                "NumberOfPointsForTimeExtrapolation must be 2, 3, 4, or "
+                "Adaptive, but was "
+                    << *number_of_points_for_time_extrapolation);
+  }
+}
 
 template <typename Fr>
 void HorizonOptions<Fr>::pup(PUP::er& p) {
@@ -36,6 +52,7 @@ void HorizonOptions<Fr>::pup(PUP::er& p) {
   p | verbosity;
   p | max_compute_coords_retries;
   p | blocks_for_horizon_find;
+  p | number_of_points_for_time_extrapolation;
 }
 
 template <typename Fr>
@@ -51,7 +68,9 @@ bool operator==(const HorizonOptions<Fr>& lhs, const HorizonOptions<Fr>& rhs) {
   return lhs.initial_guess == rhs.initial_guess and
          lhs.fast_flow == rhs.fast_flow and lhs.verbosity == rhs.verbosity and
          lhs.max_compute_coords_retries == rhs.max_compute_coords_retries and
-         lhs.blocks_for_horizon_find == rhs.blocks_for_horizon_find;
+         lhs.blocks_for_horizon_find == rhs.blocks_for_horizon_find and
+         lhs.number_of_points_for_time_extrapolation ==
+             rhs.number_of_points_for_time_extrapolation;
 }
 
 template <typename Fr>
@@ -74,3 +93,23 @@ GENERATE_INSTANTIATIONS(INSTANTIATE,
 #undef FRAME
 #undef INSTANTIATE
 }  // namespace ah
+
+template <typename Fr>
+Options::Option
+Options::create_from_yaml<ah::HorizonOptions<Fr>>::with_default_extrapolation(
+    const Options::Option& option) {
+  using Extrapolation =
+      typename ah::HorizonOptions<Fr>::NumberOfPointsForTimeExtrapolation;
+  const auto name = pretty_type::name<Extrapolation>();
+  const auto& node = option.node();
+  if (node.IsMap() and not node[name].IsDefined()) {
+    auto with_default = YAML::Clone(node);
+    with_default[name] = Extrapolation::default_points;
+    return Options::Option(std::move(with_default), option.context());
+  }
+  return Options::Option(node, option.context());
+}
+
+template struct Options::create_from_yaml<ah::HorizonOptions<Frame::Grid>>;
+template struct Options::create_from_yaml<ah::HorizonOptions<Frame::Distorted>>;
+template struct Options::create_from_yaml<ah::HorizonOptions<Frame::Inertial>>;

@@ -36,9 +36,11 @@
 #include "ParallelAlgorithms/ApparentHorizonFinder/OptionTags.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Storage.hpp"
 #include "ParallelAlgorithms/ApparentHorizonFinder/Tags.hpp"
+#include "ParallelAlgorithms/ApparentHorizonFinder/TimeExtrapolation.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
+#include "Utilities/StdHelpers.hpp"
 #include "Utilities/TMPL.hpp"
 
 namespace ah {
@@ -247,9 +249,8 @@ struct FindApparentHorizon {
       auto& previous_iteration_surface =
           current_time_storage.previous_iteration_surface;
       auto& element_order = current_time_storage.element_order;
-      auto& previous_surfaces =
-          db::get_mutable_reference<ah::Tags::PreviousSurfaces<frame>>(
-              make_not_null(&box));
+      const auto& previous_surfaces =
+          db::get<ah::Tags::PreviousSurfaces<frame>>(box);
 
       auto& current_resolution_l =
           db::get_mutable_reference<ah::Tags::CurrentResolutionL>(
@@ -278,13 +279,29 @@ struct FindApparentHorizon {
           // Points haven't been set for this iteration so need to do so now
           if (not current_iteration_storage.block_coord_holders.has_value() or
               rerunning_with_higher_resolution) {
+            size_t extrapolation_points = 0;
+            if (fast_flow.current_iteration() == 0 and
+                not rerunning_with_higher_resolution) {
+              const auto& configured_points =
+                  options.number_of_points_for_time_extrapolation;
+              const auto& errors =
+                  db::get<ah::Tags::ExtrapolationPredictionErrors>(box);
+              extrapolation_points = number_of_points_for_extrapolation(
+                  configured_points, previous_surfaces.size(), errors);
+              if (debug_print and not configured_points.has_value()) {
+                Parallel::printf(
+                    "%s: t=%.6g: initial guess uses %zu previous horizons. "
+                    "Last prediction errors for 2, 3, 4 points: %s\n",
+                    name, current_time.id, extrapolation_points, errors);
+              }
+            }
             const bool coords_set_successfully = set_current_iteration_coords(
                 make_not_null(&current_iteration_storage),
                 make_not_null(&block_search_order), current_time, fast_flow,
                 options.initial_guess, previous_iteration_surface,
                 previous_surfaces, options.max_compute_coords_retries, domain,
                 functions_of_time, current_resolution_l,
-                rerunning_with_higher_resolution);
+                rerunning_with_higher_resolution, extrapolation_points);
 
             // Some points are outside the domain and we cannot recover
             if (not coords_set_successfully) {
@@ -536,7 +553,7 @@ struct FindApparentHorizon {
         // while loop, going back into the overall while loop for time.
         break;
       }  // while (true) [sufficient resolution]
-    }  // while (true) [time]
+    }    // while (true) [time]
   }
 };
 }  // namespace ah
