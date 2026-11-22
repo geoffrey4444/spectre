@@ -54,7 +54,8 @@ SphericalShells::SphericalShells(
     const Options::Context& context)
     : SphericalShells(
           inner_radius, outer_radius, initial_radial_refinement,
-          initial_number_of_radial_grid_points,
+          InitialNumberOfRadialGridPoints::type{
+              initial_number_of_radial_grid_points},
           InitialSphericalHarmonicL::type{initial_spherical_harmonic_l},
           std::move(radial_partitioning), radial_distribution,
           std::move(time_dependent_options),
@@ -75,11 +76,33 @@ SphericalShells::SphericalShells(
     std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
         outer_boundary_condition,
     const Options::Context& context)
+    : SphericalShells(inner_radius, outer_radius, initial_radial_refinement,
+                      InitialNumberOfRadialGridPoints::type{
+                          initial_number_of_radial_grid_points},
+                      initial_spherical_harmonic_l,
+                      std::move(radial_partitioning), radial_distribution,
+                      std::move(time_dependent_options),
+                      std::move(inner_boundary_condition),
+                      std::move(outer_boundary_condition), context) {}
+
+SphericalShells::SphericalShells(
+    const double inner_radius, const double outer_radius,
+    const size_t initial_radial_refinement,
+    const InitialNumberOfRadialGridPoints::type&
+        initial_number_of_radial_grid_points,
+    const InitialSphericalHarmonicL::type& initial_spherical_harmonic_l,
+    std::vector<double> radial_partitioning,
+    const typename RadialDistribution::type& radial_distribution,
+    std::optional<TimeDepOptionType> time_dependent_options,
+    std::optional<
+        std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
+        inner_boundary_condition,
+    std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+        outer_boundary_condition,
+    const Options::Context& context)
     : inner_radius_(inner_radius),
       outer_radius_(outer_radius),
       initial_radial_refinement_(initial_radial_refinement),
-      initial_number_of_radial_grid_points_(
-          initial_number_of_radial_grid_points),
       radial_partitioning_(std::move(radial_partitioning)),
       time_dependent_options_(std::move(time_dependent_options)),
       inner_boundary_condition_(
@@ -99,6 +122,14 @@ SphericalShells::SphericalShells(
       radial_partitioning_, radial_distribution, inner_radius_, outer_radius_,
       "inner", "outer", context);
   try {
+    initial_number_of_radial_grid_points_ =
+        std::visit(ExpandOverBlocks<size_t>{num_blocks_},
+                   initial_number_of_radial_grid_points);
+  } catch (const std::exception& error) {
+    PARSE_ERROR(context,
+                "Invalid InitialNumberOfRadialGridPoints: " << error.what());
+  }
+  try {
     initial_spherical_harmonic_l_ = std::visit(
         ExpandOverBlocks<size_t>{num_blocks_}, initial_spherical_harmonic_l);
   } catch (const std::exception& error) {
@@ -115,12 +146,27 @@ SphericalShells::SphericalShells(
   }
   excise_center_ = inner_radius_ != 0.0;
   if (not excise_center_) {
+    // The B3 spectral space requires l_max <= 2 * n_r - 2.
+    const size_t min_points = (initial_spherical_harmonic_l_.front() + 3) / 2;
+    if (std::holds_alternative<size_t>(initial_number_of_radial_grid_points)) {
+      initial_number_of_radial_grid_points_.front() = min_points;
+    } else if (initial_number_of_radial_grid_points_.front() < min_points) {
+      PARSE_ERROR(context,
+                  "InitialNumberOfRadialGridPoints for the filled sphere "
+                  "must be at least "
+                      << min_points << " for InitialSphericalHarmonicL="
+                      << initial_spherical_harmonic_l_.front() << ".");
+    }
     block_names_.emplace_back("FilledSphere");
     block_groups_["FilledSphere"].insert("FilledSphere");
   }
   const size_t num_shells = excise_center_ ? num_blocks_ : num_blocks_ - 1;
   for (size_t shell = 0; shell < num_shells; ++shell) {
     const std::string shell_name = "Shell" + std::to_string(shell);
+    if (initial_number_of_radial_grid_points_[block_names_.size()] == 0) {
+      PARSE_ERROR(context, "InitialNumberOfRadialGridPoints for "
+                               << shell_name << " must be positive.");
+    }
     block_names_.emplace_back(shell_name);
     // This makes consistent block groups with those created by Sphere
     block_groups_[shell_name].insert(shell_name);
@@ -303,14 +349,10 @@ SphericalShells::external_boundary_conditions() const {
 std::vector<std::array<size_t, 3>> SphericalShells::initial_extents() const {
   std::vector<std::array<size_t, 3>> extents;
   extents.reserve(num_blocks_);
-  for (const size_t l_max : initial_spherical_harmonic_l_) {
-    extents.push_back(
-        {initial_number_of_radial_grid_points_, l_max + 1, 2 * l_max + 1});
-  }
-  if (not excise_center_) {
-    // setting B3's number of r points based on minimizing the spectral space
-    // restriction inequality: l_max < 2 * n_r - 1
-    extents[0][0] = (initial_spherical_harmonic_l_.front() + 3) / 2;
+  for (size_t block = 0; block < num_blocks_; ++block) {
+    const size_t l_max = initial_spherical_harmonic_l_[block];
+    extents.push_back({initial_number_of_radial_grid_points_[block], l_max + 1,
+                       2 * l_max + 1});
   }
   return extents;
 }

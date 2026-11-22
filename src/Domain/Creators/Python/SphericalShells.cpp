@@ -17,8 +17,12 @@ namespace py = pybind11;
 namespace domain::creators::py_bindings {
 void bind_spherical_shells(py::module& m) {
   py::class_<SphericalShells, DomainCreator<3>>(m, "SphericalShells")
-      .def(py::init<double, double, size_t, size_t, size_t, std::vector<double>,
-                    const SphericalShells::RadialDistribution::type&>(),
+      .def(py::init<
+               double, double, size_t,
+               const SphericalShells::InitialNumberOfRadialGridPoints::type&,
+               const SphericalShells::InitialSphericalHarmonicL::type&,
+               std::vector<double>,
+               const SphericalShells::RadialDistribution::type&>(),
            py::arg("inner_radius"), py::arg("outer_radius"),
            py::arg("initial_radial_refinement"),
            py::arg("initial_number_of_radial_grid_points"),

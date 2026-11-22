@@ -129,9 +129,13 @@ class SphericalShells : public DomainCreator<3> {
    * \brief Initial number of radial grid points
    */
   struct InitialNumberOfRadialGridPoints {
-    using type = size_t;
+    using type = std::variant<size_t, std::vector<size_t>>;
     static constexpr Options::String help = {
-        "Initial number of radial grid points."};
+        "Initial radial grid points per element. Specify one value for all "
+        "shells, or one value per block from innermost to outermost. For a "
+        "filled sphere, a scalar selects the minimum radial resolution "
+        "required by its angular resolution. A list must include the filled "
+        "sphere first, with at least that many points."};
   };
 
   /*!
@@ -269,6 +273,25 @@ class SphericalShells : public DomainCreator<3> {
           outer_boundary_condition = nullptr,
       const Options::Context& context = {});
 
+  /// Construct blocks with uniform or individually specified radial and
+  /// angular resolution.
+  SphericalShells(
+      double inner_radius, double outer_radius,
+      size_t initial_radial_refinement,
+      const InitialNumberOfRadialGridPoints::type&
+          initial_number_of_radial_grid_points,
+      const InitialSphericalHarmonicL::type& initial_spherical_harmonic_l,
+      std::vector<double> radial_partitioning = {},
+      const typename RadialDistribution::type& radial_distribution =
+          domain::CoordinateMaps::Distribution::Linear,
+      std::optional<TimeDepOptionType> time_dependent_options = std::nullopt,
+      std::optional<
+          std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>>
+          inner_boundary_condition = std::nullopt,
+      std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
+          outer_boundary_condition = nullptr,
+      const Options::Context& context = {});
+
   SphericalShells() = default;
   SphericalShells(const SphericalShells&) = delete;
   SphericalShells(SphericalShells&&) = default;
@@ -309,7 +332,7 @@ class SphericalShells : public DomainCreator<3> {
   double inner_radius_{};
   double outer_radius_{};
   size_t initial_radial_refinement_{};
-  size_t initial_number_of_radial_grid_points_{};
+  std::vector<size_t> initial_number_of_radial_grid_points_{};
   bool excise_center_{};
   std::vector<size_t> initial_spherical_harmonic_l_{};
   std::vector<double> radial_partitioning_{};

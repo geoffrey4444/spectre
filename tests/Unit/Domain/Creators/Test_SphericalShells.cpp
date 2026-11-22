@@ -58,9 +58,18 @@ std::string stringize(const std::vector<T>& t) {
   return result.replace(result.length() - 1, 1, "]");
 }
 
+std::string stringize(const std::variant<size_t, std::vector<size_t>>& value) {
+  if (const auto* scalar = std::get_if<size_t>(&value); scalar != nullptr) {
+    return std::to_string(*scalar);
+  }
+  return stringize(std::get<std::vector<size_t>>(value));
+}
+
 std::string option_string(
     const double inner_radius, const double outer_radius,
-    const size_t radial_refinement, const size_t radial_extents,
+    const size_t radial_refinement,
+    const domain::creators::SphericalShells::InitialNumberOfRadialGridPoints::
+        type& radial_extents,
     const domain::creators::SphericalShells::InitialSphericalHarmonicL::type&
         spherical_harmonic_l,
     const std::vector<double>& radial_partitioning,
@@ -120,13 +129,10 @@ std::string option_string(
          "  InitialRadialRefinement: " + std::to_string(radial_refinement) +
          "\n"
          "  InitialNumberOfRadialGridPoints: " +
-         std::to_string(radial_extents) +
+         stringize(radial_extents) +
          "\n"
          "  InitialSphericalHarmonicL: " +
-         (std::holds_alternative<size_t>(spherical_harmonic_l)
-              ? std::to_string(std::get<size_t>(spherical_harmonic_l))
-              : stringize(
-                    std::get<std::vector<size_t>>(spherical_harmonic_l))) +
+         stringize(spherical_harmonic_l) +
          "\n"
          "  RadialPartitioning: " +
          stringize(radial_partitioning) +
@@ -809,7 +815,7 @@ void test_shape_distortion() {
   }
 }
 
-void test_angular_resolutions() {
+void test_resolutions() {
   using domain::creators::SphericalShells;
   const std::vector<double> partitions{2., 3.};
   const std::vector<domain::CoordinateMaps::Distribution> distributions{
@@ -825,7 +831,7 @@ void test_angular_resolutions() {
     CHECK(uniform.initial_refinement_levels() ==
           scalar.initial_refinement_levels());
     TestHelpers::domain::creators::test_creation(
-        option_string(inner_radius, 4., 0, 5, std::vector<size_t>{6, 6, 6},
+        option_string(inner_radius, 4., 0, 5_st, std::vector<size_t>{6, 6, 6},
                       partitions, distributions, false, false, false),
         scalar, false);
 
@@ -839,7 +845,7 @@ void test_angular_resolutions() {
     CHECK(varying.initial_refinement_levels() ==
           scalar.initial_refinement_levels());
     TestHelpers::domain::creators::test_creation(
-        option_string(inner_radius, 4., 0, 5, resolutions, partitions,
+        option_string(inner_radius, 4., 0, 5_st, resolutions, partitions,
                       distributions, false, false, false),
         varying, false);
 
@@ -858,13 +864,48 @@ void test_angular_resolutions() {
             "InitialSphericalHarmonicL must be at least 2"));
     CHECK_THROWS_WITH(
         (TestHelpers::domain::creators::test_creation(
-            option_string(inner_radius, 4., 0, 5, std::vector<size_t>{6, 1, 6},
-                          partitions, distributions, false, false, false),
+            option_string(inner_radius, 4., 0, 5_st,
+                          std::vector<size_t>{6, 1, 6}, partitions,
+                          distributions, false, false, false),
             scalar, false)),
         Catch::Matchers::ContainsSubstring(
             "InitialSphericalHarmonicL must be at least 2") and
             Catch::Matchers::ContainsSubstring("block 1 has 1"));
+
+    const std::vector<size_t> radial_points{9, 5, 5};
+    const SphericalShells varying_radial{
+        inner_radius, 4., 0, radial_points, resolutions, partitions};
+    auto expected_radial_extents = expected_extents;
+    expected_radial_extents.front()[0] = 9;
+    CHECK(varying_radial.initial_extents() == expected_radial_extents);
+    CHECK(varying_radial.create_domain() == varying.create_domain());
+    CHECK(varying_radial.initial_refinement_levels() ==
+          varying.initial_refinement_levels());
+    TestHelpers::domain::creators::test_creation(
+        option_string(inner_radius, 4., 0, radial_points, resolutions,
+                      partitions, distributions, false, false, false),
+        varying_radial, false);
+
+    CHECK_THROWS_WITH(
+        (TestHelpers::domain::creators::test_creation(
+            option_string(inner_radius, 4., 0, std::vector<size_t>{9, 5}, 6_st,
+                          partitions, distributions, false, false, false),
+            scalar, false)),
+        Catch::Matchers::ContainsSubstring(
+            "Invalid InitialNumberOfRadialGridPoints") and
+            Catch::Matchers::ContainsSubstring("3 blocks"));
   }
+  CHECK_THROWS_WITH(
+      (SphericalShells{0., 4., 0, std::vector<size_t>{3, 5, 5}, 6_st,
+                       partitions}),
+      Catch::Matchers::ContainsSubstring(
+          "InitialNumberOfRadialGridPoints for the filled sphere must be at "
+          "least 4"));
+  CHECK_THROWS_WITH(
+      (SphericalShells{1., 4., 0, std::vector<size_t>{9, 0, 5}, 6_st,
+                       partitions}),
+      Catch::Matchers::ContainsSubstring(
+          "InitialNumberOfRadialGridPoints for Shell1 must be positive"));
 }
 
 template <typename Generator>
@@ -945,7 +986,7 @@ SPECTRE_TEST_CASE("Unit.Domain.Creators.SphericalShells", "[Domain][Unit]") {
   test_parse_errors();
   test_sphere(make_not_null(&gen));
   test_filled_sphere(make_not_null(&gen));
-  test_angular_resolutions();
+  test_resolutions();
   test_number_of_radial_shells_with_shape_map();
   test_shape_distortion();
 }
