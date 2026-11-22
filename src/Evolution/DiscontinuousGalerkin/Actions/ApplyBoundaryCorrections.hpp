@@ -346,13 +346,12 @@ bool receive_boundary_data(
                         : ::dg::mortar_mesh(face_mesh, neighbor_face_mesh);
 
                 const auto project_boundary_mortar_data =
-                    [&mortar_mesh, native_face_data](
+                    [&mortar_mesh](
                         const TimeStepId& /*id*/,
                         const gsl::not_null<
                             ::evolution::dg::MortarData<volume_dim>*>
                             mortar_data) {
-                      return not native_face_data and
-                             p_project_mortar_data(mortar_data, mortar_mesh);
+                      return p_project_mortar_data(mortar_data, mortar_mesh);
                     };
 
                 mortar_meshes->at(mortar_id) = mortar_mesh;
@@ -366,8 +365,10 @@ bool receive_boundary_data(
                     }
                     break;
                   case LtsMode::Conservative:
-                    boundary_data_history->at(mortar_id).local().for_each(
-                        project_boundary_mortar_data);
+                    if (not native_face_data) {
+                      boundary_data_history->at(mortar_id).local().for_each(
+                          project_boundary_mortar_data);
+                    }
                     break;
                   default:
                     ERROR("Unhandled time-stepping policy: "
@@ -411,8 +412,10 @@ bool receive_boundary_data(
                         *time_to_process,
                         received_mortar_data.integration_order,
                         std::move(neighbor_mortar_data));
-                    boundary_data_history->at(mortar_id).remote().for_each(
-                        project_boundary_mortar_data);
+                    if (not native_face_data) {
+                      boundary_data_history->at(mortar_id).remote().for_each(
+                          project_boundary_mortar_data);
+                    }
                     break;
                   default:
                     ERROR("Unhandled time-stepping policy: "
