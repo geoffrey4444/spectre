@@ -248,7 +248,37 @@ void internal_mortar_data_impl(
               *normal_covector_quantity));
     }
 
+    if constexpr (requires { typename BoundaryCorrection::NativeTags; }) {
+      if (neighbors_in_direction.size() != 1 or
+          not neighbors_in_direction.are_conforming() or
+          not neighbors_in_direction
+                  .orientation(*neighbors_in_direction.begin())
+                  .is_aligned()) {
+        ERROR("Native shell traces require one aligned neighbor");
+      }
+      const DirectionalId<Dim> id{direction, *neighbors_in_direction.begin()};
+      auto& local = mortar_data_ptr->at(id).local();
+      local.face_mesh = face_mesh;
+      local.mortar_mesh = face_mesh;
+      local.mortar_data =
+          [&]<typename... FieldTags, typename... TempTags>(
+              tmpl::list<FieldTags...>, tmpl::list<TempTags...>) {
+            return boundary_correction.package_native_face(
+                get<FieldTags>(fields_on_face)...,
+                get<TempTags>(fields_on_face)...,
+                get<evolution::dg::Tags::NormalCovector<Dim>>(
+                    *normal_covector_and_magnitude_ptr->at(direction)),
+                get<evolution::dg::Tags::MagnitudeOfNormal>(
+                    *normal_covector_and_magnitude_ptr->at(direction)),
+                face_mesh_velocity, volume_mesh, direction,
+                package_data_volume_args...);
+          }(variables_tags{},
+            typename BoundaryCorrection::dg_package_data_temporary_tags{});
+      continue;
+    }
+
     // Perform step 2
+
     ASSERT(normal_covector_and_magnitude_ptr->at(direction).has_value(),
            "The magnitude of the normal vector and the unit normal "
            "covector have not been computed, even though they should "
@@ -320,7 +350,9 @@ void internal_mortar_data_impl(
               *normal_covector_and_magnitude_ptr->at(direction)),
           face_mesh_velocity, dg_package_data_projected_tags{},
           package_data_volume_args...);
-    } else {
+    } else if constexpr (not requires {
+                               typename BoundaryCorrection::NativeTags;
+                             }) {
       detail::dg_package_data<System>(
           make_not_null(&packaged_data), boundary_correction, fields_on_face,
           get<evolution::dg::Tags::NormalCovector<Dim>>(

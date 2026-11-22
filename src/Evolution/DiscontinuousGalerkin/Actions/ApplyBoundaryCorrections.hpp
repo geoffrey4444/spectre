@@ -151,6 +151,17 @@ bool receive_boundary_data(
   const auto& mortar_next_time_step_ids =
       db::get<evolution::dg::Tags::MortarNextTemporalId<volume_dim>>(*box);
 
+  const bool native_face_data = [&]() {
+    if constexpr (not ComputeAuxiliary and
+                  db::tag_is_retrievable_v<evolution::Tags::BoundaryCorrection,
+                                           db::DataBox<DbTagsList>>) {
+      return db::get<evolution::Tags::BoundaryCorrection>(*box)
+          .uses_native_face_data();
+    } else {
+      return false;
+    }
+  }();
+
   for (;;) {
     std::optional<TimeStepId> time_to_process{};
     for (const auto& [mortar_id, mortar_next_time_step_id] :
@@ -330,22 +341,29 @@ bool receive_boundary_data(
                     received_mortar_data.volume_mesh.on_interface(
                         sliced_away_dim);
                 const Mesh<face_dim> mortar_mesh =
-                    ::dg::mortar_mesh(face_mesh, neighbor_face_mesh);
+                    native_face_data
+                        ? face_mesh
+                        : ::dg::mortar_mesh(face_mesh, neighbor_face_mesh);
 
                 const auto project_boundary_mortar_data =
-                    [&mortar_mesh](const TimeStepId& /*id*/,
-                                   const gsl::not_null<
-                                       ::evolution::dg::MortarData<volume_dim>*>
-                                       mortar_data) {
-                      return p_project_mortar_data(mortar_data, mortar_mesh);
+                    [&mortar_mesh, native_face_data](
+                        const TimeStepId& /*id*/,
+                        const gsl::not_null<
+                            ::evolution::dg::MortarData<volume_dim>*>
+                            mortar_data) {
+                      return not native_face_data and
+                             p_project_mortar_data(mortar_data, mortar_mesh);
                     };
 
                 mortar_meshes->at(mortar_id) = mortar_mesh;
                 switch (time_stepping_policy) {
                   case LtsMode::Off:
-                    p_project_mortar_data(
-                        make_not_null(&gts_mortar_data->at(mortar_id).local()),
-                        mortar_mesh);
+                    if (not native_face_data) {
+                      p_project_mortar_data(
+                          make_not_null(
+                              &gts_mortar_data->at(mortar_id).local()),
+                          mortar_mesh);
+                    }
                     break;
                   case LtsMode::Conservative:
                     boundary_data_history->at(mortar_id).local().for_each(
@@ -378,7 +396,8 @@ bool receive_boundary_data(
                     std::move(received_mortar_data.boundary_correction_data);
                 switch (time_stepping_policy) {
                   case LtsMode::Off:
-                    if (neighbor_mortar_data.mortar_data.has_value()) {
+                    if (not native_face_data and
+                        neighbor_mortar_data.mortar_data.has_value()) {
                       p_project_mortar_data(
                           make_not_null(&neighbor_mortar_data), mortar_mesh);
                     }
@@ -1034,6 +1053,23 @@ struct ApplyBoundaryCorrections {
                     local_mortar_data.volume_det_inv_jacobian.value();
                 get(volume_det_jacobian) = 1.0 / get(volume_det_inv_jacobian);
               }
+              if constexpr (not ComputeAuxiliary and
+                            requires { typename BcType::NativeTags; }) {
+                (void)volume_args_tuple;
+                if (dg_formulation != ::dg::Formulation::StrongInertial) {
+                  ERROR("Native shell penalty requires StrongInertial");
+                }
+                if (local_mortar_data.mortar_mesh != face_mesh) {
+                  ERROR(
+                      "Changing the angular mesh with an active native shell "
+                      "penalty history is unsupported.");
+                }
+                return DtVariables{typed_boundary_correction->native_face_terms(
+                    *local_mortar_data.mortar_data,
+                    *neighbor_mortar_data.mortar_data, face_mesh,
+                    *neighbor_mortar_data.mortar_mesh,
+                    volume_mesh.extents(direction.dimension()))};
+              }
               const auto& mortar_mesh = mortar_meshes.at(mortar_id);
 
               // Extract local and neighbor data, copy into Variables because
@@ -1096,7 +1132,9 @@ struct ApplyBoundaryCorrections {
                     local_data_on_mortar, neighbor_data_on_mortar,
                     *typed_boundary_correction, dg_formulation,
                     volume_args_tuple, aux_volume_tags{});
-              } else {
+              } else if constexpr (not requires {
+                                         typename BcType::NativeTags;
+                                       }) {
                 call_boundary_correction(
                     make_not_null(&dt_boundary_correction_on_mortar),
                     local_data_on_mortar, neighbor_data_on_mortar,

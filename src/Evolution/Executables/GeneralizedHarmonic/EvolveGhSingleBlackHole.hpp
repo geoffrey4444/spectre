@@ -30,6 +30,7 @@
 #include "Evolution/Executables/GeneralizedHarmonic/GeneralizedHarmonicBase.hpp"
 #include "Evolution/Systems/Cce/Callbacks/DumpBondiSachsOnWorldtube.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
+#include "Evolution/Systems/GeneralizedHarmonic/BoundaryCorrections/SpECMultiPenalty.hpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Strahlkorper/IO/InitialShapeFromFile.hpp"
 #include "NumericalAlgorithms/Strahlkorper/InitialShape.hpp"
@@ -195,6 +196,8 @@ struct EvolutionMetavars : public GeneralizedHarmonicTemplateBase<3> {
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = Options::add_factory_classes<
         typename gh_base::factory_creation::factory_classes,
+        tmpl::pair<evolution::BoundaryCorrection,
+                   tmpl::list<gh::BoundaryCorrections::SpECMultiPenalty>>,
         tmpl::pair<ah::Criterion, ah::Criteria::standard_criteria>,
         tmpl::pair<ylm::InitialShape<Frame::Inertial>,
                    tmpl::list<ylm::InitialShapes::Sphere<Frame::Inertial>,

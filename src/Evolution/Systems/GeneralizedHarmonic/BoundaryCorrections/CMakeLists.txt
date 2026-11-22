@@ -5,6 +5,7 @@ spectre_target_sources(
   ${LIBRARY}
   PRIVATE
   AveragedUpwindPenalty.cpp
+  SpECMultiPenalty.cpp
   UpwindPenalty.cpp
   )
 
@@ -15,5 +16,6 @@ spectre_target_headers(
   AveragedUpwindPenalty.hpp
   Factory.hpp
   NamespaceDocs.hpp
+  SpECMultiPenalty.hpp
   UpwindPenalty.hpp
   )

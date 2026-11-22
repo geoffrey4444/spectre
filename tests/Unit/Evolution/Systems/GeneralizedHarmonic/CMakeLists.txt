@@ -16,6 +16,7 @@ set(LIBRARY_SOURCES
   BoundaryConditions/Test_Periodic.cpp
   BoundaryConditions/Test_RotatingQuadrupole.cpp
   BoundaryCorrections/Test_AveragedUpwindPenalty.cpp
+  BoundaryCorrections/Test_SpECMultiPenalty.cpp
   BoundaryCorrections/Test_UpwindPenalty.cpp
   Test_ApplyTensorYlmFilter.cpp
   Test_BbhCheckpointAndExitIfCompletePhaseChange.cpp

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <tuple>
@@ -163,7 +164,7 @@ struct Impl {
             typename Metavariables>
   static void send_data_for_fluxes(
       gsl::not_null<Parallel::GlobalCache<Metavariables>*> cache,
-      gsl::not_null<db::DataBox<DbTagsList>*> box,
+      gsl::not_null<db::DataBox<DbTagsList>*> box, bool native_face_data,
       [[maybe_unused]] const Variables<db::wrap_tags_in<
           ::Tags::Flux, typename EvolutionSystem::flux_variables,
           tmpl::size_t<Dim>, Frame::Inertial>>& volume_fluxes);
@@ -759,11 +760,20 @@ Parallel::iterable_action_return_t ComputeTimeDerivative_detail::Impl<
                 typename DerivedCorrection::dg_package_data_volume_tags{});
           }
 
-          detail::apply_boundary_conditions_on_all_external_faces<
-              EvolutionSystem, Dim, variables_tag, IsAuxiliary>(
-              make_not_null(&box),
-              dynamic_cast<const DerivedCorrection&>(boundary_correction),
-              temporaries, volume_fluxes, partial_derivs, primitive_vars);
+          const auto apply_external = [&](const auto& correction) {
+            detail::apply_boundary_conditions_on_all_external_faces<
+                EvolutionSystem, Dim, variables_tag, IsAuxiliary>(
+                make_not_null(&box), correction, temporaries, volume_fluxes,
+                partial_derivs, primitive_vars);
+          };
+          if constexpr (requires {
+                          typename DerivedCorrection::ExteriorCorrection;
+                        }) {
+            apply_external(typename DerivedCorrection::ExteriorCorrection{});
+          } else {
+            apply_external(
+                dynamic_cast<const DerivedCorrection&>(boundary_correction));
+          }
         }
       });
 
@@ -771,8 +781,10 @@ Parallel::iterable_action_return_t ComputeTimeDerivative_detail::Impl<
     db::mutate_apply<ChangeStepSize<DgStepChoosers>>(make_not_null(&box));
   }
 
-  send_data_for_fluxes<ParallelComponent>(make_not_null(&cache),
-                                          make_not_null(&box), volume_fluxes);
+  send_data_for_fluxes<ParallelComponent>(
+      make_not_null(&cache), make_not_null(&box),
+      not IsAuxiliary and boundary_correction.uses_native_face_data(),
+      volume_fluxes);
   return {Parallel::AlgorithmExecution::Continue, std::nullopt};
 }
 
@@ -786,6 +798,7 @@ void ComputeTimeDerivative_detail::Impl<Dim, EvolutionSystem, DgStepChoosers,
     send_data_for_fluxes(
         const gsl::not_null<Parallel::GlobalCache<Metavariables>*> cache,
         const gsl::not_null<db::DataBox<DbTagsList>*> box,
+        const bool native_face_data,
         [[maybe_unused]] const Variables<db::wrap_tags_in<
             ::Tags::Flux, typename EvolutionSystem::flux_variables,
             tmpl::size_t<Dim>, Frame::Inertial>>& volume_fluxes) {
@@ -876,6 +889,23 @@ void ComputeTimeDerivative_detail::Impl<Dim, EvolutionSystem, DgStepChoosers,
 
       switch (mortar_info.at(mortar_id).interface_data_policy()) {
         case InterfaceDataPolicy::CopyProject:
+          if (native_face_data) {
+            if (not time_step_id.time_runs_forward()) {
+              ERROR(
+                  "The native SpEC shell penalty requires forward evolution.");
+            }
+            // The fields come first in a native trace. The receiver supplies
+            // the geometry and characteristic speeds from its own history.
+            const auto& local = all_mortar_data.at(mortar_id).local();
+            mortar_mesh_for_neighbor = local.mortar_mesh.value();
+            const size_t size =
+                mortar_mesh_for_neighbor.number_of_grid_points() *
+                variables_tag::type::number_of_independent_components;
+            neighbor_boundary_data_on_mortar = DataVector(size);
+            std::copy_n(local.mortar_data.value().data(), size,
+                        neighbor_boundary_data_on_mortar.data());
+            break;
+          }
           [[fallthrough]];
         case InterfaceDataPolicy::NonconformingNeighborInterpolates:
           neighbor_boundary_data_on_mortar =

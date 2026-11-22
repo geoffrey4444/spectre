@@ -28,6 +28,10 @@ class BoundaryCorrection : public PUP::able {
   WRAPPED_PUPable_abstract(BoundaryCorrection);  // NOLINT
   /// \endcond
 
+  /// Whether internal faces exchange native traces instead of common mortar
+  /// data.
+  virtual bool uses_native_face_data() const { return false; }
+
   virtual std::unique_ptr<BoundaryCorrection> get_clone() const = 0;
 };
 }  // namespace evolution
