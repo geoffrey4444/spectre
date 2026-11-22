@@ -4,8 +4,11 @@
 #include "Evolution/Systems/GeneralizedHarmonic/BoundaryCorrections/SpECMultiPenalty.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <map>
+#include <numeric>
 #include <utility>
+#include <vector>
 
 #include "DataStructures/Tensor/EagerMath/DeterminantAndInverse.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/ApplyTensorYlmFilter.hpp"
@@ -20,6 +23,36 @@
 #include "Utilities/ErrorHandling/Error.hpp"
 
 namespace gh::BoundaryCorrections {
+namespace {
+struct ShellInterpolation {
+  ShellInterpolation(const ylm::Spherepack& source,
+                     const ylm::Spherepack& target)
+      : spectral(source.set_up_interpolation_info(target.theta_phi_points())) {
+    const auto& source_theta = source.theta_points();
+    const auto& target_theta = target.theta_points();
+    const size_t source_n_phi = source.phi_points().size();
+    const size_t target_n_phi = target.phi_points().size();
+    const size_t common_n_phi = std::gcd(source_n_phi, target_n_phi);
+    // Both uniform azimuthal grids start at zero. Their intersection is
+    // another uniform grid with gcd(N_phi_source, N_phi_target) points.
+    for (size_t s = 0; s < source_theta.size(); ++s) {
+      for (size_t t = 0; t < target_theta.size(); ++t) {
+        if (std::abs(source_theta[s] - target_theta[t]) < 1.e-13) {
+          for (size_t p = 0; p < common_n_phi; ++p) {
+            coincident_points.emplace_back(
+                s + source_theta.size() * (p * (source_n_phi / common_n_phi)),
+                t + target_theta.size() * (p * (target_n_phi / common_n_phi)));
+          }
+        }
+      }
+    }
+  }
+
+  ylm::Spherepack::InterpolationInfo<DataVector> spectral;
+  std::vector<std::pair<size_t, size_t>> coincident_points;
+};
+}  // namespace
+
 SpECMultiPenalty::SpECMultiPenalty(const size_t modes)
     : incoming_filter_modes_(modes) {}
 SpECMultiPenalty::SpECMultiPenalty(CkMigrateMessage* msg)
@@ -101,22 +134,24 @@ Variables<SpECMultiPenalty::Fields> SpECMultiPenalty::native_face_terms(
     const auto& target = ylm::get_spherepack_cache(face.extents(0) - 1);
     // LTS can couple the same two grids many times. Only the donor values
     // change between those evaluations.
-    static thread_local std::map<std::pair<size_t, size_t>,
-                                 ylm::Spherepack::InterpolationInfo<DataVector>>
+    static thread_local std::map<std::pair<size_t, size_t>, ShellInterpolation>
         interpolations;
-    const auto key = std::pair{source.l_max(), target.l_max()};
-    auto interpolation = interpolations.find(key);
-    if (interpolation == interpolations.end()) {
-      interpolation = interpolations
-                          .emplace(key, source.set_up_interpolation_info(
-                                            target.theta_phi_points()))
-                          .first;
-    }
+    const auto& interpolation =
+        interpolations
+            .try_emplace(std::pair{source.l_max(), target.l_max()}, source,
+                         target)
+            .first->second;
     for (size_t i = 0; i < received.number_of_independent_components; ++i) {
       DataVector result(received.data() + i * n, n);
-      source.interpolate(make_not_null(&result),
-                         make_not_null(donor.data() + i * donor_points),
-                         interpolation->second);
+      const double* donor_component = donor.data() + i * donor_points;
+      source.interpolate(make_not_null(&result), make_not_null(donor_component),
+                         interpolation.spectral);
+      // SpEC's SpectralInterpolator copies coincident nodes before filtering.
+      // Projection onto spherical harmonics can change underresolved nodal
+      // data.
+      for (const auto& [from, to] : interpolation.coincident_points) {
+        result[to] = donor_component[from];
+      }
     }
     if (incoming_filter_modes_ != 0) {
       // The filter owns mutable tensor-harmonic matrices and scratch space.

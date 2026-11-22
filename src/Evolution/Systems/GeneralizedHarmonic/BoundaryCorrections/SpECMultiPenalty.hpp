@@ -17,8 +17,9 @@
 
 namespace gh::BoundaryCorrections {
 /// SpEC's forward-in-time MultiPenalty on aligned, full Chebyshev-Lobatto
-/// spherical shells. The donor's spherical harmonic expansion is evaluated at
-/// the receiver's nodes before the receiver forms the characteristic jump.
+/// spherical shells. The receiver copies the donor's nodal values at shared
+/// nodes and evaluates the donor's spherical harmonic expansion elsewhere
+/// before forming the characteristic jump.
 /// For each incoming field the RHS gains
 /// \f$\tfrac12 (N_r-1)^2 \lvert d\xi\rvert_{\gamma^{-1}}\,\lambda (u_{\rm
 /// local}-u_{\rm received})\f$, where the normal magnitude is computed with the

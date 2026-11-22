@@ -30,9 +30,9 @@ DataVector data_on_sphere(const size_t l, const int m) {
   return 0.2 + pow(sin(angles[0]), m) * cos(m * angles[1]);
 }
 
-void check_transfer(const size_t receiver_l, const size_t donor_l, const int m,
-                    const size_t kill, const bool killed,
-                    const double normal_sign) {
+void check_penalty(const size_t receiver_l, const size_t donor_l,
+                   const DataVector& donor_pi, const DataVector& expected_pi,
+                   const size_t kill, const double normal_sign) {
   CAPTURE(receiver_l);
   CAPTURE(donor_l);
   CAPTURE(kill);
@@ -59,7 +59,7 @@ void check_transfer(const size_t receiver_l, const size_t donor_l, const int m,
           Variables<Penalty::Fields>::number_of_independent_components,
       0.);
   Variables<Penalty::Fields> fields(donor.data(), donor.size());
-  get<0, 0>(get<Penalty::Pi>(fields)) = data_on_sphere(donor_l, m);
+  get<0, 0>(get<Penalty::Pi>(fields)) = donor_pi;
 
   const auto penalty = serialize_and_deserialize(Penalty{kill});
   const auto result = penalty.native_face_terms(local, donor, mesh, source, 5);
@@ -67,10 +67,38 @@ void check_transfer(const size_t receiver_l, const size_t donor_l, const int m,
   // -n_x Phi_xtt. The coefficient is (5-1)^2 * 2 / 2 = 16.
   Variables<Penalty::Fields> expected(points, 0.);
   auto& pi_tt = get<0, 0>(get<Penalty::Pi>(expected));
-  pi_tt =
-      8. * (killed ? DataVector(points, 0.2) : data_on_sphere(receiver_l, m));
+  pi_tt = 8. * expected_pi;
   get<0, 0, 0>(get<Penalty::Phi>(expected)) = -normal_sign * pi_tt;
   CHECK_VARIABLES_APPROX(result, expected);
+}
+
+void check_transfer(const size_t receiver_l, const size_t donor_l, const int m,
+                    const size_t kill, const bool killed,
+                    const double normal_sign) {
+  check_penalty(
+      receiver_l, donor_l, data_on_sphere(donor_l, m),
+      killed ? DataVector(face_mesh(receiver_l).number_of_grid_points(), 0.2)
+             : data_on_sphere(receiver_l, m),
+      kill, normal_sign);
+}
+
+void check_coincident_nodes(const size_t receiver_l, const size_t donor_l) {
+  const auto& donor = ylm::get_spherepack_cache(donor_l);
+  const auto& receiver = ylm::get_spherepack_cache(receiver_l);
+  DataVector impulses(donor.physical_size(), 0.);
+  // L=4 and L=10 share exactly three points, all on the equator.
+  for (size_t p = 0; p < 3; ++p) {
+    const size_t i = donor_l / 2 + p * donor.physical_size() / 3;
+    impulses[i] = 1. + static_cast<double>(p);
+  }
+  auto expected = donor.interpolate(impulses, receiver.theta_phi_points());
+  for (size_t p = 0; p < 3; ++p) {
+    const size_t i = receiver_l / 2 + p * receiver.physical_size() / 3;
+    const double nodal_value = 1. + static_cast<double>(p);
+    REQUIRE(std::abs(expected[i] - nodal_value) > 0.1);
+    expected[i] = nodal_value;
+  }
+  check_penalty(receiver_l, donor_l, impulses, expected, 0, 1.);
 }
 }  // namespace
 
@@ -84,4 +112,6 @@ SPECTRE_TEST_CASE(
   check_transfer(5, 4, 4, 2, true, 1.);
   // SpEC skips the incoming filter on a conforming interface.
   check_transfer(4, 4, 4, 2, false, -1.);
+  check_coincident_nodes(4, 10);
+  check_coincident_nodes(10, 4);
 }
